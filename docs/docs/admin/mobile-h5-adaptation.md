@@ -12,8 +12,9 @@ keywords: [v1.3.7 v1.3.5 v1.3.2 thin host admin mobile responsive accessibility]
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但官方 npmjs 包和完整 Thin Host 路径尚未发布。本页记录 Foundation
-源码中的响应式能力与候选合同；公共制品对账前，v1.3.7 不可采用，也不是前端采用指引。
+为 release candidate，但尚未稳定且不可采用。官方 npmjs 包和完整 Thin Host 路径可能处于
+不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，
+本页不是前端安装、创建或升级指引。
 :::
 
 v1.3.7 候选 Admin Web 只组合一个前端应用。桌面和移动端共享同一套业务组件、权限判断、

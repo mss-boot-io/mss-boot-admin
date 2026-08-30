@@ -6,7 +6,8 @@ metadata:
   description: >-
     Qualifies a new complete package-first Admin Distribution after v1.3.6
     became immutable partial, with an explicit reusable-container preview mode
-    and exact credentialless npm Trusted Publishing identity.
+    and exact credentialless npm Trusted Publishing identity, plus a separately
+    reviewed stable-alias promotion after the complete public candidate exists.
   owner: release-engineering
   labels:
     domain: release-recovery
@@ -22,20 +23,22 @@ spec:
     must prove both corrections and rerun the complete coordinated ledger.
   goals:
     - Select v1.3.7 as the only active candidate while v1.3.2 remains current stable.
+    - Separate human-facing guidance from executable Agent contracts and accept both documentation audiences before the Root candidate preview.
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
     - Requalify the complete package-first tools, Go modules, Admin Web package, images, external Thin Host, presentation configuration, migrations, authorization, and rollback from one new merged-main commit.
     - Keep behavioral, dependency, contract, and browser qualification in a self-bound complete local verifier, while PR checks retain only lightweight server-side governance, security analysis, ordinary Admin tests, and an ordinary independent Framework test when applicable.
-    - Publish formal tags only after one successful non-publishing preview and reconcile every public surface before any stable promotion.
+    - Publish immutable candidate tags only after one successful non-publishing preview, complete the component, Root, image, and Docs candidate ledger without moving mutable aliases, and authorize stable promotion later from an exact reviewed version and commit.
   nonGoals:
     - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
+    - Create a v1.3.7 release-candidate tag or any other public prerelease while publicPrereleases remains false.
     - Restore NPM_TOKEN or NODE_AUTH_TOKEN in repository, organization, or environment secrets.
     - Mark v1.3.7 stable or expose adopter commands before complete public reconciliation.
     - Reintroduce runtime dynamic-model, virtual CRUD, browser code generation, or remote executable presentation configuration.
   actors:
     - id: release-operator
       displayName: Release operator
-      description: lwnmengjing freezes the exact merged-main commit, runs the preview, and creates formal tags in order.
+      description: lwnmengjing freezes the exact merged-main commit, runs the preview, creates candidate tags in order, and later dispatches the reviewed stable promotion from the exact Root tag.
     - id: independent-reviewer
       displayName: Independent reviewer
       description: SullivanPrime reviews the repair pull request and exact Head evidence but does not create release identities.
@@ -46,7 +49,7 @@ spec:
     - name: release-governance
       kind: infrastructure
       operation: extend
-      description: New-version selection, explicit reusable-workflow inputs, immutable tags, and exact public reconciliation.
+      description: New-version selection, explicit reusable-workflow inputs, immutable candidate tags, delayed mutable aliases, and exact public reconciliation.
     - name: npm-trusted-publishing
       kind: infrastructure
       operation: extend
@@ -66,6 +69,7 @@ spec:
         - Remote Root, Framework, Admin, Admin Web, npmjs, Docs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before qualification and publication.
         - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
         - v1.3.2 remains current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
+        - publicPrereleases remains false, so v1.3.7 uses the exact stable-form version only and no rc tag or public prerelease is created.
         - A failed gate requires another pull request, another merged-main commit, and a new unused patch version after any v1.3.7 public identity exists.
     - id: pass-root-image-preview-mode
       title: Make Root image preview explicit
@@ -87,10 +91,12 @@ spec:
       module: npm-trusted-publishing
       rules:
         - npmjs package @mss-boot-io/admin-web trusts owner mss-boot-io, repository mss-boot-admin, workflow filename npm-release.yml, and environment npm-auto exactly, including case.
-        - npm-release.yml grants id-token write, uses the supported npm CLI, and publishes the previously qualified tarball with --provenance.
+        - npm-release.yml grants id-token write, uses the supported npm CLI, and is dispatched from the exact Root tag only after a reviewed policy binds stablePromotionVersion and stablePromotionCommit.
+        - The first official npmjs publication reuses the previously qualified tarball and invokes npm publish with --provenance and --tag latest through OIDC.
         - The publish step removes NPM_TOKEN and NODE_AUTH_TOKEN before invoking npm publish.
         - Repository, organization, and npm-auto environment state contains no replacement npm publication token.
         - The exact Trusted Publisher identity is recorded and rechecked before the Root tag; a mismatch stops release before any public identity is created.
+        - GitHub Latest moves only after npmjs version, gitHead, integrity, provenance, and latest identity all match the reviewed promotion.
     - id: reuse-one-v137-preview
       title: Reuse one artifact-only non-publishing preview
       description: Formal tags publish exact candidate bytes from one focused-through-PR and fully qualified merged-main commit without repeating broad quality suites.
@@ -99,25 +105,30 @@ spec:
       module: release-governance
       rules:
         - The pull-request Head passes mss verify --changed, focused checks selected by its impact plan, affected Codex in-app Browser acceptance, and the lightweight required pull-request checks before merge; broad Agent, Admin, Framework, frontend, Thin Host, container, and multi-database matrices do not block the PR.
+        - Human-facing Docs explain use and maintenance while AGENTS.md, .mss, .agents/skills, and .codex remain the executable Agent contract; the audience map, current-doc checks, Docs build, and representative browser pages pass before preview.
+        - The final preparation pull request enables publicationWorkflowsReady while stable promotion remains disabled and unbound to any commit.
         - After merge, the frozen exact origin/main commit performs the only complete suite by passing mss verify --all --release-evidence --expect-commit with a report that binds the full commit and true trackedCleanBefore/After values.
         - An external review or release ledger records the self-bound report digest and result before preview.
-        - The manual Root workflow accepts only v1.3.7 from main and never publishes.
+        - The manual Root workflow accepts only v1.3.7 from main, never publishes, and never moves GitHub Latest, npm latest, or another mutable alias.
         - The Root preview builds and verifies only exact publication binaries, archives, packages, SBOMs, checksums, portable delivery, candidate Thin Host composition, and multi-platform images; it does not rerun Go, dependency, lint, unit, or Playwright suites.
         - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
         - The first irreversible Framework publication performs one cheap exact preview lookup; Admin does not repeat it and still resolves and tests the exact public Framework with GOWORK off through the public Go proxy.
-        - The Root tag starts Root assets, Root image, and official npm publication independently from the same preview evidence.
-        - Docs is a later independent tag after the package and image ledger reconciles.
+        - The Root tag starts Root assets and the Root image from the same preview evidence but leaves GitHub Latest unchanged and does not start official npm publication.
+        - Docs is a later independent candidate tag after the component, package, and image ledger reconciles; it is complete before stable promotion is authorized.
     - id: reconcile-complete-v137-ledger
       title: Prove the complete adopter boundary
-      description: Stable promotion is blocked until every distribution surface and external-consumer path is public and exact.
+      description: Stable promotion is blocked until every immutable pre-promotion candidate surface and external-consumer path is public and exact; official npm and stable aliases are then reconciled in a separately authorized promotion.
       priority: must
       actor: thin-host-adopter
       module: package-first-distribution
       rules:
-        - Root tools, Framework, Admin, Admin Web, official npmjs, Root and frontend images, checksums, provenance, Release notes, and Docs resolve to the same version and release commit.
+        - Before promotion, Root tools, Framework, Admin, Admin Web, Root and frontend images, checksums, provenance, Release notes, and Docs resolve to the same version and release commit; official npmjs is deliberately absent from this pre-promotion candidate ledger.
         - Empty-directory installers and external Thin Hosts reject local replacements, copied Foundation source, mixed versions, and mutable image references.
         - Fresh and v1.3.2 upgrade migrations, authorization positive and negative cases, browser states, presentation recovery mode, and matching-pair rollback pass from release artifacts.
-        - v1.3.7 remains non-adoptable until post-publication reconciliation and a later reviewed stable-policy update complete.
+        - After the immutable component, Root, image, and Docs candidate ledger is complete, a separate reviewed pull request sets stablePromotionReady and binds stablePromotionVersion v1.3.7 plus the exact release commit.
+        - The exact Root-tag workflow_dispatch publishes or reconciles official npmjs latest through OIDC first, verifies its immutable identity and provenance, and only then promotes the matching Root Release to GitHub Latest.
+        - The post-promotion adopter ledger adds official npmjs and proves Root tools, Framework, Admin, Admin Web, npmjs, both images, checksums, provenance, Release notes, and Docs agree on v1.3.7 and the reviewed release commit.
+        - v1.3.7 remains non-adoptable until a subsequent reviewed policy and Docs reconciliation pull request updates current-stable truth. If that later merged Docs source must replace the immutable candidate Docs tag, another reviewed authorization binds docsRevisionVersion to the lowest unused +docs.N tag and docsRevisionCommit to that exact earlier merged-main source before publication.
   constraints:
     - id: merged-main-only
       type: operations
@@ -131,10 +142,16 @@ spec:
     - id: matched-distribution
       type: compatibility
       statement: Framework, Admin, Admin Web, Root tools, images, npmjs, and Docs use one v1.3.7 version and exact commit; mixed patch versions are unsupported.
+    - id: no-public-prerelease
+      type: compatibility
+      statement: publicPrereleases is false and no v1.3.7 rc tag, prerelease Release, prerelease package, or prerelease image is part of this train.
+    - id: staged-stable-aliases
+      type: operations
+      statement: Candidate publication does not move mutable stable aliases; reviewed exact promotion moves npm latest before GitHub Latest, and later policy plus Docs reconciliation closes the stable contract.
   acceptance:
     - id: v137-policy-and-vacancy
       requirement: select-unused-v137
-      statement: Policy accepts only v1.3.7 and a fresh remote ledger contains no conflicting v1.3.7 identity.
+      statement: Policy accepts only exact v1.3.7 publication with public prereleases disabled, publication workflows ready, stable promotion disabled, and no conflicting remote identity.
       level: contract
       phase: checkpoint
       required: true
@@ -156,7 +173,7 @@ spec:
           value: Exact successful v1.3.7 Root preview artifact inventory.
     - id: v137-npm-oidc-contract
       requirement: use-credentialless-npm-publishing
-      statement: Live npm settings and workflow tests prove the exact Trusted Publisher identity and absence of token-based publication.
+      statement: Live npm settings and workflow tests prove the exact Trusted Publisher identity, absence of token-based publication, reviewed exact-tag dispatch, npm latest identity verification, and npm-before-GitHub alias ordering.
       level: security
       phase: checkpoint
       required: true
@@ -167,22 +184,22 @@ spec:
           value: python3 -m unittest tools.release.test_npm_release_workflow
     - id: v137-complete-preview
       requirement: reuse-one-v137-preview
-      statement: Focused PR evidence and one complete exact-main local pass qualify behavior, while one candidate-only run builds and verifies the exact tools, packages, archives, and images later published from the same merged-main commit.
+      statement: Human and Agent documentation boundaries, focused PR evidence, and one complete exact-main local pass qualify behavior, while one alias-free candidate-only run builds and verifies the exact tools, packages, archives, and images later published from the same merged-main commit.
       level: e2e
       phase: checkpoint
       required: true
       evidence:
         - type: report
-          value: Self-bound exact-clean merged-main mss verify --all --release-evidence report containing the full commit and true trackedCleanBefore/After values plus its digest; lightweight required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
+          value: Human and Agent audience-map checks, Docs build and browser evidence; self-bound exact-clean merged-main mss verify --all --release-evidence report containing the full commit and true trackedCleanBefore/After values plus its digest; lightweight required PR checks, Codex in-app Browser acceptance evidence, and successful alias-free v1.3.7 Root artifact preview with checksums.
     - id: v137-public-reconciliation
       requirement: reconcile-complete-v137-ledger
-      statement: Every public surface and repository-external consumer probe succeeds before any stable promotion.
+      statement: Every immutable pre-promotion candidate surface and repository-external consumer probe succeeds before a separate reviewed policy authorizes exact stable promotion; npm latest then GitHub Latest converge, the complete adopter ledger adds official npm, and later exact policy plus Docs reconciliation closes adoption.
       level: integration
       phase: post-publication
       required: true
       evidence:
         - type: report
-          value: Exact Framework, Admin, Admin Web, Root, npmjs, image, Docs, Go Proxy, installer, and external Thin Host public ledger.
+          value: Exact Framework, Admin, Admin Web, Root, image, Docs, Go Proxy, installer, and external Thin Host pre-promotion candidate ledger; reviewed stablePromotionVersion and stablePromotionCommit; OIDC npm latest identity and provenance; subsequent GitHub Latest identity; complete post-promotion adopter ledger; final policy and exact Docs revision authorization/reconciliation evidence.
   risks:
     - id: reusable-event-context
       description: A called workflow could inherit workflow_dispatch and silently skip preview-only image work.
@@ -196,6 +213,10 @@ spec:
       description: Publishing tags before the complete preview and credential audit could create another irreversible partial train.
       severity: critical
       mitigation: Freeze one locally and through-PR qualified merged-main commit, finish the artifact preview and live-governance gates, and stop before the first tag on any failure.
+    - id: premature-mutable-alias
+      description: Root or npm candidate publication could expose v1.3.7 as stable before the complete candidate ledger and reviewed promotion authority exist.
+      severity: critical
+      mitigation: Keep preview and candidate publication alias-free, bind stablePromotionVersion and stablePromotionCommit in a later reviewed pull request, publish npm latest through exact Root-tag OIDC dispatch, verify npm identity, and move GitHub Latest only afterward.
   validation:
     changed: mss verify --changed
     all: mss verify --all --release-evidence --expect-commit <full-sha>
@@ -212,18 +233,31 @@ spec:
   rollout:
     strategy: phased
     migration: >-
-      Merge the recovery through a reviewed pull request. Correct the npm
-      Trusted Publisher to npm-release.yml plus npm-auto without creating a
-      token. Complete mss verify --changed, its selected focused checks, and
-      affected Browser acceptance on the exact PR Head, merge only after required
-      checks pass, then freeze the clean exact origin/main commit and run the only
-      complete suite with mss verify --all --release-evidence --expect-commit
-      with that full SHA. Externally record the self-bound report digest and result before
-      running one non-publishing v1.3.7 Root artifact preview
-      and inspect every expected artifact. As lwnmengjing, create annotated Framework, Admin, Admin Web,
-      and Root tags in order. Reconcile package, image, and Release surfaces,
-      then publish Docs from its independent tag. Stable promotion is a later
-      reviewed policy and documentation change after the ledger is complete.
+      Merge the final preparation through a reviewed pull request that separates
+      human guidance from executable Agent contracts, corrects the npm Trusted
+      Publisher to npm-release.yml plus npm-auto without creating a token, enables
+      publicationWorkflowsReady, and leaves stable promotion disabled. Complete
+      mss verify --changed, selected focused checks, Docs build and Browser
+      acceptance on the exact PR Head, merge only after required checks pass,
+      then freeze the clean exact origin/main commit and run the only complete
+      suite with mss verify --all --release-evidence --expect-commit using that
+      full SHA. Record the self-bound report digest, run one non-publishing and
+      alias-free v1.3.7 Root artifact preview, and inspect every expected artifact.
+      As lwnmengjing, create annotated Framework, Admin, Admin Web, and Root tags
+      in order, reconcile both images and package surfaces, and publish the Docs
+      candidate tag without moving stable aliases. After that complete candidate
+      ledger, merge another reviewed pull request that enables exact v1.3.7
+      promotion and binds its release commit. Dispatch npm-release.yml from the
+      exact Root tag so OIDC publishes or reconciles npm latest first; verify its
+      version, gitHead, integrity, and provenance before promoting GitHub Latest.
+      Finally merge a subsequent policy and Docs reconciliation pull request and
+      record that exact merged source commit. If its content must replace the
+      immutable candidate Docs tag, merge a separate reviewed authorization that
+      sets docsRevisionPublicationReady, binds docsRevisionVersion to the lowest
+      unused v1.3.7+docs.N identity, and binds docsRevisionCommit to that recorded
+      source. Publish that exact source through the revision tag, reconcile the
+      public site, disable the one-shot revision authority again, and only then
+      mark v1.3.7 adoptable.
     rollback: >-
       Stop before the next tag on any failed gate. Existing adopters remain on
       the matching v1.3.2 Admin, frontend, configuration, and lock. Never move a

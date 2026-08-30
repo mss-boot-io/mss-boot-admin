@@ -8,14 +8,25 @@ description: v1.3.7 候选人机协作、机器合同、确定性工具与运行
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未发布。本页描述 Foundation 源码架构和候选合同；公共制品
-对账前，v1.3.7 不可采用，也不是安装、创建或升级指引。
+为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
+远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是安装、
+创建或升级指引。
 :::
 
 ## 目标
 
 Foundation 让人和 Agent 在同一套可审查合同上开发管理系统。Agent 可以发现能力、
 规划、生成、验证和升级，但不能绕过安全边界、文件所有权或发布治理。
+
+## 文档与 Agent 权威边界
+
+公开站点、README 与 CONTRIBUTING 面向采用者、运维和贡献者；`docs/adr/` 保存维护者
+架构决策。Foundation AI Agent 从最近的 `AGENTS.md` 进入，再读取 `.mss/**` 与适用
+`.agents/skills/**`。生成 Thin Host 则只使用自己仓库里的同类本地合同，不继承
+Foundation 发布或文档发布技能。
+
+因此本站的 [Agent 协作](/agent) 是给人类看的解释和导航，不是第五套机器合同。版本、
+能力或命令变化先修改权威机器源，再同步公开说明。
 
 ## 四个平面
 
@@ -99,9 +110,10 @@ Agent 工具不进入 Admin 运行时。Framework 只提供领域无关基础设
 
 ## 发布
 
-协调版本按 Framework、Admin、Admin Web、Root、Docs、官方 npmjs 顺序发布。每个组件
-必须来自同一个已合入 `main` 的干净提交，公开标签和摘要不可移动。发布后的修复使用
-下一补丁版本。
+候选版本按 Framework、Admin、Admin Web（含版本镜像）、Root（含版本镜像）、Docs
+顺序发布；完整候选台账通过并由后续策略精确授权后，才依次推进 npm `latest` 与
+GitHub Latest。每个不可变组件必须来自同一个已合入 `main` 的干净提交，公开标签和
+摘要不可移动。发布后的修复使用下一补丁版本。
 
 外部 [mss-shop](/getting-started/mss-shop) 必须等待维护者显式选择的未使用完整版本，
 再验证 package-first 路径和单租户业务扩展；它不能从 v1.3.5 或本地 Foundation 制品

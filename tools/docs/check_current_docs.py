@@ -129,6 +129,55 @@ PUBLIC_THIN_HOST_SKILLS = (
     "mss-upgrade-foundation",
 )
 
+FOUNDATION_MAINTAINER_SKILLS = (
+    "mss-project-onboarding",
+    "mss-new-application",
+    "mss-add-module",
+    "mss-add-field",
+    "mss-add-permission",
+    "mss-add-workflow",
+    "mss-debug-fullstack",
+    "mss-review-change",
+    "mss-upgrade-foundation",
+    "mss-release",
+    "mss-update-release-docs",
+)
+
+AUDIENCE_BOUNDARY_MARKERS = {
+    Path("docs/README.md"): (
+        "## Audience and authority map",
+        "`docs/docs/agent/`",
+        "Foundation AI Agents",
+        "Generated Thin Host AI Agents",
+    ),
+    Path("docs/docs/index.md"): (
+        "## 人类文档与 Agent 合同",
+        "Foundation AI Agent",
+        "Thin Host AI Agent",
+        "不是 Agent",
+    ),
+    Path("docs/docs/agent/index.md"): (
+        "给人类看的公开说明",
+        "Foundation 源码",
+        "生成 Thin Host",
+        "不是 Agent",
+        "| --- | --- | --- |",
+    ),
+    Path("docs/.dumirc.ts"): (
+        "Agent 协作",
+        "外部 Supplier 示例",
+    ),
+}
+
+ACTIVE_ADMIN_SCOPE_FILES = (
+    Path("docs/docs/admin/config-cache-consistency.md"),
+    Path("docs/docs/admin/configuration-guide.md"),
+    Path("docs/docs/admin/governance-guide.md"),
+    Path("docs/docs/admin/i18n-troubleshooting.md"),
+    Path("docs/docs/admin/integration-test-guide.md"),
+    Path("docs/docs/admin/legacy-capability-deprecation.md"),
+)
+
 EXACT_SECTION_CONTENT = {
     Path("docs/docs/getting-started"): {
         "index.md",
@@ -314,6 +363,30 @@ ACTIVE_TARGET_STATUS_MARKER = re.compile(
     r"(?:release[- ]candidate|candidate|pre[- ]publication|unpublished|"
     r"active target|候选|发布前|尚未发布|未发布|当前目标)",
     re.IGNORECASE,
+)
+ABSOLUTE_UNPUBLISHED_CLAIMS = (
+    re.compile(
+        r"{version}(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,160}}"
+        r"(?:unpublished|"
+        r"not\s+(?:(?:yet\s+)?(?:public|published)|"
+        r"(?:public|published)\s+yet)|(?:has|have)\s+not\s+been\s+published)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:unpublished\s+{version}|"
+        r"(?:not\s+(?:(?:yet\s+)?(?:public|published)|"
+        r"(?:public|published)\s+yet)|(?:has|have)\s+not\s+been\s+published)"
+        r"(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,160}}{version})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"{version}(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,120}}"
+        r"(?:尚未发布|还未发布|未发布|未公开)"
+    ),
+    re.compile(
+        r"(?:尚未发布|还未发布|未发布|未公开)"
+        r"(?:(?!\n\s*(?:[-*+]\s|\d+[.)]\s))[\s\S]){{0,120}}{version}"
+    ),
 )
 PARTIAL_RELEASE_BOUNDARY_MARKER = re.compile(
     r"(?:source-only|source (?:checkout|contract|development)|"
@@ -532,6 +605,48 @@ def active_markdown_paths(root: Path) -> list[Path]:
     return paths
 
 
+def packaged_stage_claim_paths(root: Path) -> list[Path]:
+    """Return current Markdown that ships in a v1.3.7 immutable artifact.
+
+    The Root source/module surface includes root guidance and Thin Host
+    templates; the nested Go modules ship their top-level governance files;
+    and the npm package explicitly includes its README and changelog. Public
+    Docs current pages are already supplied by ``active_markdown_paths``.
+    Historical release pages remain evidence and are intentionally excluded.
+    """
+
+    paths = set(active_markdown_paths(root))
+    paths.update(path.relative_to(root) for path in root.glob("*.md"))
+
+    for relative_root in (
+        Path("admin"),
+        Path("mss-boot"),
+        Path("web/antd-v6"),
+    ):
+        absolute_root = root / relative_root
+        if absolute_root.is_dir():
+            paths.update(
+                path.relative_to(root) for path in absolute_root.glob("*.md")
+            )
+
+    for relative in (Path("docs/README.md"), Path("docs/CONTRIBUTING.md")):
+        if (root / relative).is_file():
+            paths.add(relative)
+
+    templates_root = root / "templates"
+    if templates_root.is_dir():
+        paths.update(
+            path.relative_to(root) for path in templates_root.rglob("*.md")
+        )
+
+    historical_pages = frozenset(STOPPED_RELEASE_PAGES)
+    return sorted(
+        path
+        for path in paths
+        if path not in historical_pages and ARCHIVE_PREFIX not in path.parents
+    )
+
+
 def forbidden_content_errors(
     root: Path,
     version: str,
@@ -629,6 +744,40 @@ def partial_release_operational_errors(
                     f"publicationWorkflowsReady={str(state.publication_workflows_ready).lower()} "
                     f"and release-status={state.release_status}"
                 )
+    return errors
+
+
+def absolute_unpublished_claim_errors(
+    root: Path,
+    version: str,
+    paths: Iterable[Path],
+) -> list[str]:
+    """Reject stage-sensitive claims that become false during candidate rollout."""
+
+    errors: list[str] = []
+    escaped_version = re.escape(version)
+    patterns = tuple(
+        re.compile(pattern.pattern.format(version=escaped_version), pattern.flags)
+        for pattern in ABSOLUTE_UNPUBLISHED_CLAIMS
+    )
+    for path in paths:
+        absolute = root / path
+        if not absolute.is_file():
+            continue
+        text = absolute.read_text(encoding="utf-8")
+        offset = 0
+        for paragraph in re.split(r"(\n\s*\n)", text):
+            if not paragraph or re.fullmatch(r"\n\s*\n", paragraph):
+                offset += len(paragraph)
+                continue
+            for pattern in patterns:
+                for match in pattern.finditer(paragraph):
+                    line = text.count("\n", 0, offset + match.start()) + 1
+                    errors.append(
+                        f"{path}:{line}: {version} publication status must be stage-neutral; "
+                        "candidate surfaces can become public before stable reconciliation"
+                    )
+            offset += len(paragraph)
     return errors
 
 
@@ -861,14 +1010,71 @@ def public_skill_documentation_errors(root: Path) -> list[str]:
     if not absolute.is_file():
         return [f"missing public Skill documentation: {path}"]
     text = absolute.read_text(encoding="utf-8")
-    errors = [
-        f"{path}: public Skill list is missing {name}"
+    errors: list[str] = []
+    foundation_heading = "## Foundation 维护者 Skills"
+    thin_host_heading = "## Thin Host 分发 Skills"
+    if foundation_heading not in text or thin_host_heading not in text:
+        return [f"{path}: Skill documentation must separate Foundation and Thin Host sections"]
+    foundation = text.split(foundation_heading, 1)[1].split(thin_host_heading, 1)[0]
+    thin_host = text.split(thin_host_heading, 1)[1]
+    errors.extend(
+        f"{path}: Foundation maintainer Skill list is missing {name}"
+        for name in FOUNDATION_MAINTAINER_SKILLS
+        if f"`{name}`" not in foundation
+    )
+    errors.extend(
+        f"{path}: Thin Host Skill list is missing {name}"
         for name in PUBLIC_THIN_HOST_SKILLS
-        if f"`{name}`" not in text
-    ]
-    for forbidden in ("mss-add-workflow", "mss-release", "mss-update-release-docs"):
-        if f"`{forbidden}`" in text:
-            errors.append(f"{path}: Foundation-only or unsupported Skill is public: {forbidden}")
+        if f"`{name}`" not in thin_host
+    )
+    for forbidden in (
+        "mss-project-onboarding",
+        "mss-new-application",
+        "mss-add-workflow",
+        "mss-release",
+        "mss-update-release-docs",
+    ):
+        if f"`{forbidden}`" in thin_host:
+            errors.append(
+                f"{path}: Foundation-only or unsupported Skill is listed in the Thin Host section: {forbidden}"
+            )
+    return errors
+
+
+def documentation_audience_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    for relative, markers in AUDIENCE_BOUNDARY_MARKERS.items():
+        path = root / relative
+        if not path.is_file():
+            errors.append(f"missing documentation audience boundary: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for marker in markers:
+            if marker not in text:
+                errors.append(f"{relative}: audience boundary is missing {marker}")
+    if (root / "docs/docs/agent/architecture.md").exists():
+        errors.append(
+            "docs/docs/agent/architecture.md: duplicate Agent architecture summary must remain absent"
+        )
+    return errors
+
+
+def active_admin_scope_errors(
+    root: Path, immutable_stopped_versions: tuple[str, ...]
+) -> list[str]:
+    errors: list[str] = []
+    for relative in ACTIVE_ADMIN_SCOPE_FILES:
+        path = root / relative
+        if not path.is_file():
+            errors.append(f"missing active Admin guide: {relative}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        header_and_scope = "\n".join(text.splitlines()[:24])
+        for version in immutable_stopped_versions:
+            if version in header_and_scope:
+                errors.append(
+                    f"{relative}: stopped {version} must not define an active title, description, keywords, or scope"
+                )
     return errors
 
 
@@ -971,12 +1177,15 @@ def repository_context_errors(
             ),
             "one non-publishing Root preview",
             "Framework, Admin, and Admin Web tags in order",
-            "Root release, backend image, and official npm publication "
-            "independently and in parallel",
-            "do not repeat its expensive qualification",
-            "promotion, readiness run ID, second publish dispatch, or manual "
-            "environment approval",
-            "Docs follows later from its own tag",
+            "Root tag starts only the Root Release and backend-image candidate",
+            "GitHub Latest and npmjs `latest` remain v1.3.2",
+            "Stable promotion is a separate reviewed policy decision",
+            "manually dispatch `npm-release.yml` from the exact `v1.3.7` Root tag",
+            "npm publish --tag latest --provenance",
+            "promote the exact Root Release to GitHub Latest",
+            "final stable-policy and human-documentation reconciliation follows "
+            "through another PR",
+            "do not repeat expensive qualification",
         ):
             if marker not in normalized:
                 errors.append(
@@ -1160,6 +1369,13 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             immutable_stopped_versions=state.immutable_stopped_versions,
         )
     )
+    errors.extend(
+        absolute_unpublished_claim_errors(
+            root,
+            version,
+            packaged_stage_claim_paths(root),
+        )
+    )
     errors.extend(stopped_release_history_errors(root, state))
 
     partial_status_set = frozenset(PARTIAL_RELEASE_STATUS_FILES)
@@ -1198,6 +1414,10 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             )
         )
     errors.extend(public_skill_documentation_errors(root))
+    errors.extend(documentation_audience_errors(root))
+    errors.extend(
+        active_admin_scope_errors(root, state.immutable_stopped_versions)
+    )
     errors.extend(
         package_and_container_contract_errors(
             root,

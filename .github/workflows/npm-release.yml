@@ -1,10 +1,13 @@
 name: Official npm Release
-run-name: Official npm Release ${{ github.ref_name }}
+run-name: Official npm stable promotion ${{ inputs.version }}
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact reconciled vX.Y.Z version to promote from its Root tag
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -29,6 +32,9 @@ jobs:
       id-token: write
       packages: read
       pull-requests: read
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      commit: ${{ steps.identity.outputs.commit }}
     steps:
       - name: Require authorized release operator
         env:
@@ -41,14 +47,21 @@ jobs:
           fi
 
       - name: Validate exact root tag identity
+        id: identity
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" != 'push' || "${GITHUB_REF_TYPE}" != 'tag' ]]; then
-            echo 'official npm publication is authorized only by a root tag push' >&2
+          if [[ "${GITHUB_EVENT_NAME}" != 'workflow_dispatch' || "${GITHUB_REF_TYPE}" != 'tag' ]]; then
+            echo 'official npm stable promotion must be dispatched from the exact Root tag' >&2
             exit 1
           fi
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo 'root tag must be an exact stable vX.Y.Z value' >&2
+            exit 1
+          fi
+          if [[ "${REQUESTED_VERSION}" != "${GITHUB_REF_NAME}" ]]; then
+            echo 'requested stable promotion version must equal the selected Root tag' >&2
             exit 1
           fi
           if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -60,6 +73,10 @@ jobs:
             echo "RELEASE_COMMIT=${GITHUB_SHA}"
             echo "UNPREFIXED_VERSION=${GITHUB_REF_NAME#v}"
           } >> "${GITHUB_ENV}"
+          {
+            echo "version=${GITHUB_REF_NAME}"
+            echo "commit=${GITHUB_SHA}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Checkout exact release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -77,6 +94,7 @@ jobs:
             --repository "${GITHUB_REPOSITORY}" \
             --commit "${RELEASE_COMMIT}" \
             --tag "${RELEASE_VERSION}" \
+            --source-mode promotion \
             --policy .mss/release-policy.yaml
           python3 tools/release/check_release_policy.py \
             --policy .mss/release-policy.yaml \
@@ -84,6 +102,117 @@ jobs:
             --version "${RELEASE_VERSION}" \
             --tag "web/antd-v6/${RELEASE_VERSION}" \
             --intent publish
+
+      - name: Require reviewed stable promotion and complete candidate ledger
+        id: promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          remote_main="$(gh api "/repos/${GITHUB_REPOSITORY}/branches/main" --jq .commit.sha)"
+          [[ "${remote_main}" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "+${remote_main}:refs/remotes/origin/main"
+          test "$(git rev-parse origin/main)" = "${remote_main}"
+          git merge-base --is-ancestor "${RELEASE_COMMIT}" origin/main
+
+          promotion_policy="${RUNNER_TEMP}/stable-promotion-policy.yaml"
+          git show origin/main:.mss/release-policy.yaml > "${promotion_policy}"
+          python3 tools/release/check_release_policy.py \
+            --policy "${promotion_policy}" \
+            --component npm \
+            --version "${RELEASE_VERSION}" \
+            --tag "@mss-boot-io/admin-web@${UNPREFIXED_VERSION}" \
+            --intent promote \
+            --commit "${RELEASE_COMMIT}"
+          python3 tools/release/check_release_policy.py \
+            --policy "${promotion_policy}" \
+            --component root \
+            --version "${RELEASE_VERSION}" \
+            --tag "${RELEASE_VERSION}" \
+            --intent promote \
+            --commit "${RELEASE_COMMIT}"
+
+          current_stable="$(
+            python3 - "${promotion_policy}" <<'PY'
+          from pathlib import Path
+          import sys
+          from tools.release.check_release_policy import load_policy
+          print(load_policy(Path(sys.argv[1]))["currentStableVersion"])
+          PY
+          )"
+          [[ "${current_stable}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          if [[ "${current_stable}" == "${RELEASE_VERSION}" ]]; then
+            echo 'stable promotion must precede the final current-stable policy reconciliation' >&2
+            exit 1
+          fi
+          echo "current-stable=${current_stable}" >> "${GITHUB_OUTPUT}"
+          echo "CURRENT_STABLE_VERSION=${current_stable}" >> "${GITHUB_ENV}"
+
+          resolve_tag_commit() {
+            local tag_name="$1"
+            local object_type
+            local object_sha
+            local tag_object
+            local depth=0
+            tag_object="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag_name}")"
+            object_type="$(jq -r '.object.type' <<< "${tag_object}")"
+            object_sha="$(jq -r '.object.sha' <<< "${tag_object}")"
+            while [[ "${object_type}" == 'tag' ]]; do
+              depth=$((depth + 1))
+              test "${depth}" -le 5
+              tag_object="$(gh api "/repos/${GITHUB_REPOSITORY}/git/tags/${object_sha}")"
+              object_type="$(jq -r '.object.type' <<< "${tag_object}")"
+              object_sha="$(jq -r '.object.sha' <<< "${tag_object}")"
+            done
+            test "${object_type}" = 'commit'
+            [[ "${object_sha}" =~ ^[0-9a-f]{40}$ ]]
+            printf '%s\n' "${object_sha}"
+          }
+
+          release_tags=(
+            "mss-boot/${RELEASE_VERSION}"
+            "admin/${RELEASE_VERSION}"
+            "web/antd-v6/${RELEASE_VERSION}"
+            "${RELEASE_VERSION}"
+            "docs/${RELEASE_VERSION}"
+          )
+          for release_tag in "${release_tags[@]}"; do
+            test "$(resolve_tag_commit "${release_tag}")" = "${RELEASE_COMMIT}"
+            release_json="$(
+              gh release view "${release_tag}" \
+                --json tagName,targetCommitish,isDraft,isPrerelease
+            )"
+            jq -e \
+              --arg tag "${release_tag}" \
+              --arg commit "${RELEASE_COMMIT}" \
+              '.tagName == $tag and .targetCommitish == $commit and
+               .isDraft == false and .isPrerelease == false' \
+              <<< "${release_json}" >/dev/null
+          done
+
+          current_latest="$(
+            gh api "/repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name
+          )"
+          case "${current_latest}" in
+            "${current_stable}"|"${RELEASE_VERSION}") ;;
+            *)
+              echo "GitHub Latest ${current_latest} matches neither reviewed current stable ${current_stable} nor exact promotion target ${RELEASE_VERSION}" >&2
+              exit 1
+              ;;
+          esac
+          echo "GITHUB_LATEST_VERSION=${current_latest}" >> "${GITHUB_ENV}"
+
+          docs_identity="${RUNNER_TEMP}/production-docs-release.json"
+          curl --fail --location --silent --show-error \
+            --output "${docs_identity}" \
+            'https://docs.mss-boot-io.top/release.json'
+          jq -e \
+            --arg version "${RELEASE_VERSION}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.application == "mss-boot-docs" and
+             .version == $version and .commit == $commit' \
+            "${docs_identity}" >/dev/null
 
       - name: Require the exact frontend release
         env:
@@ -139,6 +268,65 @@ jobs:
               echo "frontend release ${frontend_tag} has conflicting immutable identity" >&2
               exit 1
             }
+
+      - name: Setup Go 1.27 toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: false
+
+      - name: Verify exact public Go modules
+        run: |
+          set -euo pipefail
+          for module in \
+            github.com/mss-boot-io/mss-boot-admin/mss-boot \
+            github.com/mss-boot-io/mss-boot-admin/admin; do
+            metadata="$(
+              GOWORK=off GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod \
+                go list -m -json "${module}@${RELEASE_VERSION}"
+            )"
+            jq -e \
+              --arg module "${module}" \
+              --arg version "${RELEASE_VERSION}" \
+              '.Path == $module and .Version == $version' \
+              <<< "${metadata}" >/dev/null
+          done
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      - name: Log into GHCR for read-only reconciliation
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify exact Root and Admin Web image aliases
+        run: |
+          set -euo pipefail
+          images=(
+            "ghcr.io/${GITHUB_REPOSITORY}"
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/mss-boot-admin-antd-v6"
+          )
+          for image in "${images[@]}"; do
+            safe_name="$(printf '%s' "${image}" | tr '/:' '--')"
+            version_manifest="${RUNNER_TEMP}/${safe_name}-version.json"
+            commit_manifest="${RUNNER_TEMP}/${safe_name}-commit.json"
+            docker buildx imagetools inspect --raw \
+              "${image}:${RELEASE_VERSION}" > "${version_manifest}"
+            docker buildx imagetools inspect --raw \
+              "${image}:${RELEASE_COMMIT}" > "${commit_manifest}"
+            cmp -- "${version_manifest}" "${commit_manifest}"
+            jq -e '
+              ([.manifests[] | select(
+                .platform.os == "linux" and .platform.architecture == "amd64"
+              )] | length) == 1 and
+              ([.manifests[] | select(
+                .platform.os == "linux" and .platform.architecture == "arm64"
+              )] | length) == 1
+            ' "${version_manifest}" >/dev/null
+          done
 
       - name: Download and verify existing frontend package assets
         id: package
@@ -277,7 +465,7 @@ jobs:
             <<< "${package_record}" >/dev/null
           rm -f "${npmrc}"
 
-      - name: Select a monotonic official npm dist-tag
+      - name: Require current stable npm alias before promotion
         id: npm-tag
         run: |
           set -euo pipefail
@@ -285,28 +473,33 @@ jobs:
           selected_tag=latest
           expected_latest="${UNPREFIXED_VERSION}"
           error_file="${RUNNER_TEMP}/npmjs-latest-error.log"
-          if current_latest="$(
+          if ! current_latest="$(
             npm view "${package}" dist-tags.latest --json \
               --registry=https://registry.npmjs.org \
               2> "${error_file}" | jq -er '.'
           )"; then
-            rm -f "${error_file}"
-            if [[ ! "${current_latest}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              echo "npmjs latest has an unexpected value: ${current_latest}" >&2
-              exit 1
-            fi
-            highest="$(printf '%s\n' "${current_latest}" "${UNPREFIXED_VERSION}" | sort -V | tail -n 1)"
-            if [[ "${highest}" != "${UNPREFIXED_VERSION}" ]]; then
-              selected_tag="$(printf '%s' "release-${UNPREFIXED_VERSION}" | tr '[:upper:].' '[:lower:]-')"
-              expected_latest="${current_latest}"
-            fi
-          else
             if ! grep -Eqi 'E404|404 Not Found' "${error_file}"; then
               echo 'npmjs latest lookup failed without an authoritative E404' >&2
               exit 1
             fi
-            rm -f "${error_file}"
+            echo 'official npm package must already have the reviewed current-stable alias' >&2
+            exit 1
           fi
+          rm -f "${error_file}"
+          reviewed_latest="${CURRENT_STABLE_VERSION#v}"
+          case "${GITHUB_LATEST_VERSION}:${current_latest}" in
+            "${CURRENT_STABLE_VERSION}:${reviewed_latest}"|\
+            "${CURRENT_STABLE_VERSION}:${UNPREFIXED_VERSION}"|\
+            "${RELEASE_VERSION}:${UNPREFIXED_VERSION}") ;;
+            "${RELEASE_VERSION}:${reviewed_latest}")
+              echo 'GitHub Latest cannot advance before npmjs latest' >&2
+              exit 1
+              ;;
+            *)
+              echo "unsupported stable alias state: GitHub=${GITHUB_LATEST_VERSION}, npm=${current_latest}" >&2
+              exit 1
+              ;;
+          esac
           {
             echo "dist-tag=${selected_tag}"
             echo "expected-latest=${expected_latest}"
@@ -384,13 +577,33 @@ jobs:
             *) echo 'npmjs package existence was not authoritatively classified' >&2; exit 1 ;;
           esac
           case "${NPM_DIST_TAG}" in
-            latest|release-*) ;;
+            latest) ;;
             *) echo "unsupported npm dist-tag: ${NPM_DIST_TAG}" >&2; exit 1 ;;
           esac
           if [[ "${PACKAGE_ABSENT}" == 'true' ]]; then
             echo 'the first npmjs package creation requires a separately reviewed one-time bootstrap; the automatic tag workflow is trusted-publishing only' >&2
             exit 1
           fi
+
+          publish_authority_ref='refs/remotes/origin/npm-publish-authority'
+          git fetch --no-tags origin \
+            "+refs/heads/main:${publish_authority_ref}"
+          publish_authority_commit="$(git rev-parse "${publish_authority_ref}")"
+          [[ "${publish_authority_commit}" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor \
+            "${RELEASE_COMMIT}" \
+            "${publish_authority_ref}"
+          publish_policy="${RUNNER_TEMP}/npm-publish-policy.yaml"
+          git show "${publish_authority_ref}:.mss/release-policy.yaml" \
+            > "${publish_policy}"
+          python3 tools/release/check_release_policy.py \
+            --policy "${publish_policy}" \
+            --component npm \
+            --version "${RELEASE_VERSION}" \
+            --tag "@mss-boot-io/admin-web@${UNPREFIXED_VERSION}" \
+            --intent promote \
+            --commit "${RELEASE_COMMIT}"
+
           unset NPM_TOKEN NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG
           npm publish "${PACKAGE_TARBALL}" \
             --access public \
@@ -402,9 +615,7 @@ jobs:
         env:
           PACKAGE_TARBALL: ${{ steps.package.outputs.tarball }}
           PACKAGE_EVIDENCE: ${{ steps.package.outputs.evidence }}
-          NPM_DIST_TAG: ${{ steps.npm-tag.outputs.dist-tag }}
           EXPECTED_LATEST: ${{ steps.npm-tag.outputs.expected-latest }}
-          VERSION_WAS_PUBLISHED: ${{ steps.npmjs.outputs.publish }}
         run: |
           set -euo pipefail
           package='@mss-boot-io/admin-web'
@@ -437,17 +648,7 @@ jobs:
                 npm view "${package}" dist-tags.latest --json \
                   --registry=https://registry.npmjs.org 2>/dev/null | jq -er '.'
               )" || latest=''
-              selected_tag_matches=true
-              if [[ "${VERSION_WAS_PUBLISHED}" == 'true' && "${NPM_DIST_TAG}" != 'latest' ]]; then
-                selected_version="$(
-                  npm view "${package}" "dist-tags.${NPM_DIST_TAG}" --json \
-                    --registry=https://registry.npmjs.org 2>/dev/null | jq -er '.'
-                )" || selected_version=''
-                if [[ "${selected_version}" != "${UNPREFIXED_VERSION}" ]]; then
-                  selected_tag_matches=false
-                fi
-              fi
-              if [[ "${latest}" == "${EXPECTED_LATEST}" && "${selected_tag_matches}" == 'true' ]]; then
+              if [[ "${latest}" == "${EXPECTED_LATEST}" ]]; then
                 tarball_url="$(jq -er '."dist.tarball"' <<< "${metadata}")"
                 if curl --fail --location --silent --show-error \
                   --output "${published_tarball}" \
@@ -467,3 +668,78 @@ jobs:
             echo 'npmjs package identity did not converge after bounded verification' >&2
             exit 1
           fi
+
+  promote-github:
+    name: promote-github-root-latest
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release-auto
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Require authorized release operator
+        env:
+          RELEASE_ACTOR_LOGIN: lwnmengjing
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" || "${GITHUB_TRIGGERING_ACTOR}" != "${RELEASE_ACTOR_LOGIN}" ]]; then
+            echo "release operations must be initiated and triggered by ${RELEASE_ACTOR_LOGIN}" >&2
+            exit 1
+          fi
+
+      - name: Validate exact completed npm promotion
+        env:
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.publish.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" != 'workflow_dispatch' || "${GITHUB_REF_TYPE}" != 'tag' ]]; then
+            echo 'GitHub stable alias promotion must run from the exact Root tag' >&2
+            exit 1
+          fi
+          test "${GITHUB_REF_NAME}" = "${RELEASE_VERSION}"
+          test "${GITHUB_SHA}" = "${RELEASE_COMMIT}"
+          package='@mss-boot-io/admin-web'
+          unprefixed_version="${RELEASE_VERSION#v}"
+          metadata="$(
+            npm view "${package}@${unprefixed_version}" \
+              version gitHead dist.integrity dist.attestations --json \
+              --registry=https://registry.npmjs.org
+          )"
+          jq -e \
+            --arg version "${unprefixed_version}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.version == $version and .gitHead == $commit and
+             (."dist.integrity" | type == "string" and length > 0) and
+             ."dist.attestations".provenance.predicateType ==
+               "https://slsa.dev/provenance/v1"' \
+            <<< "${metadata}" >/dev/null
+          test "$(
+            npm view "${package}" dist-tags.latest --json \
+              --registry=https://registry.npmjs.org | jq -er '.'
+          )" = "${unprefixed_version}"
+
+      - name: Promote exact Root release to GitHub Latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.publish.outputs.commit }}
+        run: |
+          set -euo pipefail
+          release_json="$(
+            gh release view "${RELEASE_VERSION}" \
+              --json tagName,targetCommitish,isDraft,isPrerelease
+          )"
+          jq -e \
+            --arg tag "${RELEASE_VERSION}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            '.tagName == $tag and .targetCommitish == $commit and
+             .isDraft == false and .isPrerelease == false' \
+            <<< "${release_json}" >/dev/null
+          gh release edit "${RELEASE_VERSION}" --latest=true
+          test "$(
+            gh api "/repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name
+          )" = "${RELEASE_VERSION}"

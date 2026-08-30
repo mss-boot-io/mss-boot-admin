@@ -13,7 +13,7 @@ export default defineConfig({
       },
       { title: '使用指南', link: '/guide', activePath: '/guide' },
       { title: 'Admin', link: '/admin', activePath: '/admin' },
-      { title: 'Agent 开发', link: '/agent', activePath: '/agent' },
+      { title: 'Agent 协作', link: '/agent', activePath: '/agent' },
       {
         title: '架构',
         link: '/architecture/agent-native-foundation',
@@ -25,7 +25,7 @@ export default defineConfig({
         children: [
           { title: '包与导入', link: '/getting-started/packages' },
           { title: 'mss-shop 范本', link: '/getting-started/mss-shop' },
-          { title: 'Supplier 模块', link: '/modules/supplier' },
+          { title: '外部 Supplier 示例', link: '/modules/supplier' },
           { title: '参与贡献', link: '/coding/first-contribution' },
           { title: '安全策略 FAQ', link: '/devops/security-policy-faq' },
         ],

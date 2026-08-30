@@ -8,8 +8,9 @@ description: Foundation 源码调试边界与未来 Thin Host 开发拓扑
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未发布。本页描述 Foundation source-only 调试和候选合同；
-公共制品对账前，v1.3.7 不可采用，也不是下游本地启动指引。
+为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
+远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是下游安装、
+创建、升级或本地启动指引。
 :::
 
 ## Foundation 源码调试

@@ -10,14 +10,15 @@ keywords: [admin ant-design-v6 theme settings precedence inheritance]
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但官方 npmjs 包和 Root 工具尚未发布。本页记录 merged-main 源码
-中的 V6 主题候选合同；公共制品对账前，v1.3.7 不可采用，也不是 Admin Web 采用指引。
+为 release candidate，但尚未稳定且不可采用。官方 npmjs 包和 Root 工具可能处于不同公开
+阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页
+不是 Admin Web 安装、创建或升级指引。
 :::
 
 ## 产品合同
 
-- Admin Web 候选身份：`@mss-boot-io/admin-web@1.3.7`，尚未公开；
-- Admin 后端候选身份：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7`，尚未公开；
+- Admin Web 候选身份：`@mss-boot-io/admin-web@1.3.7`，公开阶段以远端 npm 与 Release 台账为准；
+- Admin 后端候选身份：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7`，公开阶段以远端 Go 与 Release 台账为准；
 - 历史状态：v1.3.5 与 v1.3.6 的已公开组件保持不可变，但不能补全或混用；
 - 源码状态：主题继承、重置、并发前置条件和授权已在 Foundation 中实现；
 - 采用状态：只有未来完成全部公共对账的协调版本才能把这套源码合同作为 Thin Host 产品面；

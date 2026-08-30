@@ -8,11 +8,14 @@ The documentation site is no longer a separate `mss-boot-docs` checkout. Use rep
 
 ## Information placement
 
-- Long-lived product and contributor documentation: `docs/docs/`.
-- Architecture overviews: `docs/docs/architecture/`.
-- Architecture decisions: `docs/adr/`.
+- Public human-facing product, operations, contributor, release, and Agent-collaboration guidance: `docs/docs/`.
+- `docs/docs/agent/` remains human-facing: it explains how people work with Agents and links to authoritative repository contracts. It must not become a second executable instruction tree.
+- Public architecture overviews: `docs/docs/architecture/`.
+- Maintainer architecture decisions: `docs/adr/`; ADRs are repository decisions rather than adopter tutorials.
 - User-facing module documentation generated from a module spec: `docs/docs/modules/`.
-- Machine-executable facts: `.mss/`, not prose only.
+- Foundation Agent authority: the nearest `AGENTS.md`, then `.mss/` and the applicable `.agents/skills/` workflow.
+- Generated Thin Host Agent authority: the generated repository's `AGENTS.md`, `.mss/`, and local `.agents/skills/`. Do not present Foundation-maintainer Skills as downstream capabilities.
+- Machine-executable facts: `.mss/`, not prose only. Public pages may summarize and link to these contracts but must not copy release or command logic into a competing source of truth.
 - Historical prompts and old handoffs: archive locations; they are not automatically current requirements.
 
 When a prose statement duplicates a machine-readable fact, link to the contract and keep the two synchronized.

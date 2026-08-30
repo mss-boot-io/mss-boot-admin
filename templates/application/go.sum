@@ -467,9 +467,9 @@ github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe/go.mod h1:wL8QJ
 github.com/montanaflynn/stats v0.7.0/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
 github.com/montanaflynn/stats v0.9.0 h1:tsBJ0RXwph9BmAuFoCmqGv6e8xa0MENQ8m0ptKq29mQ=
 github.com/montanaflynn/stats v0.9.0/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
-github.com/mss-boot-io/mss-boot-admin/admin v1.3.7 h1:8xyIK6biIvYG2FRhBhZFUPLjcL19T5h7d1R462TpEb0=
+github.com/mss-boot-io/mss-boot-admin/admin v1.3.7 h1:sQl2Q58DVYF1NTikN8OhUcnbyF949TtU1hbyyLaTSQU=
 github.com/mss-boot-io/mss-boot-admin/admin v1.3.7/go.mod h1:v/KJqYYGo5PYW4PNHnctx3ujxQ5yzt8/ZgD/MmUyzxs=
-github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7 h1:pIrFkBClPs+AkjwekBBcRIPKSH7dhVqJUzCESlFmDJ8=
+github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7 h1:5ZA4aTgFSYIzZuSXG8an1HqssdO6PoxrHdNDhHMPvng=
 github.com/mss-boot-io/mss-boot-admin/mss-boot v1.3.7/go.mod h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9 h1:/YgpHiqgrxz/0+mKoETXu21c6/fyDt7/j9bdD3UkbdU=
 github.com/mss-boot-io/redisqueue/v2 v2.0.0-20240222064111-d36e396df7f9/go.mod h1:f/sISkwvecPq37zygQzWNj5ntJoP/jcoK0kPIjFTWFI=

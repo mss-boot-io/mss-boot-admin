@@ -4,15 +4,16 @@ order: 1
 nav:
   title: 采用状态
   order: 1
-description: v1.3.2 当前稳定、v1.3.5/v1.3.6 永久停止与 v1.3.7 未发布候选边界
+description: v1.3.2 当前稳定、v1.3.5/v1.3.6 永久停止与 v1.3.7 未稳定候选边界
 keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate immutable partial component availability]
 ---
 
 # v1.3.7 候选采用状态
 
 当前协调稳定发行版仍是 **v1.3.2**。v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。v1.3.7
-已选为 release candidate，但尚未发布或完成公共对账。本页只说明候选、历史公开组件和
-缺失制品；公共 ledger 完成前，v1.3.7 不可采用，也不提供安装、创建、初始化或升级命令。
+已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
+远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不提供安装、创建、
+初始化或升级命令。
 
 :::warning
 v1.3.5 的 Framework、Admin、Admin Web 与 Root Tag 已公开，但 Root Release、工具、
@@ -29,7 +30,7 @@ v1.3.6 的 Framework、Admin、Admin Web 与 Root Release/工具也已公开，�
 | 表面 | 状态 | 采用边界 |
 | --- | --- | --- |
 | v1.3.2 协调发行版 | 当前稳定 | 已有采用者继续以[稳定记录](/releases/archive/v1-3-2)为准 |
-| v1.3.7 协调发行版 | 已选候选、未发布 | 等待同一 merged-main 提交的 preview、正式发布与公共对账 |
+| v1.3.7 协调发行版 | 已选候选、未稳定 | 各发布面按阶段公开；等待完整 stable promotion 与最终 policy/Docs 对账 |
 | v1.3.6 Framework/Admin/Admin Web/Root | 已公开 | 不可变部分列车；仅作为组件与审计证据 |
 | v1.3.6 Root image/npmjs/Docs | 失败或缺失 | 永久不补发，不能组成公开 Thin Host |
 | v1.3.5 Framework | Go Module 已公开 | 仅可作为独立组件使用 |

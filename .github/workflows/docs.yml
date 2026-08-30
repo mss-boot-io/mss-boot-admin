@@ -66,25 +66,59 @@ jobs:
       - name: Verify merged-main release source
         if: startsWith(github.ref, 'refs/tags/docs/v')
         env:
+          DOCS_VERSION: ${{ steps.version.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          source_mode='release'
+          if [[ "${DOCS_VERSION}" == *+docs.* ]]; then
+            source_mode='promotion'
+          fi
           python3 ../tools/release/verify_release_source.py \
             --repository-root .. \
             --repository "${GITHUB_REPOSITORY}" \
             --commit "${GITHUB_SHA}" \
             --tag "${GITHUB_REF_NAME}" \
-            --policy ../.mss/release-policy.yaml
+            --policy ../.mss/release-policy.yaml \
+            --source-mode "${source_mode}"
 
       - name: Enforce reviewed docs release target
         if: startsWith(github.ref, 'refs/tags/docs/v')
         env:
           DOCS_VERSION: ${{ steps.version.outputs.version }}
         run: |
+          set -euo pipefail
+          policy_path='../.mss/release-policy.yaml'
+          if [[ "${DOCS_VERSION}" == *+docs.* ]]; then
+            policy_path="${RUNNER_TEMP}/release-policy-main.yaml"
+            git -C .. fetch --no-tags origin \
+              '+refs/heads/main:refs/remotes/origin/main'
+            git -C .. show \
+              'refs/remotes/origin/main:.mss/release-policy.yaml' \
+              > "${policy_path}"
+          fi
           python3 ../tools/release/check_release_policy.py \
-            --policy ../.mss/release-policy.yaml \
+            --policy "${policy_path}" \
             --component docs \
             --version "${DOCS_VERSION}" \
-            --tag "${GITHUB_REF_NAME}"
+            --tag "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}"
+
+      - name: Require the lowest unused docs revision
+        if: startsWith(github.ref, 'refs/tags/docs/v') && contains(steps.version.outputs.version, '+docs.')
+        env:
+          DOCS_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          base_version="${DOCS_VERSION%%+docs.*}"
+          revision="${DOCS_VERSION##*+docs.}"
+          for prior in $(seq 1 "$((revision - 1))"); do
+            prior_tag="refs/tags/docs/${base_version}+docs.${prior}"
+            if ! git -C .. show-ref --verify --quiet "${prior_tag}"; then
+              echo "docs revision ${DOCS_VERSION} is not the lowest unused revision; missing ${prior_tag#refs/tags/}" >&2
+              exit 1
+            fi
+          done
 
       - name: Require the already-published base root release
         if: startsWith(github.ref, 'refs/tags/docs/v')
@@ -96,6 +130,21 @@ jobs:
           set -euo pipefail
           root_tag="${DOCS_VERSION%%+docs.*}"
           root_commit="$(git rev-parse "refs/tags/${root_tag}^{commit}")"
+          if [[ "${DOCS_VERSION}" != *+docs.* ]]; then
+            if [[ "${GITHUB_SHA}" != "${root_commit}" ]]; then
+              echo "base Docs tag ${GITHUB_REF_NAME} must resolve to the exact Root commit ${root_commit}" >&2
+              exit 1
+            fi
+          else
+            if [[ "${GITHUB_SHA}" == "${root_commit}" ]]; then
+              echo "Docs revision ${GITHUB_REF_NAME} must use a later merged-main source than Root ${root_commit}" >&2
+              exit 1
+            fi
+            if ! git -C .. merge-base --is-ancestor "${root_commit}" "${GITHUB_SHA}"; then
+              echo "Docs revision ${GITHUB_REF_NAME} would roll production content back before Root ${root_commit}" >&2
+              exit 1
+            fi
+          fi
 
           root_release="$(
             gh release view "${root_tag}" \
@@ -109,18 +158,6 @@ jobs:
              .isDraft == false and
              .isPrerelease == false' \
             <<< "${root_release}" >/dev/null
-
-      - name: Refuse mutation of an existing docs release
-        if: startsWith(github.ref, 'refs/tags/docs/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          if gh release view "${GITHUB_REF_NAME}" --json tagName >/dev/null 2>&1; then
-            echo "docs release ${GITHUB_REF_NAME} already exists; refusing to mutate it" >&2
-            exit 1
-          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -203,6 +240,7 @@ jobs:
       pull-requests: read
     concurrency:
       group: cloudflare-docs-prod
+      queue: max
       cancel-in-progress: false
     steps:
       - name: Require authorized release operator
@@ -217,6 +255,9 @@ jobs:
 
       - name: Checkout deployment configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Download documentation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -248,7 +289,111 @@ jobs:
             '.application == "mss-boot-docs" and .version == $version and .commit == $commit' \
             docs/dist/release.json >/dev/null
 
+      - name: Revalidate serialized Docs publication authority
+        id: deployment-state
+        env:
+          DOCS_VERSION: ${{ needs.build.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" = "${GITHUB_SHA}"
+          git fetch --force --tags origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
+
+          root_tag="${DOCS_VERSION%%+docs.*}"
+          root_commit="$(git rev-parse "refs/tags/${root_tag}^{commit}")"
+          policy_path="${RUNNER_TEMP}/release-policy-main.yaml"
+          git show 'origin/main:.mss/release-policy.yaml' > "${policy_path}"
+          if [[ "${DOCS_VERSION}" == *+docs.* ]]; then
+            test "${GITHUB_SHA}" != "${root_commit}"
+            git merge-base --is-ancestor "${root_commit}" "${GITHUB_SHA}"
+            revision="${DOCS_VERSION##*+docs.}"
+          else
+            test "${GITHUB_SHA}" = "${root_commit}"
+          fi
+          python3 tools/release/check_release_policy.py \
+            --policy "${policy_path}" \
+            --component docs \
+            --version "${DOCS_VERSION}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --intent publish \
+            --commit "${GITHUB_SHA}"
+          if [[ "${DOCS_VERSION}" == *+docs.* ]]; then
+            for prior in $(seq 1 "$((revision - 1))"); do
+              git show-ref --verify --quiet \
+                "refs/tags/docs/${root_tag}+docs.${prior}"
+            done
+          fi
+
+          root_release="$(
+            gh release view "${root_tag}" \
+              --json tagName,targetCommitish,isDraft,isPrerelease
+          )"
+          jq -e \
+            --arg tag "${root_tag}" \
+            --arg commit "${root_commit}" \
+            '.tagName == $tag and .targetCommitish == $commit and
+             .isDraft == false and .isPrerelease == false' \
+            <<< "${root_release}" >/dev/null
+
+          current_identity="${RUNNER_TEMP}/production-docs-before.json"
+          curl --fail --location --silent --show-error \
+            --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "${current_identity}" \
+            'https://docs.mss-boot-io.top/release.json'
+          action="$(
+            python3 tools/release/check_docs_deployment_state.py \
+              --current "${current_identity}" \
+              --requested-version "${DOCS_VERSION}" \
+              --requested-commit "${GITHUB_SHA}"
+          )"
+          if [[ "${action}" == 'deploy' ]]; then
+            predecessor_version="$(jq -er '.version' "${current_identity}")"
+            predecessor_commit="$(jq -er '.commit' "${current_identity}")"
+            predecessor_tag="docs/${predecessor_version}"
+            predecessor_release="$(
+              gh release view "${predecessor_tag}" \
+                --json tagName,targetCommitish,isDraft,isPrerelease,assets
+            )"
+            jq -e \
+              --arg tag "${predecessor_tag}" \
+              --arg commit "${predecessor_commit}" \
+              '.tagName == $tag and .targetCommitish == $commit and
+               .isDraft == false and .isPrerelease == false and
+               ([.assets[].name] | sort) ==
+                 ["DOCS-BUILD-INFO.txt", "SHA256SUMS.docs", "docs-dist.tar.gz"]' \
+              <<< "${predecessor_release}" >/dev/null
+
+            predecessor_assets="$(mktemp -d)"
+            gh release download "${predecessor_tag}" --dir "${predecessor_assets}"
+            (
+              cd "${predecessor_assets}"
+              sha256sum --strict --check SHA256SUMS.docs
+              grep -Fx "application=mss-boot-docs" DOCS-BUILD-INFO.txt
+              grep -Fx "version=${predecessor_version}" DOCS-BUILD-INFO.txt
+              grep -Fx "commit=${predecessor_commit}" DOCS-BUILD-INFO.txt
+              tar --extract --gzip --to-stdout \
+                --file docs-dist.tar.gz ./release.json \
+                > release.json
+              jq -e \
+                --arg version "${predecessor_version}" \
+                --arg commit "${predecessor_commit}" \
+                '.application == "mss-boot-docs" and
+                 .version == $version and .commit == $commit' \
+                release.json >/dev/null
+            )
+          fi
+          case "${action}" in
+            deploy) echo 'deploy=true' >> "${GITHUB_OUTPUT}" ;;
+            current) echo 'deploy=false' >> "${GITHUB_OUTPUT}" ;;
+            *) echo "unsupported Docs deployment action: ${action}" >&2; exit 1 ;;
+          esac
+
       - name: Require organization-managed Cloudflare credential
+        if: steps.deployment-state.outputs.deploy == 'true'
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
         run: |
@@ -259,6 +404,7 @@ jobs:
           fi
 
       - name: Deploy production documentation
+        if: steps.deployment-state.outputs.deploy == 'true'
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
@@ -291,7 +437,7 @@ jobs:
           echo 'production docs identity did not converge to the release commit' >&2
           exit 1
 
-      - name: Publish immutable docs GitHub release
+      - name: Reconcile immutable docs GitHub release
         env:
           DOCS_VERSION: ${{ needs.build.outputs.version }}
           GH_TOKEN: ${{ github.token }}
@@ -310,12 +456,82 @@ jobs:
             echo
             echo 'The protected Docs workflow verified the portable archive, checksum manifest, embedded release identity, Cloudflare deployment, and public /release.json before publishing this Release.'
           } > "${notes}"
-          gh release create "${GITHUB_REF_NAME}" \
-            docs/.deployment-artifact/docs-dist.tar.gz \
-            docs/.deployment-artifact/DOCS-BUILD-INFO.txt \
-            docs/.deployment-artifact/SHA256SUMS.docs \
-            --verify-tag \
+          assets=(
+            docs/.deployment-artifact/docs-dist.tar.gz
+            docs/.deployment-artifact/DOCS-BUILD-INFO.txt
+            docs/.deployment-artifact/SHA256SUMS.docs
+          )
+          expected_names="$({
+            for asset in "${assets[@]}"; do basename -- "${asset}"; done
+          } | jq -R . | jq -cs 'sort')"
+          title="mss-boot Docs ${DOCS_VERSION}"
+          release_error="${RUNNER_TEMP}/docs-release-view-error.log"
+          if release_json="$(
+            gh release view "${GITHUB_REF_NAME}" \
+              --json tagName,targetCommitish,isDraft,isPrerelease,name,body,assets \
+              2> "${release_error}"
+          )"; then
+            rm -f "${release_error}"
+            jq -e \
+              --arg tag "${GITHUB_REF_NAME}" \
+              --arg commit "${GITHUB_SHA}" \
+              --arg title "${title}" \
+              '.tagName == $tag and .targetCommitish == $commit and
+               .name == $title and .isPrerelease == false' \
+              <<< "${release_json}" >/dev/null
+            if [[ "$(jq -r '.isDraft' <<< "${release_json}")" == 'false' ]]; then
+              test "$(jq -r '.body' <<< "${release_json}")" = "$(< "${notes}")"
+              test "$(jq -c '[.assets[].name] | sort' <<< "${release_json}")" = "${expected_names}"
+              existing_assets="$(mktemp -d)"
+              gh release download "${GITHUB_REF_NAME}" --dir "${existing_assets}"
+              for asset in "${assets[@]}"; do
+                cmp -- "${asset}" "${existing_assets}/$(basename -- "${asset}")"
+              done
+              exit 0
+            fi
+          else
+            if ! grep -Eqi 'release not found|HTTP 404|Not Found' "${release_error}"; then
+              echo 'Docs Release inspection failed without an authoritative not-found response' >&2
+              exit 1
+            fi
+            rm -f "${release_error}"
+            gh release create "${GITHUB_REF_NAME}" \
+              --verify-tag \
+              --target "${GITHUB_SHA}" \
+              --draft \
+              --title "${title}" \
+              --notes-file "${notes}" \
+              --latest=false
+          fi
+
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+          staged="$(gh release view "${GITHUB_REF_NAME}" --json isDraft,assets)"
+          test "$(jq -r '.isDraft' <<< "${staged}")" = 'true'
+          test "$(jq -c '[.assets[].name] | sort' <<< "${staged}")" = "${expected_names}"
+          staged_assets="$(mktemp -d)"
+          gh release download "${GITHUB_REF_NAME}" --dir "${staged_assets}"
+          for asset in "${assets[@]}"; do
+            cmp -- "${asset}" "${staged_assets}/$(basename -- "${asset}")"
+          done
+          gh release edit "${GITHUB_REF_NAME}" \
             --target "${GITHUB_SHA}" \
-            --title "mss-boot Docs ${DOCS_VERSION}" \
+            --title "${title}" \
             --notes-file "${notes}" \
+            --draft=false \
+            --prerelease=false \
             --latest=false
+          final_release="$(
+            gh release view "${GITHUB_REF_NAME}" \
+              --json tagName,targetCommitish,isDraft,isPrerelease,name,body,assets
+          )"
+          jq -e \
+            --arg tag "${GITHUB_REF_NAME}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg title "${title}" \
+            --arg body "$(< "${notes}")" \
+            --argjson assets "${expected_names}" \
+            '.tagName == $tag and .targetCommitish == $commit and
+             .name == $title and .body == $body and
+             .isDraft == false and .isPrerelease == false and
+             ([.assets[].name] | sort) == $assets' \
+            <<< "${final_release}" >/dev/null

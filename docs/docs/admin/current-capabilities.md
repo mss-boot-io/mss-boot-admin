@@ -8,8 +8,9 @@ description: v1.3.7 候选源码能力、v1.3.5/v1.3.6 永久停止记录与未�
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；
-v1.3.7 已选为 release candidate，但尚未发布。本页只区分 Foundation 源码实现、历史
-公开组件和候选合同；公共制品对账前，v1.3.7 不可采用，也不开放安装、创建或升级命令。
+v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，
+必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不开放安装、
+创建或升级命令。
 :::
 
 机器可执行事实以 [`.mss/project.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/project.yaml)

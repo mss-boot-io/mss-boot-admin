@@ -7,7 +7,8 @@
 `replace`。v1.3.5 已永久停止；v1.3.6 已永久停止；两者都是不完整且不可续的发布列车，
 不能用于创建或升级应用。
 已有采用者以 [v1.3.2 稳定记录](docs/docs/releases/archive/v1-3-2.md)为准；
-v1.3.7 已选为 release candidate 但尚未发布，新应用等待其完整公共对账。请先阅读
+v1.3.7 已选为 release candidate，但还不是稳定或可采用版本。候选制品可能分阶段公开，
+在稳定提升和最终对账完成前以远端发布台账为权威；新应用等待完整公共对账。请先阅读
 [采用状态](docs/docs/getting-started/index.md)。本文只适用于修改 Foundation 本身的贡献者。
 
 ## 提交问题
