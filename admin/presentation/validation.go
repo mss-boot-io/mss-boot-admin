@@ -6,20 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
 var (
-	identifierPattern     = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`)
-	definitionHashPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	allowedValueTypes     = stringSet("string", "number", "boolean", "enum", "date", "date-time")
-	allowedDensity        = stringSet("compact", "middle", "large")
-	allowedDirections     = stringSet("asc", "desc")
-	allowedOperators      = stringSet("eq", "neq", "in", "not-in", "exists", "not-exists", "gt", "gte", "lt", "lte")
+	identifierPattern      = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`)
+	fieldIdentifierPattern = regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
+	enumValuePattern       = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+	definitionHashPattern  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	allowedValueTypes      = stringSet("string", "integer", "number", "boolean", "enum", "date", "date-time", "json")
+	allowedFieldFormats    = stringSet("plain", "email", "identifier", "date", "date-time")
+	allowedDensity         = stringSet("compact", "middle", "large")
+	allowedDirections      = stringSet("asc", "desc")
+	allowedOperators       = stringSet("eq", "neq", "in", "not-in", "exists", "not-exists", "gt", "gte", "lt", "lte")
 )
+
+const maxSafeJSONInteger = int64(1<<53 - 1)
 
 func ParseDocument(raw []byte) (*Document, []Issue) {
 	issues := make([]Issue, 0)
@@ -203,7 +210,7 @@ func validateFieldPatches(fields []FieldPatch, path string, issues *[]Issue) {
 	for index := range fields {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
 		field := &fields[index]
-		validateIdentifier(field.Field, currentPath+".field", issues)
+		validateFieldReferenceIdentifier(field.Field, currentPath+".field", issues)
 		validateLocalizedText(field.Label, currentPath+".label", issues)
 		validateLocalizedText(field.Placeholder, currentPath+".placeholder", issues)
 		validateLocalizedText(field.Help, currentPath+".help", issues)
@@ -243,7 +250,7 @@ func validateSorts(sorts []Sort, path string, issues *[]Issue) {
 	seen := make(map[string]struct{}, len(sorts))
 	for index := range sorts {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
-		validateIdentifier(sorts[index].Field, currentPath+".field", issues)
+		validateFieldReferenceIdentifier(sorts[index].Field, currentPath+".field", issues)
 		if _, ok := allowedDirections[sorts[index].Direction]; !ok {
 			addIssue(issues, "invalid-sort-direction", currentPath+".direction", "sort direction must be asc or desc")
 		}
@@ -314,7 +321,7 @@ func validateConditionShape(condition *Condition, path string, issues *[]Issue, 
 	if condition.Field == nil {
 		addIssue(issues, "missing-condition-field", path+".field", "predicate field is required")
 	} else {
-		validateIdentifier(*condition.Field, path+".field", issues)
+		validateFieldReferenceIdentifier(*condition.Field, path+".field", issues)
 	}
 	if condition.Operator == nil {
 		addIssue(issues, "missing-condition-operator", path+".operator", "predicate operator is required")
@@ -404,6 +411,9 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 	if profile.Metadata.DefinitionHash != capability.DefinitionHash {
 		addIssue(&issues, "definition-drift", "metadata.definitionHash", "profile definition hash does not match the current capability")
 	}
+	if capabilityUsesLimitedTablePresentation(capability) {
+		validateLimitedPresentationProfile(&profile.Spec, &issues)
+	}
 	fieldDefinitions := make(map[string]CapabilityField, len(capability.Fields))
 	for _, field := range capability.Fields {
 		fieldDefinitions[field.ID] = field
@@ -415,22 +425,33 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 	if profile.Spec.DataSource != nil && !containsDataSource(capability.DataSources, *profile.Spec.DataSource) {
 		addIssue(&issues, "unknown-data-source", "spec.dataSource", "profile references an unknown data source")
 	}
+	effectiveDataSourceID := capability.DefaultPresentation.DataSource
+	if profile.Spec.DataSource != nil {
+		effectiveDataSourceID = *profile.Spec.DataSource
+	}
+	effectiveDataSource, hasEffectiveDataSource := findDataSource(capability.DataSources, effectiveDataSourceID)
 	if profile.Spec.List != nil {
 		if profile.Spec.List.Columns != nil {
-			validateSemanticFields(*profile.Spec.List.Columns, SurfaceList, "spec.list.columns", fieldDefinitions, componentIDs, &issues)
+			validateSemanticFields(*profile.Spec.List.Columns, SurfaceList, "spec.list.columns", fieldDefinitions, componentIDs, capability.DefinitionVersion == DefinitionVersionV2, &issues)
 		}
 		if profile.Spec.List.DefaultSort != nil {
 			validateSemanticSort(*profile.Spec.List.DefaultSort, "spec.list.defaultSort", fieldDefinitions, &issues)
+			if capability.DefinitionVersion == DefinitionVersionV2 && hasEffectiveDataSource && len(*profile.Spec.List.DefaultSort) > effectiveDataSource.MaxSortFields {
+				addIssue(&issues, "too-many-data-source-sort-fields", "spec.list.defaultSort", "default sort exceeds the compiled data source limit")
+			}
+		}
+		if capability.DefinitionVersion == DefinitionVersionV2 && profile.Spec.List.PageSize != nil && hasEffectiveDataSource {
+			validateCapabilityPageSize(*profile.Spec.List.PageSize, effectiveDataSource, "spec.list.pageSize", &issues)
 		}
 	}
 	if profile.Spec.Search != nil && profile.Spec.Search.Fields != nil {
-		validateSemanticFields(*profile.Spec.Search.Fields, SurfaceSearch, "spec.search.fields", fieldDefinitions, componentIDs, &issues)
+		validateSemanticFields(*profile.Spec.Search.Fields, SurfaceSearch, "spec.search.fields", fieldDefinitions, componentIDs, capability.DefinitionVersion == DefinitionVersionV2, &issues)
 	}
 	if profile.Spec.Form != nil && profile.Spec.Form.Fields != nil {
-		validateSemanticFields(*profile.Spec.Form.Fields, SurfaceForm, "spec.form.fields", fieldDefinitions, componentIDs, &issues)
+		validateSemanticFields(*profile.Spec.Form.Fields, SurfaceForm, "spec.form.fields", fieldDefinitions, componentIDs, capability.DefinitionVersion == DefinitionVersionV2, &issues)
 	}
 	if profile.Spec.Detail != nil && profile.Spec.Detail.Fields != nil {
-		validateSemanticFields(*profile.Spec.Detail.Fields, SurfaceDetail, "spec.detail.fields", fieldDefinitions, componentIDs, &issues)
+		validateSemanticFields(*profile.Spec.Detail.Fields, SurfaceDetail, "spec.detail.fields", fieldDefinitions, componentIDs, capability.DefinitionVersion == DefinitionVersionV2, &issues)
 	}
 	if profile.Spec.Actions != nil {
 		validateSemanticActions(*profile.Spec.Actions, capability.Actions, fieldDefinitions, &issues)
@@ -439,7 +460,69 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 	return issues
 }
 
-func validateSemanticFields(fields []FieldPatch, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, issues *[]Issue) {
+// capabilityUsesLimitedTablePresentation identifies the bounded Foundation
+// table contract. These capabilities intentionally expose no configurable
+// form, detail, or action surface; their handwritten consumers do not have a
+// row-value context in which list/search conditions could be evaluated.
+func capabilityUsesLimitedTablePresentation(capability *CapabilityDefinition) bool {
+	return len(capability.Actions) == 0 &&
+		len(capability.DefaultPresentation.Form.Fields) == 0 &&
+		len(capability.DefaultPresentation.Detail.Fields) == 0 &&
+		len(capability.DefaultPresentation.Actions) == 0
+}
+
+func validateLimitedPresentationProfile(spec *ProfileSpec, issues *[]Issue) {
+	const unsupportedSurfaceMessage = "property is not supported by limited table pages"
+	if spec.DataSource != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.dataSource", unsupportedSurfaceMessage)
+	}
+	if spec.Form != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.form", unsupportedSurfaceMessage)
+	}
+	if spec.Detail != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.detail", unsupportedSurfaceMessage)
+	}
+	if spec.Actions != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.actions", unsupportedSurfaceMessage)
+	}
+	if spec.List != nil {
+		if spec.List.DefaultSort != nil {
+			addIssue(issues, "unsupported-limited-surface", "spec.list.defaultSort", unsupportedSurfaceMessage)
+		}
+		validateLimitedFieldPatches(spec.List.Columns, "spec.list.columns", true, issues)
+	}
+	if spec.Search != nil {
+		validateLimitedFieldPatches(spec.Search.Fields, "spec.search.fields", false, issues)
+	}
+}
+
+func validateLimitedFieldPatches(fields *[]FieldPatch, path string, allowWidth bool, issues *[]Issue) {
+	if fields == nil {
+		return
+	}
+	for index, field := range *fields {
+		fieldPath := fmt.Sprintf("%s[%d]", path, index)
+		for _, property := range []struct {
+			name    string
+			present bool
+		}{
+			{name: "component", present: field.Component != nil},
+			{name: "span", present: field.Span != nil},
+			{name: "placeholder", present: field.Placeholder != nil},
+			{name: "help", present: field.Help != nil},
+			{name: "width", present: !allowWidth && field.Width != nil},
+		} {
+			if property.present {
+				addIssue(issues, "unsupported-limited-surface", fieldPath+"."+property.name, "property is not supported by limited table pages")
+			}
+		}
+		if field.VisibleWhen != nil {
+			addIssue(issues, "unsupported-limited-surface", fieldPath+".visibleWhen", "property is not supported by limited table pages")
+		}
+	}
+}
+
+func validateSemanticFields(fields []FieldPatch, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, strictSurfaceComponents bool, issues *[]Issue) {
 	seen := make(map[string]struct{}, len(fields))
 	for index := range fields {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
@@ -459,12 +542,15 @@ func validateSemanticFields(fields []FieldPatch, surface Surface, path string, d
 		if field.Component != nil {
 			if _, ok = components[*field.Component]; !ok {
 				addIssue(issues, "unknown-component", currentPath+".component", "profile references an unknown component")
-			} else if !containsString(definition.Components, *field.Component) {
+			} else if !capabilityFieldSupportsComponent(definition, surface, *field.Component, strictSurfaceComponents) {
 				addIssue(issues, "unsupported-field-component", currentPath+".component", "component is not allowed for this field")
 			}
 		}
 		if surface == SurfaceForm && definition.Required && field.Hidden != nil && *field.Hidden {
 			addIssue(issues, "required-form-field-hidden", currentPath+".hidden", "required form field cannot be hidden")
+		}
+		if surface == SurfaceForm && definition.Required && field.VisibleWhen != nil {
+			addIssue(issues, "required-form-field-conditional", currentPath+".visibleWhen", "required form field cannot be conditionally hidden")
 		}
 		validateSemanticCondition(field.VisibleWhen, currentPath+".visibleWhen", definitions, issues)
 	}
@@ -542,25 +628,62 @@ func ValidateCapability(capability *CapabilityDefinition) []Issue {
 	}
 	if strings.TrimSpace(capability.DefinitionVersion) == "" {
 		addIssue(&issues, "missing-definition-version", "definitionVersion", "definition version is required")
+	} else if capability.DefinitionVersion != DefinitionVersionV1 && capability.DefinitionVersion != DefinitionVersionV2 {
+		addIssue(&issues, "unsupported-definition-version", "definitionVersion", "definition version must be 1 or 2")
 	}
+	supportedDefinitionVersion := capability.DefinitionVersion == DefinitionVersionV1 || capability.DefinitionVersion == DefinitionVersionV2
 	if !definitionHashPattern.MatchString(capability.DefinitionHash) {
 		addIssue(&issues, "invalid-definition-hash", "definitionHash", "definition hash is invalid")
-	} else if computed, err := ComputeDefinitionHash(capability); err != nil {
-		addIssue(&issues, "definition-hash-computation", "definitionHash", err.Error())
-	} else if computed != capability.DefinitionHash {
-		addIssue(&issues, "definition-hash-mismatch", "definitionHash", "definition hash does not match the canonical compatibility contract")
+	} else if supportedDefinitionVersion {
+		computed, err := ComputeDefinitionHash(capability)
+		if err != nil {
+			addIssue(&issues, "definition-hash-computation", "definitionHash", err.Error())
+		} else if computed != capability.DefinitionHash {
+			addIssue(&issues, "definition-hash-mismatch", "definitionHash", "definition hash does not match the canonical compatibility contract")
+		}
 	}
 	validateCapabilityIDs(capability, &issues)
+	if capabilityUsesLimitedTablePresentation(capability) {
+		validateLimitedCompletePresentationConditions(&capability.DefaultPresentation, &issues)
+	}
 	validateCompletePresentation(capability, &issues)
 	sortIssues(issues)
 	return issues
+}
+
+func validateLimitedCompletePresentationConditions(presentation *CompletePresentation, issues *[]Issue) {
+	collections := []struct {
+		path   string
+		fields []CompleteField
+	}{
+		{path: "defaultPresentation.list.columns", fields: presentation.List.Columns},
+		{path: "defaultPresentation.search.fields", fields: presentation.Search.Fields},
+		{path: "defaultPresentation.form.fields", fields: presentation.Form.Fields},
+		{path: "defaultPresentation.detail.fields", fields: presentation.Detail.Fields},
+	}
+	for _, collection := range collections {
+		for index, field := range collection.fields {
+			if field.VisibleWhen != nil {
+				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("%s[%d].visibleWhen", collection.path, index), "visibility conditions are not supported by limited table pages")
+			}
+		}
+	}
+	for index, action := range presentation.Actions {
+		if action.VisibleWhen != nil {
+			addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("defaultPresentation.actions[%d].visibleWhen", index), "visibility conditions are not supported by limited table pages")
+		}
+	}
 }
 
 func validateCapabilityIDs(capability *CapabilityDefinition, issues *[]Issue) {
 	componentIDs := make(map[string]struct{}, len(capability.Components))
 	validateUniqueIdentifiers("components", len(capability.Components), func(index int) string { return capability.Components[index].ID }, componentIDs, issues)
 	fieldIDs := make(map[string]struct{}, len(capability.Fields))
-	validateUniqueIdentifiers("fields", len(capability.Fields), func(index int) string { return capability.Fields[index].ID }, fieldIDs, issues)
+	if capability.DefinitionVersion == DefinitionVersionV2 {
+		validateUniqueFieldIdentifiers("fields", len(capability.Fields), func(index int) string { return capability.Fields[index].ID }, fieldIDs, issues)
+	} else {
+		validateUniqueVersionOneFieldIdentifiers("fields", len(capability.Fields), func(index int) string { return capability.Fields[index].ID }, fieldIDs, issues)
+	}
 	dataSourceIDs := make(map[string]struct{}, len(capability.DataSources))
 	validateUniqueIdentifiers("dataSources", len(capability.DataSources), func(index int) string { return capability.DataSources[index].ID }, dataSourceIDs, issues)
 	actionIDs := make(map[string]struct{}, len(capability.Actions))
@@ -570,6 +693,51 @@ func validateCapabilityIDs(capability *CapabilityDefinition, issues *[]Issue) {
 		validateLocalizedText(&field.Label, fmt.Sprintf("fields[%d].label", index), issues)
 		if _, ok := allowedValueTypes[field.ValueType]; !ok {
 			addIssue(issues, "invalid-field-value-type", fmt.Sprintf("fields[%d].valueType", index), "field value type is not supported")
+		}
+		if field.Required && field.Nullable {
+			addIssue(issues, "conflicting-field-nullability", fmt.Sprintf("fields[%d]", index), "required and nullable cannot both be true")
+		}
+		if field.Validation.MinLength != nil && (*field.Validation.MinLength < 0 || (capability.DefinitionVersion == DefinitionVersionV2 && int64(*field.Validation.MinLength) > maxSafeJSONInteger)) {
+			addIssue(issues, "invalid-field-min-length", fmt.Sprintf("fields[%d].validation.minLength", index), "minimum length cannot be negative")
+		}
+		if field.Validation.MaxLength != nil && (*field.Validation.MaxLength < 0 || (capability.DefinitionVersion == DefinitionVersionV2 && int64(*field.Validation.MaxLength) > maxSafeJSONInteger)) {
+			addIssue(issues, "invalid-field-max-length", fmt.Sprintf("fields[%d].validation.maxLength", index), "maximum length cannot be negative")
+		}
+		if field.Validation.MinLength != nil && field.Validation.MaxLength != nil && *field.Validation.MinLength > *field.Validation.MaxLength {
+			addIssue(issues, "invalid-field-length-range", fmt.Sprintf("fields[%d].validation", index), "minimum length cannot exceed maximum length")
+		}
+		if field.Validation.Pattern != "" {
+			if _, err := regexp.Compile(field.Validation.Pattern); err != nil {
+				addIssue(issues, "invalid-field-pattern", fmt.Sprintf("fields[%d].validation.pattern", index), "field pattern is invalid")
+			}
+			if capability.DefinitionVersion == DefinitionVersionV2 && !isPortableCapabilityPattern(field.Validation.Pattern) {
+				addIssue(issues, "non-portable-field-pattern", fmt.Sprintf("fields[%d].validation.pattern", index), "field pattern must use the portable Go and ECMAScript subset")
+			}
+		}
+		_, formatAllowed := allowedFieldFormats[field.Format]
+		if capability.DefinitionVersion == DefinitionVersionV2 && !formatAllowed {
+			addIssue(issues, "unsupported-field-format", fmt.Sprintf("fields[%d].format", index), "field format is not supported")
+		} else if field.Format != "" && !formatAllowed {
+			addIssue(issues, "unsupported-field-format", fmt.Sprintf("fields[%d].format", index), "field format is not supported")
+		}
+		validateCapabilityNumericFacts(field, index, issues)
+		enumValues := make(map[string]struct{}, len(field.EnumValues))
+		for valueIndex := range field.EnumValues {
+			valuePath := fmt.Sprintf("fields[%d].enumValues[%d]", index, valueIndex)
+			value := &field.EnumValues[valueIndex]
+			if len(value.Value) < 1 || len(value.Value) > 120 || !enumValuePattern.MatchString(value.Value) {
+				addIssue(issues, "invalid-enum-value", valuePath+".value", "enum value must be a stable lower-case token")
+			}
+			validateLocalizedText(&value.Label, valuePath+".label", issues)
+			if _, duplicate := enumValues[value.Value]; duplicate {
+				addIssue(issues, "duplicate-enum-value", valuePath+".value", "enum value is duplicated")
+			}
+			enumValues[value.Value] = struct{}{}
+		}
+		if capability.DefinitionVersion == DefinitionVersionV2 && field.ValueType == "enum" && len(field.EnumValues) == 0 {
+			addIssue(issues, "missing-enum-values", fmt.Sprintf("fields[%d].enumValues", index), "enum field needs values")
+		} else if field.ValueType != "enum" && len(field.EnumValues) > 0 {
+			addIssue(issues, "unexpected-enum-values", fmt.Sprintf("fields[%d].enumValues", index), "enum values require enum value type")
 		}
 		if len(field.Surfaces) == 0 {
 			addIssue(issues, "missing-field-surface", fmt.Sprintf("fields[%d].surfaces", index), "field needs at least one surface")
@@ -597,9 +765,15 @@ func validateCapabilityIDs(capability *CapabilityDefinition, issues *[]Issue) {
 			}
 			seenComponents[component] = struct{}{}
 		}
+		if capability.DefinitionVersion == DefinitionVersionV2 {
+			validateSurfaceComponents(field, index, componentIDs, issues)
+		}
 	}
 	for index := range capability.DataSources {
 		validatePermissions(capability.DataSources[index].RequiredPermissions, fmt.Sprintf("dataSources[%d].requiredPermissions", index), issues)
+		if capability.DefinitionVersion == DefinitionVersionV2 {
+			validateDataSourceLimits(&capability.DataSources[index], index, issues)
+		}
 	}
 	for index := range capability.Actions {
 		validatePermissions(capability.Actions[index].RequiredPermissions, fmt.Sprintf("actions[%d].requiredPermissions", index), issues)
@@ -622,7 +796,8 @@ func validateCapabilityIDs(capability *CapabilityDefinition, issues *[]Issue) {
 func validateCompletePresentation(capability *CapabilityDefinition, issues *[]Issue) {
 	defaultValue := &capability.DefaultPresentation
 	validateLocalizedText(&defaultValue.Title, "defaultPresentation.title", issues)
-	if !containsDataSource(capability.DataSources, defaultValue.DataSource) {
+	dataSource, hasDataSource := findDataSource(capability.DataSources, defaultValue.DataSource)
+	if !hasDataSource {
 		addIssue(issues, "unknown-data-source", "defaultPresentation.dataSource", "default presentation references an unknown data source")
 	}
 	fieldDefinitions := make(map[string]CapabilityField, len(capability.Fields))
@@ -644,7 +819,7 @@ func validateCompletePresentation(capability *CapabilityDefinition, issues *[]Is
 		{SurfaceDetail, "defaultPresentation.detail.fields", defaultValue.Detail.Fields},
 	}
 	for _, collection := range collections {
-		validateCompleteFields(collection.fields, collection.surface, collection.path, fieldDefinitions, components, issues)
+		validateCompleteFields(collection.fields, collection.surface, collection.path, fieldDefinitions, components, capability.DefinitionVersion == DefinitionVersionV2, issues)
 	}
 	for _, field := range capability.Fields {
 		for _, surface := range field.Surfaces {
@@ -665,6 +840,12 @@ func validateCompletePresentation(capability *CapabilityDefinition, issues *[]Is
 	}
 	if defaultValue.List.PageSize < 1 || defaultValue.List.PageSize > 200 {
 		addIssue(issues, "invalid-page-size", "defaultPresentation.list.pageSize", "default page size must be 1 to 200")
+	}
+	if hasDataSource && capability.DefinitionVersion == DefinitionVersionV2 {
+		validateCapabilityPageSize(defaultValue.List.PageSize, dataSource, "defaultPresentation.list.pageSize", issues)
+		if len(defaultValue.List.DefaultSort) > dataSource.MaxSortFields {
+			addIssue(issues, "too-many-data-source-sort-fields", "defaultPresentation.list.defaultSort", "default sort exceeds the compiled data source limit")
+		}
 	}
 	validateSorts(defaultValue.List.DefaultSort, "defaultPresentation.list.defaultSort", issues)
 	validateSemanticSort(defaultValue.List.DefaultSort, "defaultPresentation.list.defaultSort", fieldDefinitions, issues)
@@ -699,7 +880,7 @@ func validateCompletePresentation(capability *CapabilityDefinition, issues *[]Is
 	}
 }
 
-func validateCompleteFields(fields []CompleteField, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, issues *[]Issue) {
+func validateCompleteFields(fields []CompleteField, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, strictSurfaceComponents bool, issues *[]Issue) {
 	seen := make(map[string]struct{}, len(fields))
 	for index := range fields {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
@@ -718,11 +899,14 @@ func validateCompleteFields(fields []CompleteField, surface Surface, path string
 		}
 		if _, ok = components[field.Component]; !ok {
 			addIssue(issues, "unknown-component", currentPath+".component", "default presentation references an unknown component")
-		} else if !containsString(definition.Components, field.Component) {
+		} else if !capabilityFieldSupportsComponent(definition, surface, field.Component, strictSurfaceComponents) {
 			addIssue(issues, "unsupported-field-component", currentPath+".component", "default component is not allowed for the field")
 		}
 		if surface == SurfaceForm && definition.Required && field.Hidden {
 			addIssue(issues, "required-form-field-hidden", currentPath+".hidden", "required form field cannot be hidden")
+		}
+		if surface == SurfaceForm && definition.Required && field.VisibleWhen != nil {
+			addIssue(issues, "required-form-field-conditional", currentPath+".visibleWhen", "required form field cannot be conditionally hidden")
 		}
 		if field.Order < 0 || field.Order > 10000 {
 			addIssue(issues, "invalid-field-order", currentPath+".order", "default field order must be 0 to 10000")
@@ -745,22 +929,94 @@ func ComputeDefinitionHash(capability *CapabilityDefinition) (string, error) {
 	if capability == nil {
 		return "", errors.New("capability is required")
 	}
-	compatibility := struct {
-		PageKey           string                 `json:"pageKey"`
-		DefinitionVersion string                 `json:"definitionVersion"`
-		Components        []CapabilityComponent  `json:"components"`
-		Fields            []CapabilityField      `json:"fields"`
-		DataSources       []CapabilityDataSource `json:"dataSources"`
-		Actions           []CapabilityAction     `json:"actions"`
-	}{
-		PageKey:           capability.PageKey,
-		DefinitionVersion: capability.DefinitionVersion,
-		Components:        capability.Components,
-		Fields:            capability.Fields,
-		DataSources:       capability.DataSources,
-		Actions:           capability.Actions,
+	var compatibility any
+	switch capability.DefinitionVersion {
+	case DefinitionVersionV1:
+		type legacyField struct {
+			ID         string        `json:"id"`
+			Label      LocalizedText `json:"label"`
+			ValueType  string        `json:"valueType"`
+			Required   bool          `json:"required"`
+			Sortable   bool          `json:"sortable"`
+			Filterable bool          `json:"filterable"`
+			Surfaces   []Surface     `json:"surfaces"`
+			Components []string      `json:"components"`
+		}
+		type legacyDataSource struct {
+			ID                  string   `json:"id"`
+			RequiredPermissions []string `json:"requiredPermissions"`
+		}
+		type legacyAction struct {
+			ID                  string            `json:"id"`
+			RequiredPermissions []string          `json:"requiredPermissions"`
+			Placements          []ActionPlacement `json:"placements"`
+			Destructive         bool              `json:"destructive,omitempty"`
+		}
+		var fields []legacyField
+		if capability.Fields != nil {
+			fields = make([]legacyField, 0, len(capability.Fields))
+			for _, field := range capability.Fields {
+				fields = append(fields, legacyField{
+					ID: field.ID, Label: field.Label, ValueType: field.ValueType,
+					Required: field.Required, Sortable: field.Sortable, Filterable: field.Filterable,
+					Surfaces: field.Surfaces, Components: field.Components,
+				})
+			}
+		}
+		var dataSources []legacyDataSource
+		if capability.DataSources != nil {
+			dataSources = make([]legacyDataSource, 0, len(capability.DataSources))
+			for _, dataSource := range capability.DataSources {
+				dataSources = append(dataSources, legacyDataSource{
+					ID: dataSource.ID, RequiredPermissions: dataSource.RequiredPermissions,
+				})
+			}
+		}
+		var actions []legacyAction
+		if capability.Actions != nil {
+			actions = make([]legacyAction, 0, len(capability.Actions))
+			for _, action := range capability.Actions {
+				actions = append(actions, legacyAction{
+					ID: action.ID, RequiredPermissions: action.RequiredPermissions,
+					Placements: action.Placements, Destructive: action.Destructive,
+				})
+			}
+		}
+		compatibility = struct {
+			PageKey           string                `json:"pageKey"`
+			DefinitionVersion string                `json:"definitionVersion"`
+			Components        []CapabilityComponent `json:"components"`
+			Fields            []legacyField         `json:"fields"`
+			DataSources       []legacyDataSource    `json:"dataSources"`
+			Actions           []legacyAction        `json:"actions"`
+		}{
+			PageKey: capability.PageKey, DefinitionVersion: capability.DefinitionVersion,
+			Components: capability.Components, Fields: fields,
+			DataSources: dataSources, Actions: actions,
+		}
+	case DefinitionVersionV2:
+		compatibility = struct {
+			PageKey             string                 `json:"pageKey"`
+			DefinitionVersion   string                 `json:"definitionVersion"`
+			Components          []CapabilityComponent  `json:"components"`
+			Fields              []CapabilityField      `json:"fields"`
+			DataSources         []CapabilityDataSource `json:"dataSources"`
+			Actions             []CapabilityAction     `json:"actions"`
+			DefaultPresentation CompletePresentation   `json:"defaultPresentation"`
+		}{
+			PageKey: capability.PageKey, DefinitionVersion: capability.DefinitionVersion,
+			Components: capability.Components, Fields: capability.Fields,
+			DataSources: capability.DataSources, Actions: capability.Actions,
+			DefaultPresentation: capability.DefaultPresentation,
+		}
+	default:
+		return "", fmt.Errorf("unsupported definition version %q", capability.DefinitionVersion)
 	}
-	canonical, err := canonicalJSON(compatibility)
+	canonicalizer := canonicalJSON
+	if capability.DefinitionVersion == DefinitionVersionV2 {
+		canonicalizer = canonicalJSONV2
+	}
+	canonical, err := canonicalizer(compatibility)
 	if err != nil {
 		return "", err
 	}
@@ -768,21 +1024,128 @@ func ComputeDefinitionHash(capability *CapabilityDefinition) (string, error) {
 }
 
 func IsProtectedPageKey(pageKey string) bool {
-	prefixes := []string{
-		"auth.", "authentication.", "authorization.", "app-config.", "application-config.",
-		"release.", "recovery.", "presentation-config.", "presentation.governance",
+	namespace, _, _ := strings.Cut(pageKey, ".")
+	switch namespace {
+	case "account", "auth", "authentication", "authorization", "app-config", "application-config",
+		"config", "configuration", "login", "presentation", "presentation-config", "recovery", "release", "system":
+		return true
 	}
-	for _, prefix := range prefixes {
-		if pageKey == strings.TrimSuffix(prefix, ".") || strings.HasPrefix(pageKey, prefix) {
-			return true
+	return false
+}
+
+func capabilityFieldSupportsComponent(field CapabilityField, surface Surface, component string, strict bool) bool {
+	if !strict {
+		return containsString(field.Components, component)
+	}
+	for _, mapping := range field.SurfaceComponents {
+		if mapping.Surface == surface {
+			return containsString(mapping.Components, component)
 		}
 	}
 	return false
 }
 
+func isPortableCapabilityPattern(value string) bool {
+	if strings.Contains(value, "(?") || strings.Contains(value, "[[:") {
+		return false
+	}
+	for _, current := range value {
+		if current > 0xffff || current == '\u2028' || current == '\u2029' {
+			return false
+		}
+	}
+	inClass := false
+	classHasContent := false
+	classAtStart := false
+	for index := 0; index < len(value); index++ {
+		switch value[index] {
+		case '\\':
+			index++
+			if index >= len(value) {
+				return false
+			}
+			escaped := value[index]
+			if escaped == 'x' {
+				if index+2 >= len(value) ||
+					!isCapabilityPatternHex(value[index+1]) ||
+					!isCapabilityPatternHex(value[index+2]) {
+					return false
+				}
+				index += 2
+			} else {
+				allowed := `bBdDfnrtvwW$()*+./?[\]^{|}`
+				if inClass {
+					allowed = `dDfnrtvwW$()*+-./?[\]^{|}`
+				}
+				if !strings.ContainsRune(allowed, rune(escaped)) {
+					return false
+				}
+			}
+			if inClass {
+				classHasContent = true
+				classAtStart = false
+			}
+		case '[':
+			if inClass {
+				classHasContent = true
+				classAtStart = false
+				continue
+			}
+			inClass = true
+			classHasContent = false
+			classAtStart = true
+		case ']':
+			if !inClass || !classHasContent {
+				return false
+			}
+			inClass = false
+			classHasContent = false
+			classAtStart = false
+		case '^':
+			if inClass {
+				if classAtStart {
+					classAtStart = false
+				} else {
+					classHasContent = true
+				}
+			}
+		case '{', '}':
+			if !inClass {
+				return false
+			}
+			classHasContent = true
+			classAtStart = false
+		case '.':
+			if !inClass {
+				return false
+			}
+			classHasContent = true
+			classAtStart = false
+		default:
+			if inClass {
+				classHasContent = true
+				classAtStart = false
+			}
+		}
+	}
+	return !inClass
+}
+
+func isCapabilityPatternHex(value byte) bool {
+	return (value >= '0' && value <= '9') ||
+		(value >= 'a' && value <= 'f') ||
+		(value >= 'A' && value <= 'F')
+}
+
 func validateIdentifier(value, path string, issues *[]Issue) {
 	if len(value) < 2 || len(value) > 120 || !identifierPattern.MatchString(value) {
 		addIssue(issues, "invalid-identifier", path, "value must be a stable lowercase identifier")
+	}
+}
+
+func validateFieldReferenceIdentifier(value, path string, issues *[]Issue) {
+	if len(value) < 1 || len(value) > 120 || (!identifierPattern.MatchString(value) && !fieldIdentifierPattern.MatchString(value)) {
+		addIssue(issues, "invalid-identifier", path, "value must be a stable field identifier")
 	}
 }
 
@@ -792,6 +1155,34 @@ func validateUniqueIdentifiers(path string, length int, value func(int) string, 
 		validateIdentifier(current, fmt.Sprintf("%s[%d].id", path, index), issues)
 		if _, duplicate := seen[current]; duplicate {
 			addIssue(issues, "duplicate-capability-id", fmt.Sprintf("%s[%d].id", path, index), "capability identifier is duplicated")
+		}
+		seen[current] = struct{}{}
+	}
+}
+
+func validateUniqueFieldIdentifiers(path string, length int, value func(int) string, seen map[string]struct{}, issues *[]Issue) {
+	for index := 0; index < length; index++ {
+		current := value(index)
+		currentPath := fmt.Sprintf("%s[%d].id", path, index)
+		if len(current) < 1 || len(current) > 120 || !fieldIdentifierPattern.MatchString(current) {
+			addIssue(issues, "invalid-field-identifier", currentPath, "field id must be a stable lower-camel identifier")
+		}
+		if _, duplicate := seen[current]; duplicate {
+			addIssue(issues, "duplicate-capability-id", currentPath, "capability identifier is duplicated")
+		}
+		seen[current] = struct{}{}
+	}
+}
+
+func validateUniqueVersionOneFieldIdentifiers(path string, length int, value func(int) string, seen map[string]struct{}, issues *[]Issue) {
+	for index := 0; index < length; index++ {
+		current := value(index)
+		currentPath := fmt.Sprintf("%s[%d].id", path, index)
+		if len(current) < 2 || len(current) > 120 || (!identifierPattern.MatchString(current) && !fieldIdentifierPattern.MatchString(current)) {
+			addIssue(issues, "invalid-field-identifier", currentPath, "field id must be a stable version 1 identifier")
+		}
+		if _, duplicate := seen[current]; duplicate {
+			addIssue(issues, "duplicate-capability-id", currentPath, "capability identifier is duplicated")
 		}
 		seen[current] = struct{}{}
 	}
@@ -810,6 +1201,125 @@ func validatePermissions(permissions []string, path string, issues *[]Issue) {
 			addIssue(issues, "duplicate-permission", fmt.Sprintf("%s[%d]", path, index), "trusted permission is duplicated")
 		}
 		seen[permission] = struct{}{}
+	}
+}
+
+func validateDataSourceLimits(dataSource *CapabilityDataSource, index int, issues *[]Issue) {
+	path := fmt.Sprintf("dataSources[%d]", index)
+	if dataSource.MaxPageSize < 1 || dataSource.MaxPageSize > 200 {
+		addIssue(issues, "invalid-max-page-size", path+".maxPageSize", "maximum page size must be 1 to 200")
+	}
+	if len(dataSource.PageSizeOptions) == 0 {
+		addIssue(issues, "missing-page-size-options", path+".pageSizeOptions", "version 2 data source needs page size options")
+	}
+	previous := 0
+	seen := make(map[int]struct{}, len(dataSource.PageSizeOptions))
+	for optionIndex, option := range dataSource.PageSizeOptions {
+		optionPath := fmt.Sprintf("%s.pageSizeOptions[%d]", path, optionIndex)
+		if option < 1 || option > dataSource.MaxPageSize {
+			addIssue(issues, "invalid-page-size-option", optionPath, "page size option must be within the data source maximum")
+		}
+		if _, duplicate := seen[option]; duplicate {
+			addIssue(issues, "duplicate-page-size-option", optionPath, "page size option is duplicated")
+		}
+		if optionIndex > 0 && option <= previous {
+			addIssue(issues, "unsorted-page-size-options", optionPath, "page size options must be strictly increasing")
+		}
+		seen[option] = struct{}{}
+		previous = option
+	}
+	if dataSource.MaxSortFields < 0 || dataSource.MaxSortFields > 3 {
+		addIssue(issues, "invalid-max-sort-fields", path+".maxSortFields", "maximum sort fields must be 0 to 3")
+	}
+}
+
+func validateCapabilityNumericFacts(field *CapabilityField, index int, issues *[]Issue) {
+	path := fmt.Sprintf("fields[%d].validation", index)
+	parseBound := func(value *string, valuePath string) (float64, bool) {
+		if value == nil {
+			return 0, false
+		}
+		parsed, err := strconv.ParseFloat(*value, 64)
+		if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+			addIssue(issues, "invalid-field-number-bound", valuePath, "numeric bound must be a finite decimal string")
+			return 0, false
+		}
+		return parsed, true
+	}
+	minimum, hasMinimum := parseBound(field.Validation.Minimum, path+".minimum")
+	maximum, hasMaximum := parseBound(field.Validation.Maximum, path+".maximum")
+	if hasMinimum && hasMaximum && minimum > maximum {
+		addIssue(issues, "invalid-field-number-range", path, "minimum cannot exceed maximum")
+	}
+	if field.Validation.Precision != nil && (*field.Validation.Precision < 1 || *field.Validation.Precision > 38) {
+		addIssue(issues, "invalid-field-precision", path+".precision", "precision must be 1 to 38")
+	}
+	if field.Validation.Scale != nil {
+		if *field.Validation.Scale < 0 || *field.Validation.Scale > 38 {
+			addIssue(issues, "invalid-field-scale", path+".scale", "scale must be 0 to 38")
+		}
+		if field.Validation.Precision != nil && *field.Validation.Scale > *field.Validation.Precision {
+			addIssue(issues, "invalid-field-scale", path+".scale", "scale cannot exceed precision")
+		}
+	}
+}
+
+func validateSurfaceComponents(field *CapabilityField, fieldIndex int, componentIDs map[string]struct{}, issues *[]Issue) {
+	path := fmt.Sprintf("fields[%d].surfaceComponents", fieldIndex)
+	if len(field.SurfaceComponents) == 0 {
+		addIssue(issues, "missing-surface-components", path, "version 2 field needs component choices for every surface")
+		return
+	}
+	declaredSurfaces := make(map[Surface]struct{}, len(field.Surfaces))
+	for _, surface := range field.Surfaces {
+		declaredSurfaces[surface] = struct{}{}
+	}
+	declaredComponents := make(map[string]struct{}, len(field.Components))
+	for _, component := range field.Components {
+		declaredComponents[component] = struct{}{}
+	}
+	seenSurfaces := make(map[Surface]struct{}, len(field.SurfaceComponents))
+	usedComponents := make(map[string]struct{}, len(field.Components))
+	for surfaceIndex, surfaceComponents := range field.SurfaceComponents {
+		itemPath := fmt.Sprintf("%s[%d]", path, surfaceIndex)
+		if !validSurface(surfaceComponents.Surface) {
+			addIssue(issues, "invalid-field-surface", itemPath+".surface", "surface is not supported")
+		}
+		if _, ok := declaredSurfaces[surfaceComponents.Surface]; !ok {
+			addIssue(issues, "unexpected-surface-components", itemPath+".surface", "surface components reference an undeclared field surface")
+		}
+		if _, duplicate := seenSurfaces[surfaceComponents.Surface]; duplicate {
+			addIssue(issues, "duplicate-surface-components", itemPath+".surface", "surface component mapping is duplicated")
+		}
+		seenSurfaces[surfaceComponents.Surface] = struct{}{}
+		if len(surfaceComponents.Components) == 0 {
+			addIssue(issues, "missing-surface-component", itemPath+".components", "surface needs at least one component")
+		}
+		seenComponents := make(map[string]struct{}, len(surfaceComponents.Components))
+		for componentIndex, component := range surfaceComponents.Components {
+			componentPath := fmt.Sprintf("%s.components[%d]", itemPath, componentIndex)
+			if _, ok := componentIDs[component]; !ok {
+				addIssue(issues, "unknown-field-component", componentPath, "surface references an unknown component")
+			}
+			if _, ok := declaredComponents[component]; !ok {
+				addIssue(issues, "surface-component-mismatch", componentPath, "surface component is missing from the field component inventory")
+			}
+			if _, duplicate := seenComponents[component]; duplicate {
+				addIssue(issues, "duplicate-field-component", componentPath, "surface component is duplicated")
+			}
+			seenComponents[component] = struct{}{}
+			usedComponents[component] = struct{}{}
+		}
+	}
+	for surface := range declaredSurfaces {
+		if _, ok := seenSurfaces[surface]; !ok {
+			addIssue(issues, "missing-surface-components", path, "surface component mapping is missing for "+string(surface))
+		}
+	}
+	for component := range declaredComponents {
+		if _, ok := usedComponents[component]; !ok {
+			addIssue(issues, "surface-component-mismatch", path, "field component is not available on any surface: "+component)
+		}
 	}
 }
 
@@ -834,12 +1344,35 @@ func completeCollectionHasField(value *CompletePresentation, surface Surface, fi
 }
 
 func containsDataSource(values []CapabilityDataSource, id string) bool {
+	_, ok := findDataSource(values, id)
+	return ok
+}
+
+func findDataSource(values []CapabilityDataSource, id string) (CapabilityDataSource, bool) {
 	for _, value := range values {
 		if value.ID == id {
-			return true
+			return value, true
 		}
 	}
-	return false
+	return CapabilityDataSource{}, false
+}
+
+func validateCapabilityPageSize(value int, dataSource CapabilityDataSource, path string, issues *[]Issue) {
+	if dataSource.MaxPageSize > 0 && value > dataSource.MaxPageSize {
+		addIssue(issues, "page-size-exceeds-data-source-limit", path, "page size exceeds the compiled data source maximum")
+	}
+	if len(dataSource.PageSizeOptions) > 0 {
+		allowed := false
+		for _, option := range dataSource.PageSizeOptions {
+			if value == option {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			addIssue(issues, "unsupported-page-size", path, "page size is not allowed by the compiled data source")
+		}
+	}
 }
 
 func containsSurface(values []Surface, expected Surface) bool {

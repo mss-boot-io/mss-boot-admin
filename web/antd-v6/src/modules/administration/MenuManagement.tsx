@@ -5,6 +5,11 @@ import {
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
 import { formatMenuLabel } from '@mss-admin-core/shared/navigation/menuLocale';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -33,6 +38,7 @@ import {
   administrationAPIReferenceKey,
   administrationSelectOptions,
   administrationSubtreeIDs,
+  isAdminPageSize,
   type MenuSummary,
   type MenuWriteValues,
 } from './contract';
@@ -42,12 +48,18 @@ import {
   useMenuAPIBindings,
   useMenuTree,
 } from './query';
+import {
+  menuPresentationListComponents,
+  menuPresentationMobileFields,
+  menuPresentationSearchComponents,
+} from './tablePresentation';
 
 interface MenuManagementProps {
   canBindAPI: boolean;
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -62,12 +74,17 @@ export default function MenuManagement({
   canCreate,
   canDelete,
   canEdit,
+  presentationRuntime,
   routeIntent,
 }: MenuManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const menus = useAdministrationPage('menus', params);
   const menuCatalog = useMenuTree();
   const [editing, setEditing] = useState<MenuSummary | 'create'>();
@@ -178,7 +195,7 @@ export default function MenuManagement({
     },
   });
 
-  const columns: TableColumnsType<MenuSummary> = [
+  const compiledColumns: TableColumnsType<MenuSummary> = [
     {
       title: intl.formatMessage({ id: 'administration.field.name' }),
       dataIndex: 'name',
@@ -250,16 +267,31 @@ export default function MenuManagement({
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: menuPresentationListComponents,
+    mobileColumnKeys: [...menuPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: menuPresentationSearchComponents,
+  });
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'menu.empty' })}
+        nameSearch={tablePresentation.searchFields.get('name') ?? null}
         params={params}
         query={menus}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
         setParams={setParams}
-        mobileColumnKeys={['name', 'type', 'path', 'status', 'actions']}
+        statusSearch={tablePresentation.searchFields.get('status') ?? null}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

@@ -13,6 +13,12 @@ import {
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
 import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
@@ -43,11 +49,17 @@ import {
 import OptionDetailDrawer from './OptionDetailDrawer';
 import { presentOptionSummary } from './presentation';
 import { useOptionPage } from './query';
+import {
+  optionPresentationListComponents,
+  optionPresentationMobileFields,
+  optionPresentationSearchComponents,
+} from './tablePresentation';
 
 interface OptionListViewProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
 }
 
 interface OptionFilterValues {
@@ -62,12 +74,22 @@ const initialParams: OptionListParams = {
   status: 'all',
 };
 
-export default function OptionListView({ canCreate, canDelete, canEdit }: OptionListViewProps) {
+export default function OptionListView({
+  canCreate,
+  canDelete,
+  canEdit,
+  presentationRuntime,
+}: OptionListViewProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
   const [form] = Form.useForm<OptionFilterValues>();
-  const [params, setParams] = useState<OptionListParams>(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOptionPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const [detailID, setDetailID] = useState<string>();
   const options = useOptionPage(params);
   const remove = useMutation({
@@ -144,7 +166,7 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
 
   const displayName = (row: OptionSummary) => presentOptionSummary(row, intl).displayName || '—';
 
-  const columns: TableColumnsType<OptionSummary> = [
+  const compiledColumns: TableColumnsType<OptionSummary> = [
     {
       title: intl.formatMessage({ id: 'option.field.name' }),
       dataIndex: 'name',
@@ -193,6 +215,19 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
       render: (_, row) => renderActions(row),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isOptionPageSize,
+    listComponents: optionPresentationListComponents,
+    mobileColumnKeys: [...optionPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: optionPresentationSearchComponents,
+  });
+  const nameSearch = tablePresentation.searchFields.get('name');
+  const categorySearch = tablePresentation.searchFields.get('category');
+  const statusSearch = tablePresentation.searchFields.get('status');
 
   if (options.isPending && !options.data) return <PageLoading rows={8} />;
   if (options.isError && (listStatus === 401 || !options.data)) {
@@ -240,40 +275,55 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
         }
       >
         <Row align="bottom" gutter={16}>
-          <Col xs={24} sm={12} lg={6}>
-            <Form.Item name="name" label={intl.formatMessage({ id: 'option.field.name' })}>
-              <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={5}>
-            <Form.Item name="category" label={intl.formatMessage({ id: 'option.field.category' })}>
-              <Input allowClear maxLength={50} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Form.Item name="status" label={intl.formatMessage({ id: 'option.field.status' })}>
-              <Select
-                options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
-                  value,
-                  label: intl.formatMessage({ id: `option.status.${value}` }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={9}>
+          {searchPresentation.expanded && nameSearch ? (
+            <Col xs={24} sm={12} lg={6} style={{ order: nameSearch.order }}>
+              <Form.Item name="name" label={nameSearch.label} extra={nameSearch.help}>
+                <Input allowClear maxLength={255} placeholder={nameSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && categorySearch ? (
+            <Col xs={24} sm={12} lg={5} style={{ order: categorySearch.order }}>
+              <Form.Item name="category" label={categorySearch.label} extra={categorySearch.help}>
+                <Input allowClear maxLength={50} placeholder={categorySearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && statusSearch ? (
+            <Col xs={24} sm={12} lg={4} style={{ order: statusSearch.order }}>
+              <Form.Item name="status" label={statusSearch.label} extra={statusSearch.help}>
+                <Select
+                  placeholder={statusSearch.placeholder}
+                  options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
+                    value,
+                    label: intl.formatMessage({ id: `option.status.${value}` }),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} lg={9} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields();
-                    setParams(initialParams);
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        form.resetFields();
+                        setParams({ ...initialParams, pageSize: tablePresentation.pageSize });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={options.isFetching}
@@ -296,13 +346,13 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
         </Row>
       </Form>
       <ResponsiveEntityTable<OptionSummary>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={options.data?.data ?? []}
         loading={options.isFetching}
         locale={{
           emptyText: <PageEmpty description={intl.formatMessage({ id: 'option.empty' })} />,
         }}
-        mobileColumnKeys={['name', 'displayName', 'category', 'status', 'version', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         pagination={{
           current: params.current,
           pageSize: params.pageSize,
@@ -318,6 +368,7 @@ export default function OptionListView({ canCreate, canDelete, canEdit }: Option
         }}
         rowKey="id"
         scroll={{ x: 980 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <Typography.Text type="secondary">
         {intl.formatMessage({ id: 'option.summaryNotice' })}

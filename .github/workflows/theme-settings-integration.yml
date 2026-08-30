@@ -18,30 +18,13 @@ on:
       - 'admin/go.sum'
       - 'mss-boot/pkg/config/gormdb/**'
       - '.github/workflows/theme-settings-integration.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'admin/apis/**theme*'
-      - 'admin/service/app_config*'
-      - 'admin/service/theme*'
-      - 'admin/service/user_config*'
-      - 'admin/models/app_config*'
-      - 'admin/models/config_revision*'
-      - 'admin/models/user_config*'
-      - 'admin/cmd/migrate/migration/system/*config_revision*'
-      - 'admin/cmd/migrate/migration/system/*theme*'
-      - 'admin/go.mod'
-      - 'admin/go.sum'
-      - 'mss-boot/pkg/config/gormdb/**'
-      - '.github/workflows/theme-settings-integration.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: theme-settings-integration-${{ github.event.pull_request.number || github.ref }}
+  group: theme-settings-integration-${{ github.ref }}
   cancel-in-progress: true
 
 env:

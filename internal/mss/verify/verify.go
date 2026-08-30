@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,12 +28,16 @@ const (
 	ModeModule  Mode = "module"
 )
 
+var fullLowercaseCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 // Options controls planning, execution, and reporting.
 type Options struct {
-	Mode     Mode
-	BaseRef  string
-	Module   string
-	PlanOnly bool
+	Mode            Mode
+	BaseRef         string
+	Module          string
+	PlanOnly        bool
+	ReleaseEvidence bool
+	ExpectedCommit  string
 }
 
 // Plan describes the exact checks selected for a change.
@@ -47,13 +52,23 @@ type Plan struct {
 
 // Report is the durable verification result consumed by agents and CI.
 type Report struct {
-	Project     string           `json:"project"`
-	Root        string           `json:"root"`
-	GeneratedAt time.Time        `json:"generatedAt"`
-	Plan        Plan             `json:"plan"`
-	PlanOnly    bool             `json:"planOnly"`
-	Success     bool             `json:"success"`
-	Results     []command.Result `json:"results,omitempty"`
+	Project            string           `json:"project"`
+	Root               string           `json:"root"`
+	GeneratedAt        time.Time        `json:"generatedAt"`
+	Plan               Plan             `json:"plan"`
+	PlanOnly           bool             `json:"planOnly"`
+	EvidenceMode       bool             `json:"evidenceMode"`
+	Commit             string           `json:"commit,omitempty"`
+	TrackedCleanBefore *bool            `json:"trackedCleanBefore,omitempty"`
+	TrackedCleanAfter  *bool            `json:"trackedCleanAfter,omitempty"`
+	EvidenceError      string           `json:"evidenceError,omitempty"`
+	Success            bool             `json:"success"`
+	Results            []command.Result `json:"results,omitempty"`
+}
+
+type releaseEvidenceSnapshot struct {
+	Commit       string
+	TrackedClean bool
 }
 
 // PlanChecks computes a deterministic minimum-sufficient validation plan.
@@ -108,14 +123,19 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(thinHostFrontendTest(ctx), "full Thin Host verification includes host frontend tests")
 			add(thinHostFrontendBuild(ctx), "full Thin Host verification builds the single composed Umi application")
 		} else {
-			add(toolingTest(ctx.Root), "full verification includes agent infrastructure tests")
-			add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
-			add(backendTest(ctx.Root), "full verification includes backend tests")
-			add(backendBuild(ctx.Root), "full verification includes backend build")
+			add(agentReleaseTest(ctx.Root), "full local verification runs the complete Agent module test target with GOWORK disabled")
+			add(agentReleaseBuild(ctx.Root), "full local verification builds both Agent executables independently")
+			add(strictAgentDoctor(ctx.Root), "full local verification validates the Agent environment contract before release preparation")
+			add(strictBackendDoctor(ctx.Root), "full local verification validates the Admin environment contract before release preparation")
+			add(skillContractValidation(ctx.Root), "full local verification validates every checked-in Agent skill")
+			add(foundationCompatibility(ctx.Root), "full local verification qualifies standalone next-Foundation upgrades, identity parity, conflict safety, and Agent evals")
+			add(frameworkReleaseQualification(ctx.Root), "full local verification includes Framework race, coverage, vet, tidy, and independent-module checks")
+			add(backendReleaseQualification(ctx.Root), "full local verification includes Admin race, coverage, vet, module metadata, external consumer, and build checks")
+			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
+			add(adminDistributionExternalConsumer(ctx.Root, options.ReleaseEvidence), "full local verification qualifies a real generated Thin Host, packaged Admin Web dependency, permissions, and browser behavior outside the Foundation checkout")
+			add(releaseContractTest(ctx.Root), "full local verification validates release policy and workflow contracts before candidate packaging")
 			if hasFrontendApplication(ctx, "web/antd-v6") {
-				add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
-				add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
-				add(frontendBuild(ctx.Root), "full verification includes the Ant Design 6 frontend production build")
+				add(frontendQualification(ctx.Root), "full local verification includes dependency policy, lint, unit, release build, delivery, and browser qualification")
 			}
 			add(docsBuild(ctx.Root), "full verification includes documentation build")
 		}
@@ -138,6 +158,21 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 					}
 				}
 				continue
+			}
+			if releaseWorkflowContractSensitive(path) {
+				add(releaseWorkflowContractTest(ctx.Root), path+" affects release policy or workflow contracts")
+			}
+			if foundationCompatibilitySensitive(path) {
+				add(foundationCompatibility(ctx.Root), path+" affects standalone next-Foundation qualification")
+			}
+			if frontendQualificationSensitive(path) {
+				add(frontendQualification(ctx.Root), path+" affects local browser qualification")
+			}
+			if presentationThinHostContractSensitive(path) {
+				add(
+					presentationThinHostContract(ctx.Root),
+					path+" affects the packaged core-plus-business presentation Thin Host contract",
+				)
 			}
 			switch {
 			case isAgentInfrastructure(path):
@@ -184,6 +219,9 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 
 // Run validates structured contracts, executes the plan, and writes reports.
 func Run(parent context.Context, ctx *project.Context, options Options) (Report, error) {
+	if err := validateReleaseEvidenceOptions(options); err != nil {
+		return Report{}, err
+	}
 	plan, err := PlanChecks(ctx, options)
 	if err != nil {
 		return Report{}, err
@@ -198,6 +236,23 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 		Plan:        plan,
 		PlanOnly:    options.PlanOnly,
 		Success:     true,
+	}
+	if options.ReleaseEvidence {
+		cleanBefore := false
+		cleanAfter := false
+		report.EvidenceMode = true
+		report.Commit = options.ExpectedCommit
+		report.TrackedCleanBefore = &cleanBefore
+		report.TrackedCleanAfter = &cleanAfter
+
+		before, snapshotErr := inspectReleaseEvidence(ctx.Root)
+		if snapshotErr == nil {
+			*report.TrackedCleanBefore = before.TrackedClean
+			snapshotErr = validateReleaseEvidenceSnapshot("before verification", before, options.ExpectedCommit)
+		}
+		if snapshotErr != nil {
+			return writeFailedReleaseEvidence(ctx, report, snapshotErr)
+		}
 	}
 
 	contractResult := validateContracts(ctx.Root, ctx.Project.Spec.RepositoryLayout["modules"])
@@ -233,6 +288,18 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 				report.Success = false
 				break
 			}
+		}
+	}
+
+	if options.ReleaseEvidence {
+		after, snapshotErr := inspectReleaseEvidence(ctx.Root)
+		if snapshotErr == nil {
+			*report.TrackedCleanAfter = after.TrackedClean
+			snapshotErr = validateReleaseEvidenceSnapshot("after verification", after, options.ExpectedCommit)
+		}
+		if snapshotErr != nil {
+			report.Success = false
+			report.EvidenceError = snapshotErr.Error()
 		}
 	}
 
@@ -283,6 +350,19 @@ func (r Report) Markdown() string {
 		fmt.Fprintf(&builder, "- Module: `%s`\n", r.Plan.Module)
 	}
 	fmt.Fprintf(&builder, "- Plan only: `%t`\n", r.PlanOnly)
+	if r.EvidenceMode {
+		fmt.Fprintf(&builder, "- Evidence mode: `%t`\n", r.EvidenceMode)
+		fmt.Fprintf(&builder, "- Commit: `%s`\n", r.Commit)
+		if r.TrackedCleanBefore != nil {
+			fmt.Fprintf(&builder, "- Tracked clean before: `%t`\n", *r.TrackedCleanBefore)
+		}
+		if r.TrackedCleanAfter != nil {
+			fmt.Fprintf(&builder, "- Tracked clean after: `%t`\n", *r.TrackedCleanAfter)
+		}
+		if r.EvidenceError != "" {
+			fmt.Fprintf(&builder, "- Evidence error: `%s`\n", strings.ReplaceAll(r.EvidenceError, "`", "'"))
+		}
+	}
 	fmt.Fprintf(&builder, "- Success: `%t`\n", r.Success)
 	fmt.Fprintf(&builder, "- Generated at: `%s`\n\n", r.GeneratedAt.Format(time.RFC3339))
 
@@ -331,6 +411,101 @@ func (r Report) Markdown() string {
 		}
 	}
 	return builder.String()
+}
+
+func validateReleaseEvidenceOptions(options Options) error {
+	if !options.ReleaseEvidence {
+		if options.ExpectedCommit != "" {
+			return errors.New("--expect-commit requires --release-evidence")
+		}
+		return nil
+	}
+	if options.Mode != ModeAll {
+		return errors.New("--release-evidence requires --all")
+	}
+	if options.PlanOnly {
+		return errors.New("--release-evidence cannot be combined with --plan")
+	}
+	if !fullLowercaseCommitPattern.MatchString(options.ExpectedCommit) {
+		return errors.New("--release-evidence requires --expect-commit with a full 40-character lowercase commit SHA")
+	}
+	return nil
+}
+
+func inspectReleaseEvidence(root string) (releaseEvidenceSnapshot, error) {
+	headOutput, err := runGit(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("resolve HEAD for release evidence: %w", err)
+	}
+	commit := strings.TrimSpace(string(headOutput))
+	if !fullLowercaseCommitPattern.MatchString(commit) {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("resolved HEAD is not a full lowercase commit SHA: %q", commit)
+	}
+	indexOutput, err := runGit(root, "ls-files", "-v", "-z", "--", ".")
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("inspect tracked index flags for release evidence: %w", err)
+	}
+	hiddenPaths := make([]string, 0)
+	for _, record := range bytes.Split(indexOutput, []byte{0}) {
+		if len(record) < 3 || record[1] != ' ' {
+			continue
+		}
+		tag := record[0]
+		if tag == 'S' || (tag >= 'a' && tag <= 'z') {
+			hiddenPaths = append(hiddenPaths, string(record[2:]))
+		}
+	}
+	if len(hiddenPaths) > 0 {
+		sort.Strings(hiddenPaths)
+		return releaseEvidenceSnapshot{}, fmt.Errorf(
+			"release evidence rejects assume-unchanged or skip-worktree index flags: %s",
+			strings.Join(hiddenPaths, ", "),
+		)
+	}
+	statusOutput, err := runGit(
+		root,
+		"status",
+		"--porcelain=v1",
+		"--untracked-files=no",
+		"--",
+		".",
+	)
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("inspect tracked worktree for release evidence: %w", err)
+	}
+	return releaseEvidenceSnapshot{
+		Commit:       commit,
+		TrackedClean: len(statusOutput) == 0,
+	}, nil
+}
+
+func validateReleaseEvidenceSnapshot(stage string, snapshot releaseEvidenceSnapshot, expectedCommit string) error {
+	if snapshot.Commit != expectedCommit {
+		return fmt.Errorf("release evidence %s HEAD is %s, expected %s", stage, snapshot.Commit, expectedCommit)
+	}
+	if !snapshot.TrackedClean {
+		return fmt.Errorf("release evidence %s tracked worktree is dirty", stage)
+	}
+	return nil
+}
+
+func writeFailedReleaseEvidence(ctx *project.Context, report Report, cause error) (Report, error) {
+	report.Success = false
+	problems := []string{cause.Error()}
+	after, afterErr := inspectReleaseEvidence(ctx.Root)
+	if afterErr != nil {
+		problems = append(problems, afterErr.Error())
+	} else {
+		*report.TrackedCleanAfter = after.TrackedClean
+		if validationErr := validateReleaseEvidenceSnapshot("after verification", after, report.Commit); validationErr != nil {
+			problems = append(problems, validationErr.Error())
+		}
+	}
+	report.EvidenceError = strings.Join(problems, "; ")
+	if writeErr := WriteReports(ctx, report); writeErr != nil {
+		return report, fmt.Errorf("%s; write failed release evidence report: %w", report.EvidenceError, writeErr)
+	}
+	return report, errors.New(report.EvidenceError)
 }
 
 func validateContracts(root string, moduleDirectories ...string) command.Result {
@@ -598,6 +773,100 @@ func toolingTest(root string) command.Spec {
 	}
 }
 
+func agentReleaseTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-release-test",
+		Description: "run the complete Agent module test target independently",
+		Directory:   root,
+		Args:        []string{"make", "test-agent"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     30 * time.Minute,
+	}
+}
+
+func agentReleaseBuild(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-build",
+		Description: "build the mss and mss-mcp Agent executables independently",
+		Directory:   root,
+		Args:        []string{"make", "build-agent"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
+func strictAgentDoctor(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-doctor-strict",
+		Description: "validate the Agent environment contract in strict mode",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "doctor", "--strict", "--component", "agent", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func strictBackendDoctor(root string) command.Spec {
+	return command.Spec{
+		ID:          "backend-doctor-strict",
+		Description: "validate the Admin environment contract in strict mode",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "doctor", "--strict", "--component", "backend", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func skillContractValidation(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-skills-validation",
+		Description: "validate checked-in Agent skill contracts",
+		Directory:   root,
+		Args:        []string{"go", "run", "./cmd/mss", "skills", "validate", "--format", "json"},
+		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": filepath.Join(root, "go.work")},
+		Timeout:     10 * time.Minute,
+	}
+}
+
+func foundationCompatibility(root string) command.Spec {
+	return command.Spec{
+		ID:          "foundation-compatibility",
+		Description: "qualify next-Foundation upgrades, CLI/MCP/doctor identity parity, conflict safety, external consumers, and Agent evals",
+		Directory:   root,
+		Args:        []string{"make", "compatibility-foundation-next"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     90 * time.Minute,
+	}
+}
+
+func releaseContractTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "release-contract-test",
+		Description: "validate release policy and workflow contracts",
+		Directory:   root,
+		Args:        []string{"python3", "-m", "unittest", "discover", "-s", "tools/release", "-p", "test_*.py"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
+func releaseWorkflowContractTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "release-workflow-contract-test",
+		Description: "validate changed release workflow and policy contracts without requiring a clean feature-freeze commit",
+		Directory:   root,
+		Args: []string{
+			"python3", "-m", "unittest",
+			"tools.release.test_root_release_workflow",
+			"tools.release.test_container_workflow",
+			"tools.release.test_workflow_governance",
+			"tools.release.test_check_release_policy",
+		},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
 func frameworkTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "framework-test",
@@ -606,6 +875,52 @@ func frameworkTest(root string) command.Spec {
 		Args:        []string{"go", "test", "./..."},
 		Environment: map[string]string{"GOFLAGS": "-mod=readonly", "GOWORK": "off"},
 		Timeout:     20 * time.Minute,
+	}
+}
+
+func frameworkReleaseQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "framework-release-qualification",
+		Description: "run Framework race, coverage, vet, tidy, and independent-module qualification",
+		Directory:   root,
+		Args:        []string{"make", "verify-framework"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     60 * time.Minute,
+	}
+}
+
+func presentationThinHostContract(root string) command.Spec {
+	return command.Spec{
+		ID:          "presentation-thin-host-contract",
+		Description: "qualify the fixed Foundation presentation inventory plus generated business composition through external Go and npm consumers",
+		Directory:   root,
+		Args:        []string{"bash", "tools/compatibility/test-presentation-thin-host-contract.sh"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     30 * time.Minute,
+	}
+}
+
+func adminDistributionExternalConsumer(root string, persistEvidence bool) command.Spec {
+	environment := map[string]string{
+		"CI":           "true",
+		"GOWORK":       filepath.Join(root, "go.work"),
+		"NODE_OPTIONS": "--max-old-space-size=4096",
+	}
+	if persistEvidence {
+		environment["MSS_PERSIST_EVIDENCE"] = "1"
+	}
+	return command.Spec{
+		ID:          "admin-distribution-external-consumer",
+		Description: "qualify the complete Admin Distribution through one real repository-external Thin Host",
+		Directory:   root,
+		Args: []string{
+			"bash",
+			"tools/compatibility/test-thin-host-external-consumer.sh",
+			"--foundation-root",
+			root,
+		},
+		Environment: environment,
+		Timeout:     90 * time.Minute,
 	}
 }
 
@@ -642,6 +957,21 @@ func backendBuild(root string) command.Spec {
 	}
 }
 
+func backendReleaseQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "backend-release-qualification",
+		Description: "run Admin race, coverage, vet, module metadata, external consumer, and build qualification",
+		Directory:   root,
+		Args:        []string{"make", "verify-admin-preview"},
+		Environment: map[string]string{
+			"CI":      "true",
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 60 * time.Minute,
+	}
+}
+
 func frontendLint(root string) command.Spec {
 	return command.Spec{
 		ID:          "frontend-lint",
@@ -672,6 +1002,21 @@ func frontendBuild(root string) command.Spec {
 		Args:        []string{"corepack", "pnpm@10.34.5", "build:release"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
+	}
+}
+
+func frontendQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "frontend-qualification",
+		Description: "qualify dependency policy, lint, unit behavior, release build, delivery, and browser behavior for Ant Design 6",
+		Directory:   root,
+		Args:        []string{"make", "web-v6-qualify"},
+		Environment: map[string]string{
+			"CI":      "true",
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 60 * time.Minute,
 	}
 }
 
@@ -854,6 +1199,73 @@ func isAgentInfrastructure(path string) bool {
 		path == "AGENTS.md"
 }
 
+func presentationThinHostContractSensitive(path string) bool {
+	for _, exact := range []string{
+		".github/workflows/admin-distribution-compatibility.yml",
+		"go.mod",
+		"go.sum",
+		"go.work",
+		"go.work.sum",
+		"admin/go.mod",
+		"admin/go.sum",
+		"tools/compatibility/test-presentation-thin-host-contract.sh",
+		"web/antd-v6/.npmignore",
+		"web/antd-v6/package.json",
+		"web/antd-v6/pnpm-lock.yaml",
+		"web/antd-v6/src/.npmignore",
+	} {
+		if path == exact {
+			return true
+		}
+	}
+	for _, prefix := range []string{
+		".mss/core-pages/",
+		".mss/modules/",
+		"admin/app/",
+		"admin/business/",
+		"admin/modules/",
+		"admin/presentation/",
+		"cmd/mss/",
+		"internal/mss/generator/",
+		"internal/mss/spec/admin_presentation",
+		"internal/mss/spec/core_presentation",
+		"internal/mss/spec/presentation",
+		"templates/application/",
+		"templates/module/",
+		"web/antd-v6/package/",
+		"web/antd-v6/src/generated/core-presentation-registry.generated.ts",
+		"web/antd-v6/src/generated/modules/",
+		"web/antd-v6/src/generated/presentation-registry.generated.ts",
+		"web/antd-v6/src/modules/",
+		"web/antd-v6/src/pages/",
+		"web/antd-v6/src/shared/presentation/",
+	} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseWorkflowContractSensitive(path string) bool {
+	return strings.HasPrefix(path, ".github/workflows/") ||
+		strings.HasPrefix(path, "tools/release/") ||
+		strings.HasPrefix(path, "tools/verification/") ||
+		path == ".mss/release-policy.yaml" ||
+		path == ".mss/release-qualification.json" ||
+		path == ".mss/commands.yaml" ||
+		path == ".agents/skills/mss-release/SKILL.md" ||
+		path == "Makefile"
+}
+
+func foundationCompatibilitySensitive(path string) bool {
+	return path == "tools/compatibility/test-standalone-mss-consumer.sh"
+}
+
+func frontendQualificationSensitive(path string) bool {
+	return path == "tools/verification/run-frontend-e2e.sh"
+}
+
 func isFrontend(path string) bool {
 	return strings.HasPrefix(path, "web/antd-v6/")
 }
@@ -921,7 +1333,14 @@ func truncate(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
-	return value[:limit] + "\n... output truncated by mss verify ...\n"
+	marker := "\n... output truncated by mss verify; preserving head and tail ...\n"
+	if limit <= len(marker) {
+		return marker[:limit]
+	}
+	remaining := limit - len(marker)
+	head := (remaining + 1) / 2
+	tail := remaining - head
+	return value[:head] + marker + value[len(value)-tail:]
 }
 
 func writeAtomic(path string, data []byte) error {

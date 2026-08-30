@@ -459,7 +459,7 @@ def _verify_workspace_replacement(
 ) -> None:
     metadata = _go_edit_metadata(
         cwd=repository_root,
-        argv=["work", "edit", "-json"],
+        argv=["work", "edit", "-json", str(repository_root / "go.work")],
         go_command=go_command,
         label="go.work",
     )

@@ -19,18 +19,13 @@ on:
       - 'go.sum'
       - 'go.work'
       - 'go.work.sum'
-  pull_request:
-    branches:
-      - main
-    # Keep this event unfiltered so a future required context is never missing.
-    # The shared scope classifier skips the expensive qualification for Docs-only PRs.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: admin-distribution-compatibility-${{ github.event.pull_request.number || github.ref }}
+  group: admin-distribution-compatibility-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -87,6 +82,9 @@ jobs:
       - name: Install the frozen Admin Web dependency graph
         working-directory: web/antd-v6
         run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+      - name: Qualify the packaged presentation Thin Host contract
+        run: bash tools/compatibility/test-presentation-thin-host-contract.sh
 
       - name: Install Chromium for external-host qualification
         working-directory: web/antd-v6

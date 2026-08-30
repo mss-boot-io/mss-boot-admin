@@ -87,6 +87,7 @@ EOF
 
 cd -- "$work_dir"
 export GOWORK=off
+export GOFLAGS=
 go mod tidy
 go test ./...
 go vet ./...

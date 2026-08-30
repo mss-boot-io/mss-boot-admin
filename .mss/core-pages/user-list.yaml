@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: user-list
+spec:
+  binding: administration.users
+  pageKey: user.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 用户管理
+    en-US: Users
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [name, status]
+  form: []
+  detail: []
+  actions: []

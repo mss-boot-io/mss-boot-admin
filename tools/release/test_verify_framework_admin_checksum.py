@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).with_name("verify_framework_admin_checksum.py")
@@ -19,7 +20,7 @@ SPEC.loader.exec_module(CHECKSUM)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_FRAMEWORK_SUM = "h1:pIrFkBClPs+AkjwekBBcRIPKSH7dhVqJUzCESlFmDJ8="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q="
-EXPECTED_ADMIN_SUM = "h1:MBxbrfpkZRiCS1GO+czGbE9XNzbYL+8DC2dlmiACnBk="
+EXPECTED_ADMIN_SUM = "h1:mDAU1AnNPuBZQVkIvXn0nBLEzc2l0fq3XBrx/AO2EdE="
 EXPECTED_ADMIN_GO_MOD_SUM = "h1:v/KJqYYGo5PYW4PNHnctx3ujxQ5yzt8/ZgD/MmUyzxs="
 
 
@@ -444,6 +445,19 @@ replace {CHECKSUM.FRAMEWORK_MODULE} => ./mss-boot
                     root,
                     version="v1.3.3",
                     go_command="go",
+                )
+
+    def test_workspace_validation_uses_the_explicit_target_when_gowork_is_disabled(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-framework-checksum-explicit-workspace-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            with mock.patch.dict(os.environ, {"GOWORK": "off"}):
+                CHECKSUM._verify_workspace_replacement(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
                 )
 
 

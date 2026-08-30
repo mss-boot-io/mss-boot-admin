@@ -3,9 +3,19 @@ package presentation
 import "encoding/json"
 
 const (
-	APIVersion        = "mss.io/v1alpha1"
-	Kind              = "AdminPagePresentation"
-	DefinitionVersion = "1"
+	APIVersion = "mss.io/v1alpha1"
+	Kind       = "AdminPagePresentation"
+
+	// DefinitionVersionV1 is retained for already published P0/P1 capability
+	// identities. Version 1 deliberately excludes complete defaults from its
+	// hash and must never be silently reinterpreted.
+	DefinitionVersionV1 = "1"
+	// DefinitionVersionV2 is the first generated production-capability
+	// contract. Its hash covers the complete normalized definition.
+	DefinitionVersionV2 = "2"
+	// DefinitionVersion preserves the historical test/API default. New
+	// generator projections must use DefinitionVersionV2 explicitly.
+	DefinitionVersion = DefinitionVersionV1
 	MaxDocumentBytes  = 128 << 10
 )
 
@@ -153,26 +163,59 @@ type CapabilityComponent struct {
 }
 
 type CapabilityField struct {
-	ID         string        `json:"id"`
-	Label      LocalizedText `json:"label"`
-	ValueType  string        `json:"valueType"`
-	Required   bool          `json:"required"`
-	Sortable   bool          `json:"sortable"`
-	Filterable bool          `json:"filterable"`
-	Surfaces   []Surface     `json:"surfaces"`
-	Components []string      `json:"components"`
+	ID                string                        `json:"id"`
+	Label             LocalizedText                 `json:"label"`
+	ValueType         string                        `json:"valueType"`
+	Format            string                        `json:"format"`
+	Required          bool                          `json:"required"`
+	Nullable          bool                          `json:"nullable"`
+	ReadOnly          bool                          `json:"readOnly"`
+	Searchable        bool                          `json:"searchable"`
+	Sortable          bool                          `json:"sortable"`
+	Filterable        bool                          `json:"filterable"`
+	Surfaces          []Surface                     `json:"surfaces"`
+	Components        []string                      `json:"components"`
+	SurfaceComponents []CapabilitySurfaceComponents `json:"surfaceComponents"`
+	EnumValues        []CapabilityEnumValue         `json:"enumValues"`
+	Validation        CapabilityFieldValidation     `json:"validation"`
+}
+
+type CapabilityFieldValidation struct {
+	MinLength *int    `json:"minLength,omitempty"`
+	MaxLength *int    `json:"maxLength,omitempty"`
+	Minimum   *string `json:"minimum,omitempty"`
+	Maximum   *string `json:"maximum,omitempty"`
+	Pattern   string  `json:"pattern,omitempty"`
+	Precision *int    `json:"precision,omitempty"`
+	Scale     *int    `json:"scale,omitempty"`
+}
+
+type CapabilitySurfaceComponents struct {
+	Surface    Surface  `json:"surface"`
+	Components []string `json:"components"`
+}
+
+type CapabilityEnumValue struct {
+	Value string        `json:"value"`
+	Label LocalizedText `json:"label"`
+	Color string        `json:"color"`
 }
 
 type CapabilityDataSource struct {
 	ID                  string   `json:"id"`
 	RequiredPermissions []string `json:"requiredPermissions"`
+	PageSizeOptions     []int    `json:"pageSizeOptions,omitempty"`
+	MaxPageSize         int      `json:"maxPageSize,omitempty"`
+	// MaxSortFields is explicit in the v2 wire identity. Zero is the valid
+	// fail-closed value for data sources that expose no sorting contract.
+	MaxSortFields int `json:"maxSortFields"`
 }
 
 type CapabilityAction struct {
 	ID                  string            `json:"id"`
 	RequiredPermissions []string          `json:"requiredPermissions"`
 	Placements          []ActionPlacement `json:"placements"`
-	Destructive         bool              `json:"destructive,omitempty"`
+	Destructive         bool              `json:"destructive"`
 }
 
 type CompletePresentation struct {

@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: log-runtime
+spec:
+  binding: operations.runtime-logs
+  pageKey: log.runtime
+  definitionVersion: "2"
+  title:
+    zh-CN: 运行日志
+    en-US: Runtime logs
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [level, keyword, timeRange]
+  form: []
+  detail: []
+  actions: []

@@ -23,6 +23,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/config/storage"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/apis"
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/center"
 	adminwebsocket "github.com/mss-boot-io/mss-boot-admin/admin/center/websocket"
@@ -32,6 +33,7 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/requestlog"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/schemahealth"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/sessioncache"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
 	"github.com/mss-boot-io/mss-boot-admin/admin/router"
 	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 )
@@ -223,10 +225,15 @@ func setupWithOptions(
 	center.SetMakeRouter(router.DefaultMakeRouter)
 	center.SetRouter(routerEngine)
 	businessRoutes := routerEngine.Group(options.group)
+	routeDependencies, err := presentationRouteDependencies(businessRegistry)
+	if err != nil {
+		return err
+	}
 	routeGroups, err := mountCoreRouteGroupsAfterSchemaReadiness(
 		ctx,
 		databaseHandle.DB,
 		businessRoutes,
+		routeDependencies,
 	)
 	if err != nil {
 		return err
@@ -312,6 +319,7 @@ func mountCoreRouteGroupsAfterSchemaReadiness(
 	ctx context.Context,
 	db *gorm.DB,
 	group *gin.RouterGroup,
+	dependencies ...router.Dependencies,
 ) (router.RouteGroups, error) {
 	if group == nil {
 		return router.RouteGroups{}, errors.New("core route composition is not initialized")
@@ -323,7 +331,44 @@ func mountCoreRouteGroupsAfterSchemaReadiness(
 	); err != nil {
 		return router.RouteGroups{}, fmt.Errorf("application schema readiness failed: %w", err)
 	}
-	return router.InitRouteGroups(group), nil
+	if len(dependencies) == 0 {
+		return router.InitRouteGroups(group), nil
+	}
+	if len(dependencies) != 1 {
+		return router.RouteGroups{}, errors.New("exactly one core route dependency set is required")
+	}
+	return router.InitRouteGroupsWithDependencies(group, dependencies[0])
+}
+
+func presentationRouteDependencies(
+	businessRegistry *business.Registry,
+) (router.Dependencies, error) {
+	capabilities := presentation.MustNewFrozenRegistry()
+	if businessRegistry != nil {
+		var err error
+		capabilities, err = businessRegistry.PresentationRegistry()
+		if err != nil {
+			return router.Dependencies{}, fmt.Errorf("load application presentation registry: %w", err)
+		}
+	}
+	policy, err := presentation.NewAdoptionPolicy(
+		config.Cfg.Presentation.AdoptionMode,
+		config.Cfg.Presentation.ActivePages,
+		config.Cfg.Presentation.RecoveryMode,
+		capabilities,
+	)
+	if err != nil {
+		return router.Dependencies{}, fmt.Errorf("snapshot presentation adoption policy: %w", err)
+	}
+	profileService, err := service.NewPresentationProfileService(capabilities, policy)
+	if err != nil {
+		return router.Dependencies{}, fmt.Errorf("compose presentation profile service: %w", err)
+	}
+	presentationController, err := apis.NewPresentationProfileController(profileService)
+	if err != nil {
+		return router.Dependencies{}, fmt.Errorf("compose presentation profile controller: %w", err)
+	}
+	return router.Dependencies{PresentationProfiles: presentationController}, nil
 }
 
 type systemTaskSchedule struct {

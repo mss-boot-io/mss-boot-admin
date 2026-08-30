@@ -95,6 +95,14 @@ func TestSupplierDescriptorProjectsAuthorizationMetadataWithoutInferringComposit
 	if got, want := descriptor.Menu.Path, "/suppliers"; got != want {
 		t.Fatalf("descriptor menu path = %q, want %q", got, want)
 	}
+	presentationRegistry, err := registry.PresentationRegistry()
+	if err != nil {
+		t.Fatalf("generated presentation registry: %v", err)
+	}
+	definition, ok := presentationRegistry.Lookup(PresentationDefinition().PageKey)
+	if !ok || definition.DefinitionHash != PresentationDefinition().DefinitionHash {
+		t.Fatalf("generated presentation registration = %#v, found=%t", definition, ok)
+	}
 	runner, err := registry.MigrationRunner()
 	if err != nil {
 		t.Fatalf("clone generated migration runner: %v", err)

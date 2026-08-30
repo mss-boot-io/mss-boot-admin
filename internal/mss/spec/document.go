@@ -46,6 +46,41 @@ func ValidateFile(path string) (*ValidatedDocument, error) {
 	}
 	cleanPath := filepath.ToSlash(path)
 	switch header.Kind {
+	case AdminPresentationPageInventoryKind:
+		inventory, loadErr := LoadAdminPresentationPageInventory(path)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		inventory.SourcePath = cleanPath
+		return &ValidatedDocument{
+			Path:       cleanPath,
+			APIVersion: inventory.APIVersion,
+			Kind:       inventory.Kind,
+			Name:       inventory.Metadata.Name,
+			Summary:    inventory.Summary(),
+			Document:   inventory,
+		}, nil
+	case CorePagePresentationKind:
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil, fmt.Errorf("read core page presentation: %w", readErr)
+		}
+		document, parseErr := ParseCorePagePresentation(data, cleanPath)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		return &ValidatedDocument{
+			Path:       cleanPath,
+			APIVersion: document.APIVersion,
+			Kind:       document.Kind,
+			Name:       document.Metadata.Name,
+			Summary: map[string]any{
+				"binding": document.Spec.Binding,
+				"pageKey": document.Spec.PageKey,
+				"version": document.Spec.DefinitionVersion,
+			},
+			Document: document,
+		}, nil
 	case "AdminModule":
 		module, err := LoadModule(path)
 		if err != nil {

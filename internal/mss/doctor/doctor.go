@@ -221,11 +221,15 @@ func Run(ctx context.Context, projectContext *project.Context, options ...Option
 
 	report.Checks = append(report.Checks, toolCheck(ctx, "git", true, "git", "--version"))
 	if selected(ComponentBackend) || selected(ComponentFramework) || selected(ComponentAgent) {
+		minimumGoVersion := strings.TrimSpace(projectContext.Project.Spec.Backend.GoVersion)
+		if minimumGoVersion != "" {
+			minimumGoVersion = ">=" + minimumGoVersion
+		}
 		report.Checks = append(report.Checks, toolVersionCheck(
 			ctx,
 			"go",
 			true,
-			projectContext.Project.Spec.Backend.GoVersion,
+			minimumGoVersion,
 			"go",
 			"version",
 		))

@@ -371,11 +371,15 @@ func setupPresentationProfileAPITest(t *testing.T) (*gorm.DB, *gin.Engine, prese
 	require.NoError(t, db.Session(&gorm.Session{SkipHooks: true}).Omit("Role", "Post", "Department", "OAuth2").Create(user).Error)
 
 	capability := apiPresentationCapability(t)
-	api := newPresentationProfileController()
-	api.service = &service.PresentationProfileService{
-		Database: db,
-		Registry: presentation.MustNewRegistry(capability),
-	}
+	registry := presentation.MustNewRegistry(capability)
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionActive, []string{capability.PageKey}, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	require.NoError(t, err)
+	profileService.Database = db
+	api, err := NewPresentationProfileController(profileService)
+	require.NoError(t, err)
 	previousIdentityKey := config.Cfg.Auth.IdentityKey
 	previousAuthHandler := response.AuthHandler
 	config.Cfg.Auth.IdentityKey = "presentation-api-test-identity"
@@ -400,6 +404,36 @@ func setupPresentationProfileAPITest(t *testing.T) (*gorm.DB, *gin.Engine, prese
 	})
 	api.Other(router.Group("/admin/api"))
 	return db, router, capability
+}
+
+func TestPresentationCapabilitiesAPIUsesArrayForEmptyActivePages(t *testing.T) {
+	capability := apiPresentationCapability(t)
+	registry := presentation.MustNewRegistry(capability)
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionDisabled, nil, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	require.NoError(t, err)
+	api, err := NewPresentationProfileController(profileService)
+	require.NoError(t, err)
+
+	previousAuthHandler := response.AuthHandler
+	response.AuthHandler = func(ctx *gin.Context) { ctx.Next() }
+	t.Cleanup(func() { response.AuthHandler = previousAuthHandler })
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	api.Other(router.Group("/admin/api"))
+	result := presentationAPIRequest(
+		router, http.MethodGet, "/admin/api/presentation-capabilities", "", nil,
+	)
+	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
+
+	var payload dto.PresentationCapabilityListResponse
+	require.NoError(t, json.Unmarshal(result.Body.Bytes(), &payload), result.Body.String())
+	require.NotNil(t, payload.ActivePages)
+	require.Empty(t, payload.ActivePages)
+	require.Contains(t, result.Body.String(), `"activePages":[]`)
 }
 
 func presentationAPIRequest(

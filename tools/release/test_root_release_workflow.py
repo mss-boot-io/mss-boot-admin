@@ -429,11 +429,9 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, notes)
 
-    def test_preview_qualifies_and_assembles_while_tag_only_publishes(self):
+    def test_preview_builds_exact_artifacts_without_repeating_local_or_pr_quality_gates(self):
         for job_name in (
-            "foundation-compatibility",
             "container-preview",
-            "test",
             "backend-build",
             "frontend-build",
             "assemble",
@@ -444,6 +442,14 @@ class RootReleaseWorkflowTest(unittest.TestCase):
                     "needs.metadata.outputs.publish != 'true'",
                 )
                 self.assertNotIn("environment", self.jobs[job_name])
+
+        self.assertNotIn("foundation-compatibility", self.jobs)
+        self.assertNotIn("test", self.jobs)
+        self.assertEqual(self.jobs["backend-build"]["needs"], "metadata")
+        self.assertEqual(
+            self.jobs["assemble"]["needs"],
+            ["metadata", "container-preview", "backend-build", "frontend-build"],
+        )
 
         container_preview = self.jobs["container-preview"]
         self.assertEqual(
@@ -476,24 +482,34 @@ class RootReleaseWorkflowTest(unittest.TestCase):
         }
         self.assertTrue(
             {
-                "Enforce V6 dependency policy",
-                "Qualify V6 lint and unit behavior",
-                "Qualify browser permission and parity behavior",
                 "Build same-origin primary V6 frontend",
                 "Smoke-test primary V6 delivery",
                 "Package and verify portable primary V6 artifact",
+                "Pack exact Admin Web package and release evidence",
+                "Qualify the exact V6 multi-platform release image",
+                "Verify and stage the exact V6 OCI image",
+                "Upload primary V6 artifact",
             }.issubset(frontend_step_names)
         )
-        self.assertIn(
+        for removed_step in (
+            "Enforce V6 dependency policy",
+            "Qualify V6 lint and unit behavior",
+            "Create ephemeral browser administrator secret",
+            "Qualify browser permission and parity behavior",
+        ):
+            self.assertNotIn(removed_step, frontend_step_names)
+        frontend_scripts = "\n".join(
+            step.get("run", "") for step in self.jobs["frontend-build"]["steps"]
+        )
+        for repeated_quality_gate in (
+            "pnpm run deps:check",
             "pnpm run audit:release",
-            self.step("frontend-build", "Enforce V6 dependency policy")["run"],
-        )
-        self.assertIn(
+            "pnpm run lint",
+            "pnpm run test:ci",
             "pnpm run test:e2e",
-            self.step(
-                "frontend-build", "Qualify browser permission and parity behavior"
-            )["run"],
-        )
+            "playwright install",
+        ):
+            self.assertNotIn(repeated_quality_gate, frontend_scripts)
 
         publish = self.jobs["publish"]
         self.assertEqual(

@@ -221,7 +221,13 @@ spec:
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete repository validation suite after feature freeze or when explicitly requested for diagnosis.
+      description: Execute the complete local quality suite, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict and empty second upgrade, evals, dependency policy, frontend delivery and browser behavior, both packaged and real external Thin Hosts, release workflow contracts, and docs checks. Use verify-release-evidence for the frozen merged-main release gate.
+      outputFormats: [text, json]
+      category: verification
+
+    verify-release-evidence:
+      command: go run ./cmd/mss verify --all --release-evidence --expect-commit <full-sha>
+      description: Execute the complete local suite and fail closed unless HEAD remains the supplied full commit and tracked files remain clean before and after; verify.json and verify.md bind the result to that commit and record both clean-state checks, while the external Thin Host check persists sanitized detailed reports and an evidence manifest in a recorded system-temporary directory.
       outputFormats: [text, json]
       category: verification
 
@@ -254,13 +260,13 @@ spec:
 
     root-release-preview:
       command: gh workflow run release.yml --ref main -f version=<version>
-      description: Run the unique non-publishing Root candidate preview for one reviewed active version on the exact merged-main commit; a later matching Root tag push automatically publishes Root artifacts, the image, and the already-bootstrapped npm package through protected workflows.
+      description: Build and verify only the unique non-publishing Root binaries, archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform image candidate after a self-bound local release-evidence result on the same merged-main commit; this is artifact staging, not a second broad quality suite.
       outputFormats: [text]
       category: release
 
     direct-verify-all:
       command: make verify-all
-      description: Compatibility fallback before the mss verifier is available.
+      description: Make alias for the canonical complete local mss verification suite.
       category: verification
 
     module-spec-validate:
@@ -290,7 +296,7 @@ spec:
 
     eval-run:
       command: go run ./cmd/mss eval run
-      description: Execute selected Agent evaluation cases; the complete --all matrix is a release-preparation and candidate-preview activity.
+      description: Execute selected Agent evaluation cases; the complete --all matrix is local release-preparation evidence and is not repeated by candidate packaging.
       outputFormats: [text, markdown, json]
       category: eval
 

@@ -17,6 +17,11 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -50,20 +55,34 @@ import {
   systemConfigFormValues,
 } from './contract';
 import { useSystemConfig, useSystemConfigPage } from './query';
+import {
+  systemConfigPresentationListComponents,
+  systemConfigPresentationMobileFields,
+  systemConfigPresentationSearchComponents,
+} from './tablePresentation';
 
 interface SystemConfigManagementProps {
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
-export default function SystemConfigManagement({ routeIntent }: SystemConfigManagementProps) {
+const initialParams: { current: number; pageSize: OperationsPageSize } = {
+  current: 1,
+  pageSize: 20,
+};
+
+export default function SystemConfigManagement({
+  presentationRuntime,
+  routeIntent,
+}: SystemConfigManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const screens = Grid.useBreakpoint();
-  const [params, setParams] = useState<{ current: number; pageSize: OperationsPageSize }>({
-    current: 1,
-    pageSize: 20,
-  });
+  const configuredPageSize = isOperationsPageSize(presentationRuntime.model.list.pageSize)
+    ? presentationRuntime.model.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const [viewing, setViewing] = useState<string>();
   const [editing, setEditing] = useState<'create' | SystemConfigSummary>();
   const [form] = Form.useForm<SystemConfigWriteValues>();
@@ -150,7 +169,7 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
       timeStyle: 'medium',
     }).format(new Date(value));
 
-  const columns: TableColumnsType<SystemConfigSummary> = [
+  const compiledColumns: TableColumnsType<SystemConfigSummary> = [
     {
       title: intl.formatMessage({ id: 'systemConfig.field.name' }),
       dataIndex: 'name',
@@ -224,6 +243,16 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isOperationsPageSize,
+    listComponents: systemConfigPresentationListComponents,
+    mobileColumnKeys: [...systemConfigPresentationMobileFields, 'actions'],
+    model: presentationRuntime.model,
+    protectedColumnKeys: ['actions'],
+    searchComponents: systemConfigPresentationSearchComponents,
+  });
 
   const listStatus = getRequestStatus(configs.error);
   if (listStatus === 403) {
@@ -280,7 +309,7 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
         </Button>
       </Space>
       <ResponsiveEntityTable<SystemConfigSummary>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={configs.data?.data ?? []}
         loading={configs.isFetching}
         locale={{
@@ -298,9 +327,10 @@ export default function SystemConfigManagement({ routeIntent }: SystemConfigMana
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['name', 'format', 'remark', 'updatedAt', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: 820 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <Drawer
         destroyOnHidden

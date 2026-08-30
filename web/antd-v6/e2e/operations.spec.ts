@@ -91,7 +91,9 @@ test('@operations bounded operational pages work through the browser contract', 
     );
     await page.goto('/task');
     expect((await taskList).ok()).toBe(true);
-    await expect(page.getByText('Task scheduler', { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Task scheduler', exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(taskName, { exact: true })).toBeVisible();
     await expectNoDocumentOverflow(page);
 

@@ -114,79 +114,52 @@ const Value = "local"
 	}
 }
 
-func TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence(t *testing.T) {
-	path := filepath.Join("..", "..", "..", ".github", "workflows", "foundation-compatibility.yml")
+func TestStandaloneFoundationCompatibilityPinsIndependentIdentityEvidence(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "tools", "compatibility", "test-standalone-mss-consumer.sh")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read Foundation compatibility workflow: %v", err)
+		t.Fatalf("read standalone Foundation compatibility gate: %v", err)
 	}
-	workflow := string(data)
+	gate := string(data)
 	for _, required := range []string{
-		"CURRENT_BLUEPRINT_VERSION",
-		"NEXT_BLUEPRINT_VERSION",
-		"NEXT_PROJECT_BASELINE_VERSION",
-		"CURRENT_FOUNDATION_COMMIT",
-		"NEXT_FOUNDATION_COMMIT",
-		"internal/mss/buildinfo.Version=${generator_version}",
-		"internal/mss/buildinfo.Commit=${foundation_commit}",
-		"internal/mss/buildinfo.Commit=${next_commit}",
+		"--next-foundation",
+		"assert_foundation_snapshot_parity",
+		"run_next_foundation_qualification",
 		"mss_get_blueprint_status",
 		"mss_plan_foundation_upgrade",
 		"snapshot:foundation",
-		"status != mcp_status or status != doctor_status",
-		"identities != applied.get(\"toIdentities\")",
+		"generation plan and installed status identities differ",
+		"CLI, MCP, and doctor snapshot status differ",
+		"applied target identities and installed status differ",
 		"project.foundationVersion was conflated with an independent runtime identity",
 		"templates/application/.mss/project.yaml",
+		"validate_external_host_go current-foundation",
+		"validate_external_host_go next-foundation",
 		"go test -shuffle=on -count=1 ./...",
 		"go vet ./...",
 		"templates/application/cmd/server/main.go.tmpl",
 		"internal/modules/customer-extension",
-		"Start temporary Admin Web metadata registry",
-		"Run deterministic Agent evaluations",
-		"COMPATIBILITY_FRONTEND_REGISTRY_URL=${registry_url}",
-		"COMPATIBILITY_FRONTEND_REGISTRY_PID=${registry_pid}",
-		"COMPATIBILITY_FRONTEND_REGISTRY_READY=${registry_ready}",
-		`--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`,
-		`-contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`,
-		"Stop temporary Admin Web metadata registry\n        if: always()",
-		`/proc/${registry_pid}/cmdline`,
-		"refusing to stop a process that is not the compatibility registry",
+		"missing = {'create', 'update', 'delete', 'preserve'}",
+		"next-upgrade-noop.json",
+		"upgrade-conflict.json",
+		"conflict apply unexpectedly succeeded",
+		"conflict apply changed the downstream tree",
+		`"${mss}" --root "${next_foundation}" eval run --all`,
+		`"${contributor_registry_args[@]}"`,
 	} {
-		if !strings.Contains(workflow, required) {
-			t.Errorf("Foundation compatibility workflow is missing identity contract %q", required)
+		if !strings.Contains(gate, required) {
+			t.Errorf("standalone Foundation compatibility gate is missing identity contract %q", required)
 		}
 	}
 	for _, forbidden := range []string{
-		`text.replace("version: 0.1.0", "version: 0.1.1-ci"`,
-		`blueprint.get('version') != '`,
-		`go run ./cmd/mss new app compatibility-admin`,
-		`go run ./cmd/mss skills validate`,
-		`go test ./internal/mss/...`,
-		`${DOWNSTREAM}/admin/`,
-		`${CONFLICT_FOUNDATION}/admin/main.go`,
-		`foundationVersion: 0.1.1-ci`,
-		`project = root / ".mss/project.yaml"`,
-		`registry.npmjs.org`,
-		`version = '1.3.5'`,
-		`version = '1.3.7'`,
+		"foundation-compatibility.yml",
+		"git config --global",
+		"npm publish",
+		"pnpm publish",
 	} {
-		if strings.Contains(workflow, forbidden) {
-			t.Errorf("Foundation compatibility workflow retains coupled or untraceable fixture %q", forbidden)
+		if strings.Contains(gate, forbidden) {
+			t.Errorf("standalone Foundation compatibility gate retains remote or mutating fixture %q", forbidden)
 		}
-	}
-	if count := strings.Count(workflow, `--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"`); count != 6 {
-		t.Errorf("Foundation compatibility workflow contributor registry CLI uses = %d, want 6", count)
-	}
-	if count := strings.Count(workflow, "COMPATIBILITY_FRONTEND_REGISTRY_URL"); count != 8 {
-		t.Errorf("Foundation compatibility workflow registry URL references = %d, want 8", count)
-	}
-	start := strings.Index(workflow, "Start temporary Admin Web metadata registry")
-	evaluate := strings.Index(workflow, "Run deterministic Agent evaluations")
-	generate := strings.Index(workflow, "Generate a standalone downstream repository")
-	stop := strings.Index(workflow, "Stop temporary Admin Web metadata registry")
-	upload := strings.Index(workflow, "Upload compatibility evidence")
-	if start < 0 || evaluate < 0 || generate < 0 || stop < 0 || upload < 0 || !(start < generate && generate < evaluate && evaluate < stop && stop < upload) {
-		t.Errorf("Foundation compatibility registry lifecycle is not ordered around generation and evidence upload")
 	}
 }
 

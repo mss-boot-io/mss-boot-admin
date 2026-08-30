@@ -8,14 +8,17 @@ package router
  */
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "github.com/mss-boot-io/mss-boot-admin/admin/apis"
+	"github.com/mss-boot-io/mss-boot-admin/admin/apis"
 	"github.com/mss-boot-io/mss-boot-admin/admin/config"
 	"github.com/mss-boot-io/mss-boot-admin/admin/middleware"
 	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/browsersecurity"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
+	"github.com/mss-boot-io/mss-boot-admin/admin/service"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -28,6 +31,12 @@ type RouteGroups struct {
 	ProtectedAPI *gin.RouterGroup
 }
 
+// Dependencies are application-owned core controllers that cannot be safely
+// discovered through package initialization.
+type Dependencies struct {
+	PresentationProfiles response.Controller
+}
+
 // InitRouter preserves the historical router entrypoint.
 func InitRouter(r *gin.RouterGroup) {
 	InitRouteGroups(r)
@@ -36,12 +45,41 @@ func InitRouter(r *gin.RouterGroup) {
 // InitRouteGroups mounts the complete core Admin routes and returns the single
 // protected API group for explicit business-module composition.
 func InitRouteGroups(r *gin.RouterGroup) RouteGroups {
+	registry := presentation.MustNewFrozenRegistry()
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionDisabled, nil, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	if err != nil {
+		panic(err)
+	}
+	presentationController, err := apis.NewPresentationProfileController(profileService)
+	if err != nil {
+		panic(err)
+	}
+	groups, err := InitRouteGroupsWithDependencies(r, Dependencies{
+		PresentationProfiles: presentationController,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return groups
+}
+
+// InitRouteGroupsWithDependencies is the production route composition path.
+func InitRouteGroupsWithDependencies(r *gin.RouterGroup, dependencies Dependencies) (RouteGroups, error) {
+	if r == nil {
+		return RouteGroups{}, errors.New("admin route group is required")
+	}
+	if dependencies.PresentationProfiles == nil {
+		return RouteGroups{}, errors.New("presentation profile controller is required")
+	}
 	if config.Cfg.Application.Mode == config.ModeDev {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 	v1 := newProtectedAPI(r)
-	mountCoreRoutes(v1)
-	return RouteGroups{ProtectedAPI: v1}
+	mountCoreRoutes(v1, dependencies.PresentationProfiles)
+	return RouteGroups{ProtectedAPI: v1}, nil
 }
 
 func newProtectedAPI(r *gin.RouterGroup) *gin.RouterGroup {
@@ -77,29 +115,36 @@ func newProtectedAPI(r *gin.RouterGroup) *gin.RouterGroup {
 	return v1
 }
 
-func mountCoreRoutes(v1 *gin.RouterGroup) {
+func mountCoreRoutes(v1 *gin.RouterGroup, explicit ...response.Controller) {
 	for i := range response.Controllers {
-		response.Controllers[i].Other(v1.Group("", response.Controllers[i].Handlers()...))
-		e := v1.Group(response.Controllers[i].Path(), response.Controllers[i].Handlers()...)
-		if action := response.Controllers[i].GetAction(response.Get); action != nil {
-			e.GET("/:"+response.Controllers[i].GetKey(), action.Handler()...)
-		}
-		if action := response.Controllers[i].GetAction(response.Control); action != nil {
-			e.POST("", action.Handler()...)
-			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler()...)
-		}
-		if action := response.Controllers[i].GetAction(response.Create); action != nil {
-			e.POST("", action.Handler()...)
-		}
-		if action := response.Controllers[i].GetAction(response.Update); action != nil {
-			e.PUT("/:"+response.Controllers[i].GetKey(), action.Handler()...)
-		}
-		if action := response.Controllers[i].GetAction(response.Delete); action != nil {
-			e.DELETE("/:"+response.Controllers[i].GetKey(), action.Handler()...)
-		}
-		if action := response.Controllers[i].GetAction(response.Search); action != nil {
-			e.GET("", action.Handler()...)
-		}
+		mountController(v1, response.Controllers[i])
+	}
+	for _, current := range explicit {
+		mountController(v1, current)
+	}
+}
+
+func mountController(v1 *gin.RouterGroup, current response.Controller) {
+	current.Other(v1.Group("", current.Handlers()...))
+	e := v1.Group(current.Path(), current.Handlers()...)
+	if action := current.GetAction(response.Get); action != nil {
+		e.GET("/:"+current.GetKey(), action.Handler()...)
+	}
+	if action := current.GetAction(response.Control); action != nil {
+		e.POST("", action.Handler()...)
+		e.PUT("/:"+current.GetKey(), action.Handler()...)
+	}
+	if action := current.GetAction(response.Create); action != nil {
+		e.POST("", action.Handler()...)
+	}
+	if action := current.GetAction(response.Update); action != nil {
+		e.PUT("/:"+current.GetKey(), action.Handler()...)
+	}
+	if action := current.GetAction(response.Delete); action != nil {
+		e.DELETE("/:"+current.GetKey(), action.Handler()...)
+	}
+	if action := current.GetAction(response.Search); action != nil {
+		e.GET("", action.Handler()...)
 	}
 }
 

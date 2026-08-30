@@ -1,13 +1,32 @@
 const { existsSync, readFileSync } = require('node:fs');
-const { resolve } = require('node:path');
+const { isAbsolute, relative, resolve, sep } = require('node:path');
 const RuntimeStatsPlugin = require('./runtime-stats-plugin.cjs');
 const { createAdminRoutes } = require('./core-routes.cjs');
 
 const packageRoot = resolve(__dirname, '..');
+const packageSourceRoot = resolve(packageRoot, 'src');
 const packageManifest = require('../package.json');
 const emptyRegistrations = resolve(__dirname, 'empty-route-registrations.ts');
 const environment = process.env.UMI_ENV || 'dev';
 const browserQualification = process.env.MSS_V6_E2E === '1';
+
+function isPathInside(root, target) {
+  const relativePath = relative(root, target);
+  return (
+    relativePath === '' ||
+    (relativePath !== '..' && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath))
+  );
+}
+
+function isThirdPartyVendorModule(module) {
+  const resource =
+    typeof module?.nameForCondition === 'function' ? module.nameForCondition() : module?.resource;
+  return (
+    typeof resource === 'string' &&
+    /[\\/]node_modules[\\/]/.test(resource) &&
+    !isPathInside(packageSourceRoot, resource)
+  );
+}
 
 function logoDataURL() {
   const logo = readFileSync(resolve(packageRoot, 'public/logo.svg'), 'utf8');
@@ -97,21 +116,21 @@ function defineBusinessAdmin(options = {}) {
       memo.optimization.splitChunks({
         cacheGroups: {
           antDesignRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'ant-design-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/]@ant-design[\\/]/,
           },
           antdRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'antd-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/]antd[\\/]/,
           },
           applicationShell: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'application-shell',
             priority: 34,
@@ -125,32 +144,32 @@ function defineBusinessAdmin(options = {}) {
             test: /[\\/]node_modules[\\/]@ant-design[\\/]pro-/,
           },
           queryRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'query-runtime',
             priority: 32,
             test: /[\\/]node_modules[\\/](?:@tanstack|axios|ahooks)[\\/]/,
           },
           umiRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'umi-runtime',
             priority: 33,
             test: /(?:[\\/]src[\\/]\.umi-production[\\/]|[\\/]node_modules[\\/](?:@umijs|umi)[\\/])/,
           },
           rcRuntime: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'rc-runtime',
             priority: 35,
             test: /[\\/]node_modules[\\/](?:@rc-component|rc-[^\\/]+)[\\/]/,
           },
           vendors: {
-            chunks: 'initial',
+            chunks: 'all',
             enforce: true,
             name: 'vendors',
             priority: 20,
-            test: /[\\/]node_modules[\\/]/,
+            test: isThirdPartyVendorModule,
           },
         },
       });

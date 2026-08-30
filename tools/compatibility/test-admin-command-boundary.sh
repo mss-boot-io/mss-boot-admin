@@ -53,6 +53,7 @@ EOF
 (
   cd -- "$positive_dir"
   export GOWORK=off
+  export GOFLAGS=
   go mod tidy
   go test ./...
   go vet ./...
@@ -143,6 +144,7 @@ EOF
 (
   cd -- "$compatibility_dir"
   export GOWORK=off
+  export GOFLAGS=
   go mod tidy
   go test ./...
   go vet ./...

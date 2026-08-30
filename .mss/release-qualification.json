@@ -4,7 +4,10 @@
   "features": [
     ".mss/features/foundation-v1-3-7-release.yaml",
     ".mss/features/admin-presentation-configuration.yaml",
-    ".mss/features/admin-presentation-publication-workflow.yaml"
+    ".mss/features/admin-presentation-publication-workflow.yaml",
+    ".mss/features/admin-presentation-generation.yaml",
+    ".mss/features/admin-presentation-complete-design.yaml",
+    ".mss/features/admin-presentation-all-management-pages.yaml"
   ],
   "excludedFeatures": [
     {

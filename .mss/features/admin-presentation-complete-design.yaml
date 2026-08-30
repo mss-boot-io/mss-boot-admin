@@ -1,0 +1,618 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-presentation-complete-design
+  displayName: Complete Admin page presentation design
+  description: >-
+    Freezes the product, generation, runtime, visual editing, upgrade, recovery, and
+    Thin Host design required to move governed page presentation from the completed
+    P0 and P1 control plane into explicitly generated Foundation pages and external
+    business extensions.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: presentation
+    phase: accepted-active
+spec:
+  problem: >-
+    P0 established a strict data-only presentation overlay and deterministic resolver,
+    and P1 established authoritative drafts, publication, immutable history, rollback,
+    authorization, audit, recovery mode, and a compiled governance console. The approved
+    design then connected AdminModule generation, immutable registries, effective layers,
+    and a lossless editor around Supplier as an external AdminModule example. The successor
+    all-management-page decision classifies exactly fourteen Foundation built-in pages and
+    supersedes any wording here that could imply Supplier is built in. Supplier remains
+    external business-module, Thin Host, and generator evidence. The reference Admin explicitly
+    composes it, but it is not part of Foundation core activation, browser acceptance, completion,
+    or rollout. The successor has now accepted all fourteen Foundation built-ins as exact-allowlisted
+    active and passed on the final built-in Browser record. The maintained design preserves a single
+    machine source and strict security exclusions without recreating runtime models, dynamic routes,
+    executable templates, remote components, browser code generation, or undocumented passed evidence.
+  goals:
+    - Preserve the reviewed end-state architecture and its completed exact-Head acceptance boundary.
+    - Make AdminModule the source of truth for generated business pages and one reviewed Foundation core-page specification the source of truth for user.list.
+    - Generate matching Go and TypeScript capability definitions from one normalized manifest and one hash for both approved source kinds.
+    - Compose generated Foundation core capabilities before explicitly composed business modules and before routes are served.
+    - Apply published application, role, and user layers to generated pages with compiled defaults on every failure path.
+    - Provide a lossless visual editor over the existing P1 draft, publish, history, conflict, and rollback workflow.
+    - Report definition drift during Foundation and Thin Host upgrades without silently rewriting or publishing profiles.
+    - Preserve Supplier as an explicitly composed external business extension in the reference Admin and as a Thin Host example without treating it as a Foundation built-in or built-in rollout gate.
+    - Qualify user.list as one explicitly authorized and independently reviewed Foundation Core Page Presentation pilot without weakening compiled user-management security.
+    - Preserve backend-authoritative permissions, source ownership, deterministic generation, and upgradeability.
+  nonGoals:
+    - Treat this documentation and machine-contract update as proof that implementation, generation, security, Thin Host, or browser acceptance has passed.
+    - Create fields, models, tables, APIs, routes, permissions, workflows, components, queries, or data sources from stored configuration.
+    - Execute JavaScript, HTML, SQL, templates, expressions, imports, plugins, remote modules, or downloaded code from a profile.
+    - Replace the P1 aggregate, draft, strong ETag, idempotent publish, immutable history, rollback, audit, or recovery contracts.
+    - Make login, authentication, authorization, application configuration, release, recovery, or presentation-governance pages configurable.
+    - Classify supplier.list as a Foundation built-in, place it in Foundation activePages, or count it in built-in browser acceptance, completion, or rollout.
+    - Convert every legacy page in one change or infer capabilities from arbitrary handwritten React at runtime; user.list is the sole separately reviewed generated Foundation core-page exception in this phase.
+    - Add named alternate routes or multiple independent views of one resource in the first production adoption.
+    - Add a distributed presentation cache as a correctness dependency.
+    - Merge main, create or move a tag, release, or publish an artifact as part of this implementation checkpoint.
+  actors:
+    - id: admin-user
+      displayName: Admin application user
+      description: Uses a compiled business page whose approved presentation may vary by application, role, and user.
+    - id: presentation-author
+      displayName: Presentation draft author
+      description: Edits visual or JSON draft data without gaining publish or business-resource authority.
+    - id: presentation-publisher
+      displayName: Presentation publisher
+      description: Publishes a currently valid draft through the existing conditional P1 workflow.
+    - id: recovery-operator
+      displayName: Presentation recovery operator
+      description: Re-publishes history or enables startup recovery mode without deleting evidence.
+    - id: module-author
+      displayName: AdminModule author
+      description: Declares stable compiled page presentation defaults and allowed capabilities in source control.
+    - id: platform-maintainer
+      displayName: Admin platform maintainer
+      description: Evolves schemas, generators, registries, renderers, distribution upgrades, and qualification gates.
+    - id: security-reviewer
+      displayName: Security reviewer
+      description: Verifies that profiles cannot expand authority, load code, or make optional presentation a page dependency.
+  modules:
+    - name: presentation-product-contract
+      kind: infrastructure
+      operation: extend
+      description: Evolves the existing P0 and P1 contracts into one production-adoption architecture.
+    - name: admin-module-presentation-spec
+      kind: infrastructure
+      operation: create
+      description: Adds an optional strict presentation section to AdminModule specifications.
+    - name: presentation-generator
+      kind: infrastructure
+      operation: create
+      description: Produces matching backend and frontend definitions plus deterministic registry indexes.
+    - name: backend-capability-composition
+      kind: infrastructure
+      operation: create
+      description: Stages and freezes module-owned definitions in the Admin application composition root.
+    - name: frontend-presentation-runtime
+      kind: infrastructure
+      operation: create
+      description: Resolves effective layers over compiled adapters and renders generated pages safely.
+    - name: presentation-adoption-control
+      kind: infrastructure
+      operation: create
+      description: Provides startup-owned disabled, shadow, active, allowlist, and recovery behavior.
+    - name: presentation-visual-editor
+      kind: infrastructure
+      operation: create
+      description: Adds a lossless capability-aware editor to the existing governance console.
+    - name: presentation-upgrade-governance
+      kind: infrastructure
+      operation: create
+      description: Reports capability hashes and profile drift across generation and Distribution upgrades.
+    - name: supplier
+      kind: admin-module
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: Preserves a generated full-surface external business-extension and Thin Host example.
+    - name: user-list-core-page
+      kind: infrastructure
+      operation: create
+      specPath: .mss/core-pages/user-list.yaml
+      description: Qualifies one Foundation-owned core page from a single machine source without pretending that user management is an AdminModule.
+    - name: thin-host-compatibility
+      kind: infrastructure
+      operation: extend
+      description: Preserves external business ownership and coordinated Admin Distribution upgrades.
+  requirements:
+    - id: preserve-compiled-authority
+      title: Keep capabilities in compiled and reviewed code
+      description: Editable presentation remains a sparse overlay over capabilities that already exist in the exact application build.
+      priority: must
+      actor: security-reviewer
+      module: presentation-product-contract
+      rules:
+        - Profiles may reference only exact identifiers in the current compiled capability definition and cannot add identifiers.
+        - Routes, HTTP methods, query adapters, mutations, action handlers, permissions, component implementations, and field codecs remain compiled code.
+        - Backend resource authorization remains authoritative; frontend permission intersection is a user-experience projection only.
+        - An invalid, stale, unavailable, disabled, or recovery-bypassed profile resolves to compiled defaults rather than a partial page.
+        - Protected core page keys are rejected by generation, backend registration, governance creation, and frontend runtime lookup except for the explicitly reviewed user.list Foundation core-page source generated under this contract.
+    - id: define-admin-module-extension
+      title: Add one strict optional AdminModule presentation section
+      description: Module authors declare stable page identity and complete default presentation without duplicating transport or permission authority.
+      priority: must
+      actor: module-author
+      module: admin-module-presentation-spec
+      rules:
+        - spec.presentation is optional; omission preserves the current generated page and registers no presentation capability.
+        - pageKey is explicit, stable, globally unique, and never derived from a route, display name, package path, or database table.
+        - definitionVersion changes only when the capability contract changes incompatibly; the first generated contract is version 2 because version 1 excluded complete defaults from hash interpretation.
+        - definitionHash changes for every normalized semantic definition change, including title, layout, complete defaults, pagination, and sorting constraints.
+        - List, search, form, detail, and action defaults reference existing entity or generated response fields, API operations, and permission actions by unqualified local stable identifiers.
+        - The generator qualifies list data source and action references as <module>.<local-id>; source values containing a dot are rejected, while pageKey remains explicit and is never derived.
+        - Data-source and action permission requirements are generated from existing trusted API and permission contracts and are not accepted as editable strings in presentation source.
+        - Data-source capabilities derive page-size options, maximum page size, and maximum sort-field count from the compiled API/query contract; the global profile schema is only an outer safety bound.
+        - Components are selected from the embedded Foundation-owned .mss/admin-presentation-catalog.yaml compatibility matrix; a module may narrow a field allowlist but cannot name an unregistered implementation.
+        - Existing field type, required, searchable, sortable, filterable, list, form, detail, enum, validation, and UI facts remain authoritative inputs.
+    - id: normalize-one-manifest
+      title: Build one canonical capability manifest
+      description: Backend and frontend projections must originate from one normalized semantic representation.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-generator
+      rules:
+        - The generator validates references, surfaces, component compatibility, default completeness, required-form visibility, sort and filter support, and action placement before rendering files.
+        - Stable ordering is by declared order and then stable identifier; duplicate orders are allowed only when the identifier tie-break remains deterministic, while sort precedence preserves declared order.
+        - The definition hash is SHA-256 over canonical UTF-8 JSON for the complete normalized compatibility surface, including complete defaults and compiled pagination or sorting limits but excluding the hash field, generated headers, timestamps, and file paths.
+        - Canonical JSON uses fixed ASCII property-name ordering, normalized array order, UTF-8 JSON strings without HTML-only escaping, and only bounded integer numbers; Go and TypeScript golden vectors include Unicode and HTML-significant characters.
+        - Go and TypeScript outputs embed the same page key, definition version, definition hash, fields, components, data sources, actions, permissions, and complete defaults.
+        - Cross-language golden vectors fail when either projection canonicalizes, validates, or resolves the same manifest differently.
+        - Generation supports dry-run, path confinement, obsolete generated-file cleanup, stable output, and two-run idempotency.
+    - id: generate-owned-artifacts
+      title: Generate explicit backend and frontend artifacts
+      description: Production definitions and runtime adapters have clear source ownership and no handwritten duplicate manifest.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-generator
+      rules:
+        - Backend modules receive a generated presentation definition beside their other generated registration artifacts.
+        - Frontend modules receive a generated definition and compiled page adapter beside the generated page, API, query, contract, and type files.
+        - Application composition receives deterministic generated registry indexes containing only explicitly enabled modules.
+        - Each enabled module receives one generated data-only normalized manifest snapshot used by parity tests and future upgrade drift planning; runtime profile resolution never reads the snapshot file.
+        - Generated files identify the AdminModule source and generator version and are never hand-edited.
+        - Custom business files may provide compiled renderer or action extensions only through typed registration points declared by the module contract.
+        - Missing backend or frontend projection for an enabled presentation page fails generation and qualification rather than leaving a one-sided capability.
+    - id: compose-backend-registry
+      title: Freeze an application-owned backend registry
+      description: Module presentation definitions join the existing explicit business-module composition transaction.
+      priority: must
+      actor: platform-maintainer
+      module: backend-capability-composition
+      rules:
+        - A module registration stages descriptor, migrations, readiness, routes, and presentation definitions atomically; callback failure publishes none of them.
+        - The registry rejects duplicate page keys, invalid definitions, protected page keys, mismatched hashes, and incomplete defaults before listeners start.
+        - Business module registration remains explicit and single-writer; package init, request data, database rows, plugins, and filesystem scanning cannot mutate the registry.
+        - The business registry freezes before route mounting, and the presentation service receives the resulting immutable application-owned registry by dependency injection.
+        - Startup failure reports bounded definition diagnostics without document values, secrets, or production row data.
+        - The governance capability endpoint exposes cloned read-only definitions and recovery or adoption state, never mutable registry handles.
+    - id: compose-frontend-registry
+      title: Freeze an explicit frontend capability and adapter registry
+      description: Generated routes resolve only statically imported definitions, renderers, data adapters, and action handlers.
+      priority: must
+      actor: platform-maintainer
+      module: frontend-presentation-runtime
+      rules:
+        - The frontend registry is a generated static map keyed by pageKey and contains no dynamic import path supplied by a profile or server response.
+        - A page adapter owns compiled query construction, API calls, mutations, field value codecs, enum options, formatting, validation, and action callbacks.
+        - The serializable capability definition contains identifiers and presentation facts only; executable adapters never enter persistence, audit, or effective-layer responses.
+        - Backend and frontend registry inventory and definition hashes must match for every enabled production page during build and Thin Host qualification.
+        - Unknown runtime page keys fail to compiled page behavior and emit a bounded diagnostic instead of loading a remote component.
+    - id: select-effective-layers
+      title: Reuse the P1 effective-layer authority
+      description: Runtime pages receive only current published layers selected from the verified server principal.
+      priority: must
+      actor: admin-user
+      module: frontend-presentation-runtime
+      rules:
+        - The server derives current user and role identities and returns at most one application, role, and user layer in deterministic precedence order.
+        - Drafts, history, subjects supplied by the browser, and profiles for another page key never enter runtime resolution.
+        - The writer database remains authoritative; any in-process or browser cache is bounded derived state and is never persisted to localStorage or IndexedDB.
+        - Missing rows are normal, while stale hashes, corrupt documents, semantic failures, database errors, and recovery mode omit complete layers and return stable diagnostics.
+        - Multi-role selection remains a server-owned authentication policy; the browser never invents or merges an unordered role set.
+    - id: resolve-and-render-pages
+      title: Apply profiles without making presentation a page dependency
+      description: Generated pages resolve display choices over trusted defaults while retaining compiled business behavior.
+      priority: must
+      actor: admin-user
+      module: frontend-presentation-runtime
+      rules:
+        - One page hook fetches effective presentation with a bounded request and resolves it against the exact compiled definition and verified frontend permissions.
+        - Page shell and business data loading may proceed concurrently; timeout, cancellation, or endpoint failure settles immediately to compiled defaults.
+        - The renderer may change localized text, visible registered fields, component selection, order, width, span, density, page size, default sort, layout columns, action placement, and bounded conditions only.
+        - Conditions read only fields explicitly exposed by the compiled adapter for the surface context and use type-compatible allowlisted operators and bounded scalar values.
+        - Version 2 rejects conditions for list columns and toolbar actions, evaluates search against filter draft, form against form draft, detail against the loaded record, and row actions against the current row; conditions affect rendering only.
+        - Missing and null remain distinct, exists accepts a present null, comparisons on missing are false, equality and membership perform no coercion, and ordered comparisons require registered number, date, or date-time values.
+        - Required create or edit fields cannot be hidden, incompatible components cannot be selected, unsupported sort or filter fields cannot be activated, and invalid layers are never partially applied.
+        - Trusted data-source and action permissions are intersected after all layers; a denied data source produces the existing forbidden state and no visible actions.
+        - No-profile and recovery rendering must be semantically equivalent to the pre-adoption generated page, including pagination, search, CRUD, export, error, empty, and conflict behavior.
+    - id: control-production-adoption
+      title: Separate registry availability from runtime activation
+      description: Operators can prepare and observe profiles before any production page applies them.
+      priority: must
+      actor: recovery-operator
+      module: presentation-adoption-control
+      rules:
+        - Startup configuration owns mode disabled, shadow, or active plus an optional exact page-key allowlist; database profile data cannot change these controls.
+        - Disabled mode exposes registered capabilities for governance but effective reads produce compiled-default behavior with an adoption-disabled diagnostic.
+        - Shadow mode loads, validates, and resolves published layers for parity metrics but renders compiled defaults and performs no hidden business mutation.
+        - Active mode applies resolved layers only to allowlisted registered page keys; other pages remain disabled.
+        - recoveryMode overrides every adoption mode and allowlist, returns empty effective layers, and keeps management, history, and diagnostics available.
+        - New Foundation pages default to disabled; the reference Admin explicitly composes Supplier as an external business module, but Supplier is not eligible for Foundation activePages or built-in qualification.
+        - user.list starts disabled, proceeds through an isolated shadow checkpoint, and can become active only through its exact page-key allowlist after separate review and exact-Head evidence.
+    - id: provide-lossless-visual-editor
+      title: Add a capability-aware visual editor over P1 drafts
+      description: Routine operators can edit approved presentation choices without manually authoring the complete JSON document.
+      priority: must
+      actor: presentation-author
+      module: presentation-visual-editor
+      rules:
+        - The governance console provides page, scope, and authorized subject selection plus list, search, form, detail, and action workspaces.
+        - Operators can reorder, hide, restore inheritance, edit localized plain text, choose allowed components, adjust width or span, set density, page size, sort, layout, placement, confirmation, and bounded visibility conditions.
+        - Every control is derived from the selected compiled capability; unsupported fields, components, operators, placements, and protected properties are not offered.
+        - Visual and raw JSON modes share one typed draft abstract syntax tree and round-trip canonically without dropping explicit false values, conditions, or inheritance omissions.
+        - Generated adapters separate a pure view surface from effectful query, mutation, and action bindings; preview imports only the pure surface and its dependency graph contains no network or business callbacks.
+        - Preview uses generated synthetic values and the pure view adapter by default and never fetches a business record merely to render the editor.
+        - Validation issues link to the affected control and raw path; a structurally safe but semantically invalid draft may be saved but cannot be published.
+        - Save, conflict preservation, publish confirmation, immutable history, rollback, permission separation, and audit redaction continue through existing P1 endpoints.
+    - id: govern-definition-drift
+      title: Make upgrades and stale profiles explicit
+      description: Exact-hash drift fails safely and produces a reviewable path back to a current draft.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-upgrade-governance
+      rules:
+        - A changed generated definition hash causes every older published or draft document for that page to be reported stale and prevents the layer from applying.
+        - Runtime falls back to lower valid layers and compiled defaults; deployment never rewrites, drops, or republishes stored profile content automatically.
+        - The governance console distinguishes current, stale, unregistered, corrupt, invalid, disabled, shadow, active, and recovery states.
+        - A rebase helper may create or replace an inactive draft only after showing added, removed, changed, incompatible, and retained identifiers; version 2 never guesses renames without future explicit source-controlled hints.
+        - Admin Distribution upgrade planning reports old and new page hashes and capability changes from generated snapshots while preserving runtime database independence.
+        - Breaking identifier changes require an explicit reviewed migration note and browser qualification; display-only source changes still receive a new exact hash under the conservative version 2 contract.
+    - id: preserve-thin-host-upgrades
+      title: Keep presentation generation compatible with Thin Hosts
+      description: Downstream business repositories consume coordinated Admin versions without copying Foundation presentation runtime.
+      priority: must
+      actor: platform-maintainer
+      module: thin-host-compatibility
+      rules:
+        - Foundation owns schemas, generators, shared runtime, governance UI, component registry, and upgrade logic; Thin Hosts own business specs and custom adapters only.
+        - Admin Distribution generation and upgrade may modify only managed snapshot files and generated artifacts and must preserve unknown and business-owned files.
+        - Backend and frontend presentation projections are upgraded as one coordinated Distribution version and cannot be mixed across versions.
+        - External qualification uses public or candidate-resolved Go and npm artifacts, GOWORK off, a clean temporary Thin Host, generation, upgrade, build, tests, and representative browser behavior.
+        - Existing stored profiles survive application rollback and upgrade; hash drift controls applicability without destructive migration.
+        - Thin Hosts consume the Foundation-owned user.list definition, manifest, backend projection, and frontend core registry from the coordinated Admin packages and never copy or regenerate those core artifacts locally.
+    - id: preserve-supplier-external-example
+      title: Preserve Supplier as a complete external business-extension example
+      description: Supplier proves the AdminModule generator and Thin Host extension path without becoming a Foundation built-in or rollout prerequisite.
+      priority: must
+      actor: platform-maintainer
+      module: supplier
+      rules:
+        - The handwritten P0 Supplier prototype is replaced by generator-owned Go and TypeScript projections sourced from .mss/modules/example-supplier.yaml.
+        - Supplier retains the stable supplier.list page key and existing compiled API, query, permission, route, CRUD, export, validation, and locale contracts.
+        - "The generated Supplier default matches the current page: large density, page size 20 from 20/50/100, no initial sort, expanded keyword/country/credit-level/three-state-enabled search, single-column form and detail, derived read-only ID and timestamps, and export before create."
+        - In the reference Admin or a separately composed Thin Host, no published profile, disabled mode, shadow mode, invalid content, stale hash, store outage, or recovery mode renders Supplier compiled defaults with no business behavior regression.
+        - An external host may independently prove application, role, and user precedence across list, search, create or edit form, detail, actions, density, pagination, sorting, labels, and conditions.
+        - Direct API authorization tests prove profiles cannot expose denied data or actions, and browser tests prove hidden controls never substitute for backend enforcement.
+        - Supplier never enters the Foundation core registry, activePages, built-in browser matrix, completion count, or rollout; reference-Admin or Thin Host qualification is separate business-extension compatibility evidence.
+    - id: qualify-user-list-core-page
+      title: Adopt user.list as one generated Foundation Core Page Presentation pilot
+      description: The maintainer explicitly authorized user management as a second, separately reviewed page while retaining every compiled user-security boundary.
+      priority: must
+      actor: platform-maintainer
+      module: user-list-core-page
+      rules:
+        - .mss/core-pages/user-list.yaml is the single Foundation-owned source; it is not an AdminModule and must generate the Go definition, TypeScript definition, one canonical definition hash, normalized manifest, and registry entries through the same deterministic pipeline.
+        - Handwritten Go and TypeScript copies of the user.list capability are prohibited; missing, divergent, stale, or manually edited projections fail generation or parity qualification.
+        - The backend explicitly injects the generated Foundation core-page definition before business-module definitions and rejects collisions; the frontend resolves it from a statically imported core registry with no profile-controlled import.
+        - The initial configurable surface is limited to localized title, safe list presentation, search for name and status only, table density, and page size; the compiled data source declares maxSortFields as 0 so profiles cannot enable sorting.
+        - Status search is an exact backend filter with a closed compiled value set, never a client-only approximation, fuzzy match, arbitrary query key, or profile-defined encoder.
+        - Passwords, password confirmation, credentials, OAuth facts, tokens, sessions, relation identifiers, and root or privilege markers never enter fields, synthetic preview data, effective documents, logs, diagnostics, or generated manifests.
+        - Form, detail, every action including reset-password, permissions, routes, HTTP methods, endpoints, query encoding, and API selection are outside the user.list presentation capability and remain compiled.
+        - Existing root-only checks and protections for the current or target user remain compiled and authoritative even when list fields or search controls are hidden or reordered.
+        - Rollout is disabled, then isolated shadow, then active for the exact user.list allowlist only after separate exact-Head tests and built-in-browser evidence; recovery mode still overrides all adoption.
+        - Thin Hosts consume the packaged Foundation core definition and static registry rather than copying user-list source or projections into downstream repositories.
+    - id: phase-implementation-checkpoints
+      title: Implement only through reviewable pushed checkpoints
+      description: The complete design becomes executable in ordered slices after explicit design approval.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-product-contract
+      rules:
+        - D0 was the completed design-only checkpoint and contained no implementation, migration, generated output, PR, merge, tag, or release.
+        - P2A adds AdminModule schema, semantic validation, normalized manifest, hash vectors, and deterministic generator projections.
+        - P2B adds application-owned backend composition, adoption configuration, effective-layer diagnostics, and focused backend tests.
+        - Historical P2C added the frontend registry, shared runtime, generated adapters, and disabled plus shadow parity around the external Supplier example.
+        - Historical P2D described external Supplier active qualification; the successor all-management-page decision supersedes it for Foundation rollout and retains only optional Thin Host extension evidence.
+        - P3 adds the lossless visual editor and keeps the P1 JSON path as an advanced and recovery-safe interface.
+        - P4 first qualifies the explicitly authorized generated user.list Foundation core-page pilot from .mss/core-pages/user-list.yaml; the successor all-management-page FeatureSpec exclusively governs expansion to the exact fourteen Foundation built-ins, while Supplier remains external.
+        - Every coherent slice is committed, pushed without history rewriting, remotely verified, and reported separately from validation evidence.
+  constraints:
+    - id: design-before-development
+      type: operations
+      statement: D0 approval was the historical prerequisite for P2 and P3; the current development branch is now in implementation and acceptance, and no unchecked result is recorded as passed evidence.
+    - id: no-executable-profile
+      type: security
+      statement: A stored profile contains data only and cannot carry code, markup execution, SQL, network transport, imports, handlers, permissions, or component implementations.
+    - id: authorization-applied-last
+      type: security
+      statement: Trusted backend permission requirements are immutable profile-external facts and are intersected after every presentation layer.
+    - id: exact-compiled-identity
+      type: compatibility
+      statement: Stable page, field, data-source, action, component, and definition-hash identifiers bind every profile to the exact compiled application capability.
+    - id: whole-layer-fallback
+      type: compatibility
+      statement: Drift or semantic failure rejects one complete layer and preserves lower valid layers and compiled defaults.
+    - id: explicit-module-composition
+      type: security
+      statement: Only explicitly injected generated Foundation core-page definitions and explicitly composed business modules may register capabilities; runtime discovery, package init mutation, plugins, and request-driven registration are prohibited.
+    - id: protected-pages-excluded
+      type: security
+      statement: Authentication, authorization, configuration, release, recovery, and governance pages remain outside the configurable registry.
+    - id: database-authority
+      type: data
+      statement: P1 writer-database state remains authoritative and caches or browser memory cannot publish, repair, or decide correctness.
+    - id: bounded-resolution
+      type: performance
+      statement: At most three bounded published layers resolve once per page identity with deterministic linear work over registered fields and actions.
+    - id: value-free-observability
+      type: privacy
+      statement: Logs, metrics, audit, drift reports, and upgrade plans contain bounded identifiers and outcomes but no profile text values, subjects, business records, secrets, or raw idempotency keys.
+    - id: generated-source-ownership
+      type: compatibility
+      statement: AdminModule sources and reviewed Foundation core-page sources own generated definitions, adapters, manifests, and registry entries; production generated regions are never hand-edited and Go/TypeScript are never independent sources.
+    - id: current-acceptance-status
+      type: operations
+      statement: The successor implementation is accepted with exactly fourteen Foundation built-ins active and passed; only the actually recorded exact-Head Browser bundle satisfies that gate, and a changed Head requires reacceptance.
+  acceptance:
+    - id: compiled-authority-gate
+      requirement: preserve-compiled-authority
+      statement: Generated capability and runtime contract tests prove profiles can reference only exact compiled identifiers and every invalid or unavailable layer falls back to lower valid layers or complete defaults.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/presentation and web/antd-v6 shared presentation contract suites
+    - id: admin-module-presentation-schema-gate
+      requirement: define-admin-module-extension
+      statement: AdminModule schema and semantic tests prove presentation is optional, page keys are explicit and unique, defaults are complete, and every field, data-source, action, permission, and component reference comes from trusted module contracts.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec presentation-focused AdminModule suites
+    - id: complete-design-contract
+      requirement: phase-implementation-checkpoints
+      statement: The complete FeatureSpec, ADR, and Chinese product design agree on boundaries, phases, generated ownership, runtime fallback, visual editing, drift, Supplier as external Thin Host evidence, and the separately reviewed single-source user.list Foundation core-page pilot.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/features/admin-presentation-complete-design.yaml
+        - type: path
+          value: docs/adr/2026-08-28-admin-presentation-complete-design.md
+        - type: path
+          value: docs/docs/admin/presentation-complete-design.md
+    - id: explicit-maintainer-approval
+      requirement: phase-implementation-checkpoints
+      statement: >-
+        Historical gate: the maintainer reviewed the pushed D0 commit and explicitly authorized P2A before implementation began; this does not satisfy any current implementation or acceptance gate.
+      level: manual
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: manual
+          value: Maintainer approval recorded in the task conversation after remote D0 commit verification.
+    - id: design-spec-validation
+      requirement: phase-implementation-checkpoints
+      statement: The repository mss CLI validates this FeatureSpec and the documentation site builds without tracked-file drift.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-presentation-complete-design.yaml --format json
+        - type: command
+          value: corepack pnpm@10.34.5 --dir docs build
+    - id: generator-contract-gate
+      requirement: normalize-one-manifest
+      statement: P2A schema, semantic, golden, canonical-hash, Go and TypeScript parity, cleanup, confinement, and two-run idempotency tests pass.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec and internal/mss/generator presentation-focused suites
+        - type: test
+          value: generated Supplier Go and TypeScript definition parity tests
+    - id: generated-artifact-ownership-gate
+      requirement: generate-owned-artifacts
+      statement: P2A generation emits both owned projections and deterministic registry indexes from one AdminModule source, removes only obsolete generated presentation files, and fails when either language projection is absent.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/generator presentation output, cleanup, confinement, and idempotency suites
+    - id: backend-composition-gate
+      requirement: compose-backend-registry
+      statement: P2B tests prove atomic registration, freeze, duplicate and protected-key rejection, dependency injection, adoption modes, effective precedence, fallback, and recovery behavior.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/business and admin/presentation focused suites
+        - type: test
+          value: admin/service and admin/apis presentation effective-profile suites
+    - id: effective-layer-selection-gate
+      requirement: select-effective-layers
+      statement: P2B effective-profile tests prove the server selects only published application, current-role, and current-user layers, treats missing rows normally, and omits complete stale, corrupt, invalid, unavailable, or recovery-bypassed layers with bounded diagnostics.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/service presentation effective-profile principal, precedence, outage, and recovery suites
+    - id: adoption-control-gate
+      requirement: control-production-adoption
+      statement: P2B and P2C tests prove startup-owned disabled, shadow, active allowlist, and recovery precedence while database content cannot activate a page and shadow mode performs no business mutation.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin presentation adoption configuration and web/antd-v6 disabled or shadow parity suites
+    - id: frontend-registry-parity-gate
+      requirement: compose-frontend-registry
+      statement: P2C build and Thin Host tests prove every enabled page uses one statically imported definition and compiled adapter whose inventory and definition hash exactly match the backend registry, with no profile-controlled dynamic import.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 generated presentation registry and backend and frontend parity suites
+    - id: frontend-runtime-gate
+      requirement: resolve-and-render-pages
+      statement: P2C tests prove compiled-default parity, exact-layer resolution, permission intersection, bounded failure fallback, component allowlists, and no dynamic imports.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 shared presentation runtime and generated Supplier suites
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 lint
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+    - id: definition-drift-gate
+      requirement: govern-definition-drift
+      statement: Upgrade planning, governance, and runtime tests report old and new hashes and structured capability changes, reject stale layers as units, preserve stored documents, and limit rebase assistance to an inactive reviewed draft.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: presentation drift, draft rebase, and Admin Distribution upgrade-plan suites
+    - id: supplier-external-thin-host-evidence
+      requirement: preserve-supplier-external-example
+      statement: Optional external-host evidence may cover Supplier disabled, shadow, active, no-profile, layered profiles, drift, outage, recovery, permissions, refresh, console, and failed-request checks without gating Foundation built-in acceptance.
+      level: e2e
+      phase: checkpoint
+      required: false
+      evidence:
+        - type: manual
+          value: Optional external Thin Host browser screenshots, console review, and request trace against its exact Head.
+        - type: test
+          value: Supplier browser and direct API permission matrix
+    - id: user-list-core-page-gate
+      requirement: qualify-user-list-core-page
+      statement: P4 must prove that one .mss/core-pages/user-list.yaml source produces matching Go, TypeScript, canonical hash, manifest, backend-before-business composition, and static frontend core-registry inventory; status filtering is exact, excluded sensitive or privileged surfaces are absent, compiled user protections remain unchanged, and disabled, isolated-shadow, active-exact-allowlist, outage, and recovery behavior are verified on one exact Head.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: Foundation core-page specification, generator, hash, manifest, registry parity, exact status-filter, sensitive-surface exclusion, and compiled user-protection suites
+        - type: command
+          value: Repository-external Thin Host contract proving packaged user.list consumption without copied core projections
+        - type: manual
+          value: Completed Codex in-app Browser evidence includes active user.list navigation and reload persistence within the fourteen-page exact-Head bundle, plus the preserved disabled, shadow, fallback, and recovery contract evidence; screenshots remain outside the repository.
+    - id: visual-editor-gate
+      requirement: provide-lossless-visual-editor
+      statement: P3 tests and browser evidence prove capability-driven controls, lossless visual or JSON round-trip, inheritance reset, validation navigation, conflict preservation, publish, history, and rollback.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 presentation governance visual-editor suites
+        - type: manual
+          value: Codex in-app Browser visual editing and raw JSON round-trip acceptance on the exact P3 Head.
+    - id: thin-host-gate
+      requirement: preserve-thin-host-upgrades
+      statement: A clean external Thin Host generates, builds, runs, upgrades, preserves business-owned files, keeps matching backend and frontend presentation identities, and consumes packaged Foundation user.list artifacts without copying core source or projections.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: Repository-external Admin Distribution compatibility workflow for the exact implementation Head.
+    - id: full-verification-gate
+      requirement: phase-implementation-checkpoints
+      statement: Every implementation phase runs focused checks first and the final complete feature passes changed-scope verification without tracked-file drift.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss verify --changed
+        - type: command
+          value: go run ./cmd/mss verify --all
+  risks:
+    - id: presentation-becomes-low-code
+      description: Pressure for flexibility could add executable expressions, arbitrary components, transport definitions, or runtime schema mutation.
+      severity: critical
+      mitigation: Keep profiles closed and data-only, require exact generated identifiers, and route new capabilities through AdminModule, generation, review, and release.
+    - id: backend-frontend-definition-drift
+      description: Separate Go and TypeScript definitions could disagree and validate or render the same profile differently.
+      severity: critical
+      mitigation: Generate both from one normalized manifest, embed one hash, use cross-language golden vectors, and fail build or Thin Host qualification on inventory mismatch.
+    - id: optional-service-breaks-pages
+      description: Presentation reads, validation, or storage outages could make a business page slow or unavailable.
+      severity: high
+      mitigation: Use bounded optional reads, complete-layer rejection, compiled defaults, disabled and shadow rollout, startup recovery mode, and outage browser tests.
+    - id: configuration-expands-authority
+      description: A profile could expose a protected data source or action when presentation is confused with authorization.
+      severity: critical
+      mitigation: Keep permissions only in generated trusted definitions, derive principal identity on the server, intersect authorization last, and retain direct backend permission tests.
+    - id: generated-custom-ownership-conflict
+      description: Adding runtime adapters may overwrite business custom code or make upgrades non-deterministic.
+      severity: high
+      mitigation: Keep generated and custom registration points separate, use the three-way Distribution upgrade engine, and require external Thin Host preservation tests.
+    - id: exact-hash-creates-frequent-stale-profiles
+      description: Conservative hashing can mark profiles stale after harmless capability or default changes.
+      severity: medium
+      mitigation: Prefer safe fallback over silent reinterpretation, show structured diffs, provide draft-only rebase assistance, and never publish automatically.
+    - id: visual-editor-loses-json-semantics
+      description: A form-based editor could drop omissions, explicit false values, or condition trees and publish unintended changes.
+      severity: high
+      mitigation: Share one typed AST, require canonical lossless round-trip tests, preserve raw JSON mode, and block publish on semantic mismatch.
+    - id: rollout-hides-regressions
+      description: Activating configuration directly on many pages could hide pagination, form, action, permission, or responsive-layout regressions.
+      severity: high
+      mitigation: Qualify each of the fourteen Foundation built-ins independently through disabled and isolated shadow modes, use exact page allowlists, and record exact-Head browser evidence; retain Supplier only as separate external extension evidence.
+    - id: core-page-dual-source-or-privilege-drift
+      description: Treating handwritten user management as an AdminModule or maintaining separate Go and TypeScript definitions could drift sensitive fields or presentation into authorization authority.
+      severity: critical
+      mitigation: Use only .mss/core-pages/user-list.yaml, generate every projection and hash, exclude sensitive and privileged surfaces structurally, inject the core registry explicitly, and retain compiled root and target-user protection tests.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-presentation-complete-design.yaml --format json
+      - corepack pnpm@10.34.5 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      D0 added only the reviewed FeatureSpec, ADR, and product design. After explicit approval,
+      P2A introduced the AdminModule schema and generator projections; P2B composes the backend
+      registry and startup adoption controls; historical P2C and P2D used Supplier to exercise the
+      external AdminModule runtime and Thin Host path; P3 adds the lossless visual editor. The successor
+      all-management-page decision supersedes any implication that Supplier belonged to Foundation
+      activation or rollout. P4 began with user.list, and the successor FeatureSpec governed expansion
+      to exactly fourteen Foundation built-ins, all now exact-allowlisted active and passed. The historical
+      disabled and isolated-shadow checkpoints remain required regression and rollback semantics. No phase
+      automatically changes stored profile content or activates another page.
+    rollback: >-
+      During implementation or acceptance, first enable recovery mode or remove the affected page from the active
+      allowlist so compiled defaults are authoritative, then roll back the coordinated Admin
+      backend and frontend pair while retaining P1 aggregates and immutable history. Repairs use
+      forward commits and never rewrite profile history, topic-branch history, public tags, or releases.

@@ -45,6 +45,39 @@ func TestLocalOverlayDefaultsToV6DevelopmentBrowserSession(t *testing.T) {
 	}
 }
 
+func TestE2EOverlayProducesAValidBrowserSessionProfile(t *testing.T) {
+	base, err := FS.ReadFile("application.yml")
+	if err != nil {
+		t.Fatalf("read base configuration: %v", err)
+	}
+	overlay, err := FS.ReadFile("application-e2e.yml")
+	if err != nil {
+		t.Fatalf("read E2E configuration: %v", err)
+	}
+	var cfg Config
+	if err = yaml.Unmarshal(base, &cfg); err != nil {
+		t.Fatalf("decode base configuration: %v", err)
+	}
+	if err = yaml.Unmarshal(overlay, &cfg); err != nil {
+		t.Fatalf("decode E2E configuration: %v", err)
+	}
+	if cfg.Application.Mode != ModeDev || cfg.Database.Driver != "sqlite" {
+		t.Fatalf("unexpected E2E profile: application=%#v database=%#v", cfg.Application, cfg.Database)
+	}
+	if err = validateBrowserSession(cfg.Application.Mode, cfg.Auth); err != nil {
+		t.Fatalf("validate E2E browser session: %v", err)
+	}
+	if err = validateBrowserSessionOrigins(
+		cfg.Application.Mode,
+		cfg.Auth,
+		cfg.Application.Origin,
+		cfg.CORS.AllowOrigins,
+		cfg.CORS.AllowHeaders,
+	); err != nil {
+		t.Fatalf("validate E2E browser origins: %v", err)
+	}
+}
+
 func TestValidateProductionAuthKeyFailsClosed(t *testing.T) {
 	tests := []struct {
 		name    string

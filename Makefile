@@ -6,13 +6,13 @@ COVERAGE_DIR ?= .coverage
 COVERAGE_POLICY := .mss/coverage.json
 
 .PHONY: build build-admin build-agent test test-agent test-admin test-admin-race \
-	coverage-admin vet-admin tidy-admin-check tidy-admin-prepublication-check verify-admin verify-admin-preview compatibility-admin compatibility-standalone-mss \
+	coverage-admin vet-admin tidy-admin-check tidy-admin-prepublication-check verify-admin verify-admin-preview compatibility-admin compatibility-standalone-mss compatibility-foundation-next \
 	deps deps-agent deps-admin deps-admin-workspace deps-framework deps-all deps-release-preview \
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
 	web-install web-lint web-test web-build \
 	web-v6-install web-v6-lint web-v6-test web-v6-build web-v6-qualify \
-	docs-install docs-build verify-all
+	docs-install docs-build verify-all verify-release-evidence
 
 build: build-admin
 
@@ -57,6 +57,9 @@ compatibility-admin:
 
 compatibility-standalone-mss:
 	bash tools/compatibility/test-standalone-mss-consumer.sh
+
+compatibility-foundation-next:
+	bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade --next-foundation
 
 verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
 
@@ -139,11 +142,14 @@ web-v6-build:
 	cd web/antd-v6 && corepack pnpm@10.34.5 build:release
 
 web-v6-qualify:
+	cd web/antd-v6 && corepack pnpm@10.34.5 deps:check
+	cd web/antd-v6 && corepack pnpm@10.34.5 dedupe --check --config.strict-peer-dependencies=false --config.ignore-scripts=true
+	cd web/antd-v6 && corepack pnpm@10.34.5 audit:release
 	$(MAKE) web-v6-lint
 	$(MAKE) web-v6-test
 	$(MAKE) web-v6-build
 	cd web/antd-v6 && corepack pnpm@10.34.5 delivery:smoke
-	cd web/antd-v6 && corepack pnpm@10.34.5 test:e2e
+	bash tools/verification/run-frontend-e2e.sh
 
 docs-install:
 	cd docs && corepack pnpm@9.15.9 install --frozen-lockfile
@@ -151,7 +157,12 @@ docs-install:
 docs-build:
 	cd docs && corepack pnpm@9.15.9 build
 
-verify-all: verify-admin verify-framework test-agent web-v6-lint web-v6-test web-v6-build docs-build
+verify-all:
+	GOWORK=off go run ./cmd/mss verify --all
+
+verify-release-evidence:
+	@test -n "$(COMMIT)" || { echo 'COMMIT=<full-sha> is required' >&2; exit 2; }
+	GOWORK=off go run ./cmd/mss verify --all --release-evidence --expect-commit "$(COMMIT)"
 
 clean:
 	rm -rf $(BIN_DIR) $(COVERAGE_DIR)

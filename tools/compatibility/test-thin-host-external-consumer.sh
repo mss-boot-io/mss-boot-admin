@@ -65,13 +65,26 @@ foundation_root="$(realpath -- "${foundation_root}")"
 }
 
 expected_pnpm_version='10.34.5'
-command -v pnpm >/dev/null 2>&1 || {
-  echo "pnpm ${expected_pnpm_version} must be installed before Thin Host qualification" >&2
+if command -v corepack >/dev/null 2>&1; then
+  pnpm_command=(corepack "pnpm@${expected_pnpm_version}")
+elif command -v pnpm >/dev/null 2>&1; then
+  pnpm_command=(pnpm)
+else
+  echo "corepack or pnpm ${expected_pnpm_version} is required for Thin Host qualification" >&2
   exit 1
-}
-actual_pnpm_version="$(pnpm --version)"
+fi
+actual_pnpm_version="$("${pnpm_command[@]}" --version)"
 [[ "${actual_pnpm_version}" = "${expected_pnpm_version}" ]] || {
   echo "Thin Host qualification requires pnpm ${expected_pnpm_version}; found ${actual_pnpm_version}" >&2
+  exit 1
+}
+
+run_pnpm() {
+  "${pnpm_command[@]}" "$@"
+}
+
+command -v flock >/dev/null 2>&1 || {
+  echo "flock is required for collision-safe Thin Host runtime startup" >&2
   exit 1
 }
 
@@ -80,6 +93,20 @@ chmod 0700 -- "${work_dir}"
 backend_pid=""
 web_pid=""
 registry_pid=""
+port_start_lock_fd=""
+persist_evidence="${MSS_PERSIST_EVIDENCE:-0}"
+[[ "${persist_evidence}" = "0" || "${persist_evidence}" = "1" ]] || {
+  echo "MSS_PERSIST_EVIDENCE must be 0 or 1" >&2
+  exit 2
+}
+
+release_port_start_lock() {
+  if [[ -n "${port_start_lock_fd:-}" ]]; then
+    flock -u "${port_start_lock_fd}" >/dev/null 2>&1 || true
+    exec {port_start_lock_fd}>&-
+    port_start_lock_fd=""
+  fi
+}
 
 cleanup() {
   local status=$?
@@ -90,6 +117,7 @@ cleanup() {
     kill "${registry_pid}" >/dev/null 2>&1 || true
     wait "${registry_pid}" >/dev/null 2>&1 || true
   fi
+  release_port_start_lock
   chmod -R u+w -- "${work_dir}" >/dev/null 2>&1 || true
   rm -rf -- "${work_dir}"
   exit "${status}"
@@ -100,6 +128,13 @@ host_root="${work_dir}/compatibility-admin"
 artifact_dir="${work_dir}/artifacts"
 raw_report_dir="${artifact_dir}/raw-reports"
 mkdir -p -- "${raw_report_dir}"
+
+foundation_commit="$(git -C "${foundation_root}" rev-parse 'HEAD^{commit}')"
+[[ "${foundation_commit}" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "Foundation commit is not a full SHA" >&2
+  exit 1
+}
+report_is_persistent="0"
 
 if [[ -n "${report_dir}" ]]; then
   report_dir="$(realpath -m -- "${report_dir}")"
@@ -118,16 +153,18 @@ if [[ -n "${report_dir}" ]]; then
     exit 1
   fi
   mkdir -p -- "${report_dir}"
+  report_is_persistent="1"
+elif [[ "${persist_evidence}" = "1" ]]; then
+  report_dir="$(mktemp -d "${TMPDIR:-/tmp}/mss-thin-host-evidence.${foundation_commit:0:12}.XXXXXX")"
+  chmod 0700 -- "${report_dir}"
+  report_is_persistent="1"
 else
   report_dir="${artifact_dir}/reports"
   mkdir -p -- "${report_dir}"
 fi
-
-foundation_commit="$(git -C "${foundation_root}" rev-parse 'HEAD^{commit}')"
-[[ "${foundation_commit}" =~ ^[0-9a-f]{40}$ ]] || {
-  echo "Foundation commit is not a full SHA" >&2
-  exit 1
-}
+if [[ "${report_is_persistent}" = "1" ]]; then
+  printf '%s\n' "external Thin Host persistent evidence directory: ${report_dir}"
+fi
 source_repository="${GITHUB_REPOSITORY:-mss-boot-io/mss-boot-admin}"
 distribution_version="$(
   python3 - "${foundation_root}" <<'PY'
@@ -159,7 +196,7 @@ if [[ -z "${tarball}" ]]; then
       "version=${frontend_distribution_version}" \
       "gitHead=${foundation_commit}" \
       >/dev/null
-    pnpm pack --pack-destination "${pack_dir}" >/dev/null
+    run_pnpm pack --pack-destination "${pack_dir}" >/dev/null
   )
   mapfile -t packed_tarballs < <(find "${pack_dir}" -maxdepth 1 -type f -name '*.tgz' -print)
   [[ ${#packed_tarballs[@]} -eq 1 ]] || {
@@ -1326,7 +1363,7 @@ web_root="${host_root}/web"
 (
   cd "${web_root}"
   # This local tarball qualification never contacts either public registry.
-  pnpm add \
+  run_pnpm add \
     --save-exact \
     --lockfile-only \
     --ignore-scripts \
@@ -1354,9 +1391,9 @@ if entry.get('specifier') != expected or not (
 ):
     raise SystemExit(f'external host lock importer does not bind the qualified tarball: {entry!r}')
 PY
-  pnpm fetch --frozen-lockfile
-  pnpm install --offline --frozen-lockfile --ignore-scripts
-  pnpm run lint
+  run_pnpm fetch --frozen-lockfile
+  run_pnpm install --offline --frozen-lockfile --ignore-scripts
+  run_pnpm run lint
 
   unique_route_registrations="${work_dir}/route-registrations.unique.ts"
   cp -- \
@@ -1413,7 +1450,7 @@ target.write_text(
 PY
 
     set +e
-    pnpm run test -- src/route-registrations.load.test.ts \
+    run_pnpm run test -- src/route-registrations.load.test.ts \
       > "${collision_log}" 2>&1
     collision_status=$?
     set -e
@@ -1498,7 +1535,7 @@ describe('packaged Admin core route registry', () => {
 )
 PY
 
-  pnpm exec vitest run \
+  run_pnpm exec vitest run \
     --config "${admin_core_collision_config}" \
     src/admin-core-route-registry.load.test.ts
 
@@ -1538,7 +1575,7 @@ target.write_text(
 PY
 
     set +e
-    pnpm exec vitest run \
+    run_pnpm exec vitest run \
       --config "${admin_core_collision_config}" \
       src/admin-core-route-registry.load.test.ts \
       > "${collision_log}" 2>&1
@@ -1564,20 +1601,20 @@ PY
   cp -- \
     "${unique_route_registrations}" \
     "${web_root}/src/business/route-registrations.ts"
-  pnpm exec vitest run \
+  run_pnpm exec vitest run \
     --config "${admin_core_collision_config}" \
     src/admin-core-route-registry.load.test.ts
   rm -- "${admin_core_collision_config}" "${admin_core_collision_test}"
 
-  pnpm run test
-  pnpm run build
+  run_pnpm run test
+  run_pnpm run build
   grep -R -F -q -- \
     'mss-thin-host-handwritten-extension' \
     "${web_root}/dist" || {
     echo "Handwritten Thin Host page marker is missing from the production build" >&2
     exit 1
   }
-  pnpm list --json --depth Infinity \
+  run_pnpm list --json --depth Infinity \
     > "${artifact_dir}/pnpm-tree.raw.json"
 )
 
@@ -1660,8 +1697,65 @@ wait_for_http() {
   return 1
 }
 
+port_start_lock_path="${TMPDIR:-/tmp}/mss-thin-host-external-consumer.$(id -u).port-start.lock"
+exec {port_start_lock_fd}>"${port_start_lock_path}"
+if ! flock -w 600 "${port_start_lock_fd}"; then
+  echo "timed out waiting 600s for Thin Host runtime port-start lock: ${port_start_lock_path}" >&2
+  exit 1
+fi
+read -r backend_port web_port < <(python3 - <<'PY'
+import socket
+
+sockets = []
+try:
+    for _ in range(2):
+        current = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        current.bind(('127.0.0.1', 0))
+        sockets.append(current)
+    print(*(current.getsockname()[1] for current in sockets))
+finally:
+    for current in sockets:
+        current.close()
+PY
+)
+[[ "${backend_port}" =~ ^[0-9]+$ && "${web_port}" =~ ^[0-9]+$ ]] || {
+  echo "Thin Host qualification could not allocate loopback ports" >&2
+  exit 1
+}
+[[ "${backend_port}" != "${web_port}" ]] || {
+  echo "Thin Host qualification allocated the same backend and frontend port" >&2
+  exit 1
+}
+backend_origin="http://127.0.0.1:${backend_port}"
+web_origin="http://127.0.0.1:${web_port}"
+printf '%s\n' "external Thin Host runtime origins: backend=${backend_origin} frontend=${web_origin}"
+
 runtime_dir="${host_root}/runtime"
-mkdir -p -- "${runtime_dir}" "${host_root}/.mss/run/antd-v6-e2e"
+mkdir -p -- "${runtime_dir}/config" "${host_root}/.mss/run/antd-v6-e2e"
+install -m 0600 \
+  "${foundation_root}/admin/config/application.yml" \
+  "${runtime_dir}/config/application.yml"
+python3 - \
+  "${foundation_root}/admin/config/application-e2e.yml" \
+  "${runtime_dir}/config/application-e2e.yml" \
+  "${backend_port}" \
+  "${web_port}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+backend_port = sys.argv[3]
+web_port = sys.argv[4]
+content = source.read_text(encoding='utf-8')
+if content.count('127.0.0.1:18080') != 1:
+    raise SystemExit('expected exactly one backend address in the E2E configuration')
+if content.count('http://127.0.0.1:18001') != 2:
+    raise SystemExit('expected exactly two frontend origins in the E2E configuration')
+content = content.replace('127.0.0.1:18080', f'127.0.0.1:{backend_port}')
+content = content.replace('http://127.0.0.1:18001', f'http://127.0.0.1:{web_port}')
+target.write_text(content, encoding='utf-8')
+PY
 backend_log="${raw_report_dir}/external-backend.log"
 migration_log="${raw_report_dir}/external-migrate.log"
 web_log="${raw_report_dir}/external-web.log"
@@ -1678,13 +1772,13 @@ fi
 if ! (
   cd "${runtime_dir}"
   STAGE=e2e \
-  CONFIG_PROVIDER=fs \
+  CONFIG_PROVIDER=local \
   GIN_MODE=release \
   GOTOOLCHAIN=local \
   MSS_ADMIN_INITIAL_PASSWORD="${e2e_password}" \
     "${work_dir}/compatibility-admin-server" migrate \
       --username "${MSS_E2E_USERNAME:-admin}" \
-      --domain "127.0.0.1:18001"
+      --domain "127.0.0.1:${web_port}"
 ) > "${migration_log}" 2>&1; then
   echo "external Thin Host migration failed" >&2
   tail -n 120 -- "${migration_log}" >&2 || true
@@ -1701,13 +1795,13 @@ mss_start_process_group \
   -u MSS_ADMIN_INITIAL_PASSWORD \
   -u MSS_E2E_PASSWORD \
   STAGE=e2e \
-  CONFIG_PROVIDER=fs \
+  CONFIG_PROVIDER=local \
   GIN_MODE=release \
   GOTOOLCHAIN=local \
   "${work_dir}/compatibility-admin-server" server
 wait_for_http \
   "external Thin Host backend" \
-  "http://127.0.0.1:18080/healthz" \
+  "${backend_origin}/healthz" \
   "${backend_pid}" \
   "${backend_log}"
 
@@ -1715,7 +1809,7 @@ anonymous_probe_status="$(
   curl --silent --show-error \
     --output /dev/null \
     --write-out '%{http_code}' \
-    "http://127.0.0.1:18080/admin/api/compatibility-probe"
+    "${backend_origin}/admin/api/compatibility-probe"
 )"
 [[ "${anonymous_probe_status}" = "401" ]] || {
   echo "handwritten business route anonymous status = ${anonymous_probe_status}, want 401" >&2
@@ -1732,24 +1826,25 @@ mss_start_process_group \
   -u MSS_ADMIN_INITIAL_PASSWORD \
   -u MSS_E2E_PASSWORD \
   BROWSER=none \
-  MSS_ADMIN_API_TARGET=http://127.0.0.1:18080 \
+  MSS_ADMIN_API_TARGET="${backend_origin}" \
   MSS_V6_E2E=1 \
-  PORT=18001 \
+  PORT="${web_port}" \
   REACT_APP_ENV=dev \
   UMI_ENV=dev \
   MOCK=none \
-  pnpm run dev
+  "${pnpm_command[@]}" run dev
 wait_for_http \
   "external Thin Host frontend" \
-  "http://127.0.0.1:18001/admin/api/languages/public" \
+  "${web_origin}/admin/api/languages/public" \
   "${web_pid}" \
   "${web_log}"
 sleep 1
 wait_for_http \
   "external Thin Host frontend stability check" \
-  "http://127.0.0.1:18001/admin/api/languages/public" \
+  "${web_origin}/admin/api/languages/public" \
   "${web_pid}" \
   "${web_log}"
+release_port_start_lock
 
 secure_empty_file() {
   install -m 0600 /dev/null "$1"
@@ -1796,10 +1891,10 @@ printf '%s\n%s\n' \
 curl --fail --silent --show-error \
   --cookie-jar "${probe_cookie_jar}" \
   --header 'Content-Type: application/json' \
-  --header 'Origin: http://127.0.0.1:18001' \
+  --header "Origin: ${web_origin}" \
   --data-binary @- \
   --output "${probe_login_response}" \
-  "http://127.0.0.1:18080/admin/api/user/session/login" \
+  "${backend_origin}/admin/api/user/session/login" \
   < "${probe_login_credentials}"
 if ! jq -e '.code == 200 and (has("token") | not) and (has("accessToken") | not)' \
   "${probe_login_response}" >/dev/null; then
@@ -1817,7 +1912,7 @@ probe_csrf_token="$(
 }
 printf '%s\n%s\n%s\n' \
   'Content-Type: application/json' \
-  'Origin: http://127.0.0.1:18001' \
+  "Origin: ${web_origin}" \
   "X-CSRF-Token: ${probe_csrf_token}" \
   > "${root_mutation_headers}"
 unset probe_csrf_token
@@ -1841,7 +1936,7 @@ restricted_role_create_status="$(curl --fail --silent --show-error \
   --data-binary @- \
   --output "${restricted_role_response}" \
   --write-out '%{http_code}' \
-  "http://127.0.0.1:18080/admin/api/roles" \
+  "${backend_origin}/admin/api/roles" \
   < "${restricted_role_payload}")"
 [[ "${restricted_role_create_status}" = "201" ]] || {
   echo "handwritten business route restricted role status = ${restricted_role_create_status}, want 201" >&2
@@ -1878,7 +1973,7 @@ restricted_user_create_status="$(curl --fail --silent --show-error \
   --data-binary @- \
   --output "${restricted_user_response}" \
   --write-out '%{http_code}' \
-  "http://127.0.0.1:18080/admin/api/users" \
+  "${backend_origin}/admin/api/users" \
   < "${restricted_user_payload}")"
 [[ "${restricted_user_create_status}" = "201" ]] || {
   echo "handwritten business route restricted user status = ${restricted_user_create_status}, want 201" >&2
@@ -1901,10 +1996,10 @@ unset restricted_password
 curl --fail --silent --show-error \
   --cookie-jar "${restricted_cookie_jar}" \
   --header 'Content-Type: application/json' \
-  --header 'Origin: http://127.0.0.1:18001' \
+  --header "Origin: ${web_origin}" \
   --data-binary @- \
   --output "${restricted_login_response}" \
-  "http://127.0.0.1:18080/admin/api/user/session/login" \
+  "${backend_origin}/admin/api/user/session/login" \
   < "${restricted_login_credentials}"
 if ! jq -e '.code == 200 and (has("token") | not) and (has("accessToken") | not)' \
   "${restricted_login_response}" >/dev/null; then
@@ -1914,7 +2009,7 @@ fi
 curl --fail --silent --show-error \
   --cookie "${restricted_cookie_jar}" \
   --output "${restricted_user_info_response}" \
-  "http://127.0.0.1:18080/admin/api/user/userInfo"
+  "${backend_origin}/admin/api/user/userInfo"
 jq -e \
   --arg role_id "${restricted_role_id}" \
   '.roleID == $role_id and .role.id == $role_id and .role.root == false' \
@@ -1927,7 +2022,7 @@ restricted_probe_status="$(
     --cookie "${restricted_cookie_jar}" \
     --output "${restricted_probe_response}" \
     --write-out '%{http_code}' \
-    "http://127.0.0.1:18080/admin/api/compatibility-probe"
+    "${backend_origin}/admin/api/compatibility-probe"
 )"
 [[ "${restricted_probe_status}" = "403" ]] || {
   echo "handwritten business route restricted status = ${restricted_probe_status}, want 403" >&2
@@ -1937,7 +2032,7 @@ restricted_probe_status="$(
 curl --fail --silent --show-error \
   --cookie "${probe_cookie_jar}" \
   --output "${probe_response}" \
-  "http://127.0.0.1:18080/admin/api/compatibility-probe"
+  "${backend_origin}/admin/api/compatibility-probe"
 if ! jq -e \
   '.module == "compatibility-probe" and .records == 0' \
   "${probe_response}" >/dev/null; then
@@ -1986,18 +2081,22 @@ jq -n \
 
 external_e2e_raw="${raw_report_dir}/external-e2e.json"
 echo "external Thin Host stage: run browser qualification"
+(
+  cd "${foundation_root}/web/antd-v6"
+  run_pnpm exec playwright install chromium
+)
 set +e
 (
   cd "${foundation_root}/web/antd-v6"
   CI=true \
   MSS_V6_EXTERNAL_BACKEND=1 \
   MSS_V6_EXTERNAL_SERVER=1 \
-  MSS_V6_BASE_URL=http://127.0.0.1:18001 \
-  MSS_E2E_API_URL=http://127.0.0.1:18001/admin/api \
-  MSS_E2E_BACKEND_API_URL=http://127.0.0.1:18080/admin/api \
+  MSS_V6_BASE_URL="${web_origin}" \
+  MSS_E2E_API_URL="${web_origin}/admin/api" \
+  MSS_E2E_BACKEND_API_URL="${backend_origin}/admin/api" \
   MSS_E2E_USERNAME="${MSS_E2E_USERNAME:-admin}" \
   MSS_E2E_PASSWORD="${e2e_password}" \
-    pnpm exec playwright test \
+    run_pnpm exec playwright test \
       e2e/generated/supplier.spec.ts \
       e2e/permission.spec.ts \
       e2e/parity.spec.ts \
@@ -2095,5 +2194,34 @@ if ((playwright_status != 0 || report_status != 0)); then
   exit 1
 fi
 
+evidence_manifest="$(python3 - "${report_dir}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest_path = root / 'evidence-manifest.json'
+files = []
+for path in sorted(
+    item for item in root.rglob('*')
+    if item.is_file() and item != manifest_path
+):
+    files.append({
+        'path': path.relative_to(root).as_posix(),
+        'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+    })
+encoded = json.dumps({
+    'schema': 'mss.io/thin-host-local-evidence/v1',
+    'files': files,
+}, separators=(',', ':'), sort_keys=True)
+manifest_path.write_text(encoded + '\n', encoding='utf-8')
+print(encoded)
+PY
+)"
+printf '%s\n' "external Thin Host evidence: ${evidence_manifest}"
+if [[ "${report_is_persistent}" = "1" ]]; then
+  printf '%s\n' "external Thin Host persisted evidence manifest: ${report_dir}/evidence-manifest.json"
+fi
 printf '%s\n' \
   "external Thin Host passed: generation, handwritten backend/frontend extensions, route collision fail-closed, Supplier sync, idempotency, GOWORK=off backend, tarball frontend, one dist/runtime, external Playwright"

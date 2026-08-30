@@ -1,15 +1,6 @@
 name: Swagger
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'admin/**/*.go'
-      - 'admin/go.mod'
-      - 'admin/go.sum'
-      - 'mss-boot/**/*.go'
-      - '.github/workflows/swagger.yml'
   push:
     branches:
       - main
@@ -27,7 +18,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: swagger-pages-${{ github.event.pull_request.number || github.ref }}
+  group: swagger-pages-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -62,18 +53,16 @@ jobs:
           rm -f docs/docs.go
 
       - name: Setup Pages
-        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
           path: ./admin/docs
 
   deploy:
     name: deploy
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

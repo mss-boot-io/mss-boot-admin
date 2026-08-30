@@ -198,7 +198,12 @@ function renderConsole(props = { canDraft: true, canPublish: true, canRollback: 
 
 describe('presentation configuration console', () => {
   beforeEach(() => {
-    runtime.capabilities = queryResult({ items: [capability], recoveryMode: false });
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'active',
+      activePages: ['orders.list'],
+    });
     runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     runtime.profile = queryResult(draftProfile);
     runtime.profilesByID = {};
@@ -210,17 +215,57 @@ describe('presentation configuration console', () => {
   });
 
   it('renders explicit empty and recovery states', async () => {
-    runtime.capabilities = queryResult({ items: [], recoveryMode: false });
+    runtime.capabilities = queryResult({
+      items: [],
+      recoveryMode: false,
+      adoptionMode: 'disabled',
+      activePages: [],
+    });
     const empty = renderConsole();
     expect(screen.getByText('presentation.capabilities.empty')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.disabled.title')).toBeTruthy();
     empty.unmount();
 
-    runtime.capabilities = queryResult({ items: [], recoveryMode: true });
+    runtime.capabilities = queryResult({
+      items: [],
+      recoveryMode: true,
+      adoptionMode: 'active',
+      activePages: ['retired.list'],
+    });
     runtime.profiles = queryResult({ items: [draftProfile], page: 1, pageSize: 100, total: 1 });
     renderConsole();
     expect(screen.getByText('presentation.recovery.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.active.title')).toBeTruthy();
+    expect(screen.getByText('retired.list')).toBeTruthy();
     expect(screen.getByText('presentation.profiles.title')).toBeTruthy();
     await waitFor(() => expect(screen.getByLabelText('presentation.document')).toBeTruthy());
+  });
+
+  it('distinguishes active, shadow, and disabled runtime adoption', () => {
+    const active = renderConsole();
+    expect(screen.getByText('presentation.adoption.active.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.activePages')).toBeTruthy();
+    active.unmount();
+
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'shadow',
+      activePages: ['orders.list'],
+    });
+    const shadow = renderConsole();
+    expect(screen.getByText('presentation.adoption.shadow.title')).toBeTruthy();
+    shadow.unmount();
+
+    runtime.capabilities = queryResult({
+      items: [capability],
+      recoveryMode: false,
+      adoptionMode: 'disabled',
+      activePages: [],
+    });
+    renderConsole();
+    expect(screen.getByText('presentation.adoption.disabled.title')).toBeTruthy();
+    expect(screen.getByText('presentation.adoption.activePages.empty')).toBeTruthy();
   });
 
   it('waits for the profile page before deciding whether to create a draft', async () => {
@@ -241,6 +286,8 @@ describe('presentation configuration console', () => {
     runtime.capabilities = queryResult({
       items: [capability, customerCapability],
       recoveryMode: false,
+      adoptionMode: 'active',
+      activePages: ['orders.list', 'customers.list'],
     });
     runtime.profiles = queryResult({
       items: [draftProfile, customerProfile],
@@ -311,6 +358,68 @@ describe('presentation configuration console', () => {
     await waitFor(() => expect(screen.getByText('presentation.validation.invalid')).toBeTruthy());
     expect(screen.getByText('unknown-field: Unknown field')).toBeTruthy();
     expect(runtime.api.replaceDraft).not.toHaveBeenCalled();
+  });
+
+  it('round-trips between raw and visual modes through one lossless draft AST', async () => {
+    renderConsole();
+    const editor = (await screen.findByLabelText('presentation.document')) as HTMLTextAreaElement;
+    const localDocument = {
+      ...document,
+      spec: {
+        title: { 'en-US': 'Orders' },
+        search: { collapsedByDefault: false },
+        detail: {
+          fields: [
+            {
+              field: 'status',
+              hidden: false,
+              visibleWhen: {
+                all: [
+                  { field: 'status', operator: 'exists' },
+                  { not: { field: 'status', operator: 'eq', value: 'closed' } },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      futureRoot: { enabled: false },
+    };
+    fireEvent.change(editor, { target: { value: JSON.stringify(localDocument, null, 2) } });
+    fireEvent.click(screen.getByText('presentation.editor.mode.visual'));
+    const visualTitle = await screen.findByLabelText('presentation.visual.title en-US');
+    fireEvent.change(visualTitle, { target: { value: 'Configured orders' } });
+    fireEvent.click(screen.getByText('presentation.editor.mode.raw'));
+
+    const roundTripEditor = (await screen.findByLabelText(
+      'presentation.document',
+    )) as HTMLTextAreaElement;
+    const roundTrip = JSON.parse(roundTripEditor.value);
+    expect(roundTrip.spec.title['en-US']).toBe('Configured orders');
+    expect(roundTrip.spec.search.collapsedByDefault).toBe(false);
+    expect(roundTrip.spec.detail.fields[0].hidden).toBe(false);
+    expect(roundTrip.spec.detail.fields[0].visibleWhen.all).toHaveLength(2);
+    expect(roundTrip.futureRoot.enabled).toBe(false);
+  });
+
+  it('opens the raw editor and focuses it from a validation issue path', async () => {
+    runtime.api.validate.mockResolvedValue({
+      structurallyValid: true,
+      semanticallyValid: false,
+      issues: [{ code: 'unknown-field', path: 'spec.list.columns[0].field', message: 'Unknown' }],
+    });
+    renderConsole();
+    await screen.findByLabelText('presentation.document');
+    fireEvent.click(screen.getByText('presentation.editor.mode.visual'));
+    fireEvent.click(screen.getByText('presentation.validate.action'));
+    const locate = await screen.findByText('presentation.validation.openRaw');
+    fireEvent.click(locate);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('presentation.document')).toBe(
+        globalThis.document.activeElement,
+      );
+    });
   });
 
   it('does not retry the disabled published revision query for a draft detail error', async () => {

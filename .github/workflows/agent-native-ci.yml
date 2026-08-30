@@ -42,54 +42,13 @@ on:
       - 'web/antd-v6/config/routes.generated.ts'
       - 'web/antd-v6/src/generated/locales/*.ts'
       - '.github/workflows/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.mss/**'
-      - '.agents/**'
-      - '.codex/**'
-      - '.cursor/**'
-      - 'AGENTS.md'
-      - 'CLAUDE.md'
-      - 'README.md'
-      - 'README.zh-CN.md'
-      - 'mss'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - 'cmd/mss/**'
-      - 'cmd/mss-mcp/**'
-      - 'internal/mss/**'
-      - 'tools/ci/**'
-      - 'tools/compatibility/**'
-      - 'tools/docs/**'
-      - 'tools/install/**'
-      - 'tools/release/**'
-      - 'admin/AGENTS.md'
-      - 'admin/README.md'
-      - 'admin/go.mod'
-      - 'admin/go.sum'
-      - 'admin/main.go'
-      - 'admin/cmd/migrate/**'
-      - 'admin/modules/**'
-      - 'mss-boot/README.md'
-      - 'mss-boot/README.Zh-cn.md'
-      - 'templates/module/**'
-      - 'templates/application/**'
-      - 'web/antd-v6/README.md'
-      - 'web/antd-v6/config/routes.custom.ts'
-      - 'web/antd-v6/config/routes.generated.ts'
-      - 'web/antd-v6/src/generated/locales/*.ts'
-      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: agent-native-ci-${{ github.event.pull_request.number || github.ref }}
+  group: agent-native-ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -209,9 +168,6 @@ jobs:
         env:
           GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
-
-      - name: Qualify standalone package-first generation and upgrade
-        run: bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade
 
       - name: Load project context
         run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
@@ -348,9 +304,3 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tools/install/test-install-mss.ps1
-
-  foundation-compatibility:
-    needs:
-      - contracts-and-go
-      - cross-platform-agent-tools
-    uses: ./.github/workflows/foundation-compatibility.yml

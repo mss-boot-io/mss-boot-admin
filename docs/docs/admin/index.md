@@ -33,6 +33,8 @@ v1.3.5 是不可变部分发布，只公开了部分 Admin 组件：
 ## 参考入口
 
 - [当前能力与边界](/admin/current-capabilities)
+- [页面展示配置发布治理](/admin/presentation-configuration)
+- [页面展示配置完整设计](/admin/presentation-complete-design)
 - [配置指南](/admin/configuration-guide)
 - [本地调试](/admin/local-debug)
 - [集成验证](/admin/integration-test-guide)

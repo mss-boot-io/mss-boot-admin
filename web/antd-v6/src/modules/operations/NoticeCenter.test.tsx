@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen } from '@testing-library/react';
 import { App } from 'antd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveEffectivePagePresentation } from '../../shared/presentation/runtime';
 import NoticeCenter from './NoticeCenter';
+import { noticePresentationRegistryEntry } from './tablePresentation';
 
 const noticePage = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 
@@ -30,7 +32,14 @@ function renderCenter() {
   return render(
     <App>
       <QueryClientProvider client={client}>
-        <NoticeCenter canMarkRead />
+        <NoticeCenter
+          canMarkRead
+          presentationRuntime={resolveEffectivePagePresentation({
+            entry: noticePresentationRegistryEntry,
+            locale: 'en-US',
+            settled: true,
+          })}
+        />
       </QueryClientProvider>
     </App>,
   );

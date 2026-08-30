@@ -17,7 +17,9 @@ v1.3.5 已永久停止为不可变部分发布，缺少 Root 工具、官方 npm
 :::
 
 本清单区分未来完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
-在唯一 Root preview 中完成测试、审计、浏览器、归档和多架构资格，再依次发布组件 Tag；
+在本地完成 `mss verify --all` 与内置浏览器验收，并通过精简后的 PR 必需检查；合并后，在精确且
+tracked-clean 的 merged-main commit 上用 `--release-evidence` 固定自绑定完整报告，唯一 Root preview 只生成和核验
+将被发布的归档、包、SBOM、校验和、portable delivery、Thin Host 组成与多架构镜像，再依次发布组件 Tag；
 一个 Root Tag 独立并行触发 Root Release、后端镜像和官方 npmjs，Docs 从后续文档 Tag
 发布。正式 Tag 不重复昂贵验证，也不接受 promotion、readiness run ID 或人工环境审批。
 
@@ -26,6 +28,14 @@ v1.3.5 已永久停止为不可变部分发布，缺少 Root 工具、官方 npm
 ### 构建检查
 
 - [ ] Thin Host 根目录执行 `mss verify --all` 成功
+- [ ] Foundation 根目录在精确 merged-main commit 上执行 `mss verify --all --release-evidence --expect-commit <full-sha>` 成功，报告中的 commit、trackedCleanBefore 和 trackedCleanAfter 均精确
+- [ ] 保存真实外部 Thin Host 检查输出的系统临时证据目录路径，并核验其中脱敏的 `evidence-manifest.json`；需要长期留存时记录目录归档哈希
+- [ ] 完整验证包含 Agent 构建、Admin/Framework race、coverage、vet 与模块元数据、独立 next-Foundation 生成和升级、CLI/MCP/doctor 身份一致性、确定性冲突、第二次升级零变更、eval、依赖审计、release workflow 合同、delivery smoke 与 Playwright E2E
+- [ ] PR、审查记录或仓库外发布台账记录完整 commit、`trackedCleanBefore: true`、`trackedCleanAfter: true`、精确命令、verify report 哈希或摘要及退出结果；本地报告单独存在不授权发布
+- [ ] Codex 内置浏览器在同一精确 commit 完成桌面、窄屏、深链、刷新、控制台和失败网络请求验收
+- [ ] PR 必需的治理、govulncheck、CodeQL 和普通 Admin 单测全部通过；Framework 变更另跑一个普通独立单测；race、coverage、vet/tidy、前端/Thin Host/容器/多数据库重型矩阵不作为 PR 合并门禁
+- [ ] 合并后的 Root preview 仅核验同一 frozen commit 的精确发布制品，且六平台二进制、portable delivery、候选 Thin Host、SBOM、校验和和双架构 OCI 均完整
+- [ ] Admin Tag 流水线在 Framework 已公开后，以 GOWORK=off 和公共 Go Proxy 解析精确 Framework 并通过 app/business 组合测试
 - [ ] 后端和 Admin Web 依赖都精确为同一个已完成公共对账的协调版本，锁文件无漂移
 - [ ] 文档如有更新，关键链接可访问
 

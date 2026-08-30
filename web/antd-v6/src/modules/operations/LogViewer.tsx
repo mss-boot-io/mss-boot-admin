@@ -9,6 +9,12 @@ import {
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
 import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { useIntl } from '@umijs/max';
 import {
   Alert,
@@ -26,7 +32,6 @@ import {
   Typography,
 } from 'antd';
 import type { Dayjs } from 'dayjs';
-import { useState } from 'react';
 import { runtimeLogExportPath } from './api';
 import {
   type AuditLogEntry,
@@ -41,11 +46,41 @@ import {
   type RuntimeLogParams,
 } from './contract';
 import { useAuditLogPage, useLoginLogPage, useRuntimeLogFiles, useRuntimeLogPage } from './query';
+import {
+  auditLogPresentationListComponents,
+  auditLogPresentationSearchComponents,
+  loginLogPresentationListComponents,
+  loginLogPresentationSearchComponents,
+  runtimeLogPresentationListComponents,
+  runtimeLogPresentationSearchComponents,
+} from './tablePresentation';
 
 interface LogViewerProps {
+  auditPresentationRuntime: PagePresentationRuntime;
   canExportRuntime: boolean;
   canReadRuntime: boolean;
+  loginPresentationRuntime: PagePresentationRuntime;
+  runtimePresentationRuntime: PagePresentationRuntime;
 }
+
+interface LoginLogParams {
+  current: number;
+  pageSize: OperationsPageSize;
+  username?: string;
+}
+
+interface AuditLogParams {
+  current: number;
+  pageSize: OperationsPageSize;
+  type: AuditLogType | 'all';
+  username?: string;
+}
+
+type RuntimeLogTableParams = Omit<RuntimeLogParams, 'page'> & { current: number };
+
+const initialLoginParams: LoginLogParams = { current: 1, pageSize: 20 };
+const initialAuditParams: AuditLogParams = { current: 1, pageSize: 20, type: 'all' };
+const initialRuntimeParams: RuntimeLogTableParams = { current: 1, pageSize: 20 };
 
 const operationalMessageIDs: Readonly<Record<string, string>> = {
   'authentication failed': 'log.message.authenticationFailed',
@@ -79,17 +114,18 @@ function StatusTag({ status }: { status: OperationalStatus }) {
   );
 }
 
-function LoginLogTable() {
+function LoginLogTable({ presentationRuntime }: { presentationRuntime: PagePresentationRuntime }) {
   const intl = useIntl();
   const [form] = Form.useForm<{ username?: string }>();
-  const [params, setParams] = useState<{
-    current: number;
-    pageSize: OperationsPageSize;
-    username?: string;
-  }>({ current: 1, pageSize: 20 });
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOperationsPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialLoginParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialLoginParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const logs = useLoginLogPage(params);
   const status = getRequestStatus(logs.error);
-  const columns: TableColumnsType<LoginLogEntry> = [
+  const compiledColumns: TableColumnsType<LoginLogEntry> = [
     {
       title: intl.formatMessage({ id: 'log.field.username' }),
       dataIndex: 'username',
@@ -129,6 +165,16 @@ function LoginLogTable() {
       render: (value: string) => formatDate(intl.locale, value),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialLoginParams.pageSize,
+    isPageSize: isOperationsPageSize,
+    listComponents: loginLogPresentationListComponents,
+    mobileColumnKeys: ['username', 'ip', 'location', 'status', 'message', 'loginAt'],
+    model: presentation,
+    searchComponents: loginLogPresentationSearchComponents,
+  });
+  const usernameSearch = tablePresentation.searchFields.get('username');
 
   if (status === 403) return <PageForbidden />;
   if (logs.isPending && !logs.data) return <PageLoading rows={8} />;
@@ -161,22 +207,40 @@ function LoginLogTable() {
           }))
         }
       >
-        <Form.Item name="username" label={intl.formatMessage({ id: 'log.field.username' })}>
-          <Input allowClear maxLength={255} />
-        </Form.Item>
-        <Form.Item>
+        {searchPresentation.expanded && usernameSearch ? (
+          <Form.Item
+            name="username"
+            label={usernameSearch.label}
+            extra={usernameSearch.help}
+            style={{ order: usernameSearch.order }}
+          >
+            <Input allowClear maxLength={255} placeholder={usernameSearch.placeholder} />
+          </Form.Item>
+        ) : null}
+        <Form.Item style={{ order: 10_000 }}>
           <Space wrap>
-            <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-              {intl.formatMessage({ id: 'actions.search' })}
-            </Button>
-            <Button
-              onClick={() => {
-                form.resetFields();
-                setParams({ current: 1, pageSize: 20 });
-              }}
-            >
-              {intl.formatMessage({ id: 'actions.reset' })}
-            </Button>
+            {searchPresentation.expanded ? (
+              <>
+                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                  {intl.formatMessage({ id: 'actions.search' })}
+                </Button>
+                <Button
+                  onClick={() => {
+                    form.resetFields();
+                    setParams({
+                      ...initialLoginParams,
+                      pageSize: tablePresentation.pageSize,
+                    });
+                  }}
+                >
+                  {intl.formatMessage({ id: 'actions.reset' })}
+                </Button>
+              </>
+            ) : (
+              <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                {intl.formatMessage({ id: 'actions.search' })}
+              </Button>
+            )}
             <Button
               icon={<ReloadOutlined />}
               loading={logs.isFetching}
@@ -188,7 +252,7 @@ function LoginLogTable() {
         </Form.Item>
       </Form>
       <ResponsiveEntityTable<LoginLogEntry>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={logs.data?.data ?? []}
         loading={logs.isFetching}
         locale={{ emptyText: <PageEmpty description={intl.formatMessage({ id: 'log.empty' })} /> }}
@@ -205,23 +269,24 @@ function LoginLogTable() {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['username', 'ip', 'location', 'status', 'message', 'loginAt']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: 920 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
     </Space>
   );
 }
 
-function AuditLogTable() {
+function AuditLogTable({ presentationRuntime }: { presentationRuntime: PagePresentationRuntime }) {
   const intl = useIntl();
   const [form] = Form.useForm<{ type: AuditLogType | 'all'; username?: string }>();
-  const [params, setParams] = useState<{
-    current: number;
-    pageSize: OperationsPageSize;
-    type: AuditLogType | 'all';
-    username?: string;
-  }>({ current: 1, pageSize: 20, type: 'all' });
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOperationsPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialAuditParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialAuditParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const logs = useAuditLogPage(params);
   const status = getRequestStatus(logs.error);
   const types: readonly (AuditLogType | 'all')[] = [
@@ -236,7 +301,7 @@ function AuditLogTable() {
     'config',
     'security',
   ];
-  const columns: TableColumnsType<AuditLogEntry> = [
+  const compiledColumns: TableColumnsType<AuditLogEntry> = [
     {
       title: intl.formatMessage({ id: 'log.field.username' }),
       dataIndex: 'username',
@@ -295,6 +360,26 @@ function AuditLogTable() {
       render: (value: string) => formatDate(intl.locale, value),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialAuditParams.pageSize,
+    isPageSize: isOperationsPageSize,
+    listComponents: auditLogPresentationListComponents,
+    mobileColumnKeys: [
+      'username',
+      'type',
+      'action',
+      'resource',
+      'message',
+      'status',
+      'duration',
+      'createdAt',
+    ],
+    model: presentation,
+    searchComponents: auditLogPresentationSearchComponents,
+  });
+  const usernameSearch = tablePresentation.searchFields.get('username');
+  const typeSearch = tablePresentation.searchFields.get('type');
 
   if (status === 403) return <PageForbidden />;
   if (logs.isPending && !logs.data) return <PageLoading rows={8} />;
@@ -329,31 +414,57 @@ function AuditLogTable() {
           }))
         }
       >
-        <Form.Item name="username" label={intl.formatMessage({ id: 'log.field.username' })}>
-          <Input allowClear maxLength={255} />
-        </Form.Item>
-        <Form.Item name="type" label={intl.formatMessage({ id: 'log.field.type' })}>
-          <Select
-            className="min-w-36"
-            options={types.map((value) => ({
-              value,
-              label: intl.formatMessage({ id: `log.type.${value}` }),
-            }))}
-          />
-        </Form.Item>
-        <Form.Item>
+        {searchPresentation.expanded && usernameSearch ? (
+          <Form.Item
+            name="username"
+            label={usernameSearch.label}
+            extra={usernameSearch.help}
+            style={{ order: usernameSearch.order }}
+          >
+            <Input allowClear maxLength={255} placeholder={usernameSearch.placeholder} />
+          </Form.Item>
+        ) : null}
+        {searchPresentation.expanded && typeSearch ? (
+          <Form.Item
+            name="type"
+            label={typeSearch.label}
+            extra={typeSearch.help}
+            style={{ order: typeSearch.order }}
+          >
+            <Select
+              className="min-w-36"
+              placeholder={typeSearch.placeholder}
+              options={types.map((value) => ({
+                value,
+                label: intl.formatMessage({ id: `log.type.${value}` }),
+              }))}
+            />
+          </Form.Item>
+        ) : null}
+        <Form.Item style={{ order: 10_000 }}>
           <Space wrap>
-            <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-              {intl.formatMessage({ id: 'actions.search' })}
-            </Button>
-            <Button
-              onClick={() => {
-                form.resetFields();
-                setParams({ current: 1, pageSize: 20, type: 'all' });
-              }}
-            >
-              {intl.formatMessage({ id: 'actions.reset' })}
-            </Button>
+            {searchPresentation.expanded ? (
+              <>
+                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                  {intl.formatMessage({ id: 'actions.search' })}
+                </Button>
+                <Button
+                  onClick={() => {
+                    form.resetFields();
+                    setParams({
+                      ...initialAuditParams,
+                      pageSize: tablePresentation.pageSize,
+                    });
+                  }}
+                >
+                  {intl.formatMessage({ id: 'actions.reset' })}
+                </Button>
+              </>
+            ) : (
+              <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                {intl.formatMessage({ id: 'actions.search' })}
+              </Button>
+            )}
             <Button
               icon={<ReloadOutlined />}
               loading={logs.isFetching}
@@ -365,7 +476,7 @@ function AuditLogTable() {
         </Form.Item>
       </Form>
       <ResponsiveEntityTable<AuditLogEntry>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={logs.data?.data ?? []}
         expandable={{
           expandedRowRender: (row) => (
@@ -390,18 +501,10 @@ function AuditLogTable() {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={[
-          'username',
-          'type',
-          'action',
-          'resource',
-          'message',
-          'status',
-          'duration',
-          'createdAt',
-        ]}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: 1_080 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
     </Space>
   );
@@ -417,14 +520,33 @@ interface RuntimeLogRow extends RuntimeLogEntry {
   rowKey: string;
 }
 
-function RuntimeLogTable({ canExport }: { canExport: boolean }) {
+function RuntimeLogTable({
+  canExport,
+  presentationRuntime,
+}: {
+  canExport: boolean;
+  presentationRuntime: PagePresentationRuntime;
+}) {
   const intl = useIntl();
   const [form] = Form.useForm<RuntimeFilterValues>();
-  const [params, setParams] = useState<RuntimeLogParams>({ page: 1, pageSize: 20 });
-  const logs = useRuntimeLogPage(params, true);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOperationsPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialRuntimeParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialRuntimeParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
+  const requestParams: RuntimeLogParams = {
+    page: params.current,
+    pageSize: params.pageSize,
+    level: params.level,
+    keyword: params.keyword,
+    startTime: params.startTime,
+    endTime: params.endTime,
+  };
+  const logs = useRuntimeLogPage(requestParams, true);
   const files = useRuntimeLogFiles(true);
   const status = getRequestStatus(logs.error);
-  const columns: TableColumnsType<RuntimeLogRow> = [
+  const compiledColumns: TableColumnsType<RuntimeLogRow> = [
     {
       title: intl.formatMessage({ id: 'log.field.timestamp' }),
       dataIndex: 'timestamp',
@@ -451,6 +573,18 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
       ellipsis: true,
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialRuntimeParams.pageSize,
+    isPageSize: isOperationsPageSize,
+    listComponents: runtimeLogPresentationListComponents,
+    mobileColumnKeys: ['timestamp', 'level', 'message'],
+    model: presentation,
+    searchComponents: runtimeLogPresentationSearchComponents,
+  });
+  const levelSearch = tablePresentation.searchFields.get('level');
+  const keywordSearch = tablePresentation.searchFields.get('keyword');
+  const timeRangeSearch = tablePresentation.searchFields.get('timeRange');
 
   if (status === 403) return <PageForbidden />;
   if (logs.isPending && !logs.data) return <PageLoading rows={8} />;
@@ -463,7 +597,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
       />
     );
   }
-  const exportPath = runtimeLogExportPath(params);
+  const exportPath = runtimeLogExportPath(requestParams);
   return (
     <Space orientation="vertical" size="middle" className="w-full">
       {logs.data?.truncated || files.data?.truncated ? (
@@ -488,7 +622,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
         onFinish={(values) =>
           setParams((current) => ({
             ...current,
-            page: 1,
+            current: 1,
             level: values.level || undefined,
             keyword: values.keyword?.trim() || undefined,
             startTime: values.range?.[0].toISOString(),
@@ -497,40 +631,70 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
         }
       >
         <Row align="bottom" gutter={16}>
-          <Col xs={24} sm={12} lg={5}>
-            <Form.Item name="level" label={intl.formatMessage({ id: 'log.field.level' })}>
-              <Select
-                options={['', 'trace', 'debug', 'info', 'warn', 'error', 'fatal'].map((value) => ({
-                  value,
-                  label: value ? value.toUpperCase() : intl.formatMessage({ id: 'log.level.all' }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={7}>
-            <Form.Item name="keyword" label={intl.formatMessage({ id: 'log.field.keyword' })}>
-              <Input allowClear maxLength={128} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Form.Item name="range" label={intl.formatMessage({ id: 'log.field.timeRange' })}>
-              <DatePicker.RangePicker className="w-full" showTime />
-            </Form.Item>
-          </Col>
-          <Col xs={24}>
+          {searchPresentation.expanded && levelSearch ? (
+            <Col xs={24} sm={12} lg={5} style={{ order: levelSearch.order }}>
+              <Form.Item name="level" label={levelSearch.label} extra={levelSearch.help}>
+                <Select
+                  placeholder={levelSearch.placeholder}
+                  options={['', 'trace', 'debug', 'info', 'warn', 'error', 'fatal'].map(
+                    (value) => ({
+                      value,
+                      label: value
+                        ? value.toUpperCase()
+                        : intl.formatMessage({ id: 'log.level.all' }),
+                    }),
+                  )}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && keywordSearch ? (
+            <Col xs={24} sm={12} lg={7} style={{ order: keywordSearch.order }}>
+              <Form.Item name="keyword" label={keywordSearch.label} extra={keywordSearch.help}>
+                <Input allowClear maxLength={128} placeholder={keywordSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && timeRangeSearch ? (
+            <Col xs={24} lg={12} style={{ order: timeRangeSearch.order }}>
+              <Form.Item name="range" label={timeRangeSearch.label} extra={timeRangeSearch.help}>
+                <DatePicker.RangePicker
+                  className="w-full"
+                  placeholder={
+                    timeRangeSearch.placeholder
+                      ? [timeRangeSearch.placeholder, timeRangeSearch.placeholder]
+                      : undefined
+                  }
+                  showTime
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields();
-                    setParams({ page: 1, pageSize: 20 });
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        form.resetFields();
+                        setParams({
+                          ...initialRuntimeParams,
+                          pageSize: tablePresentation.pageSize,
+                        });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={logs.isFetching}
@@ -554,10 +718,10 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
         </Typography.Text>
       ) : null}
       <ResponsiveEntityTable<RuntimeLogRow>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={(logs.data?.list ?? []).map((entry, index) => ({
           ...entry,
-          rowKey: `${params.page}:${params.pageSize}:${index}`,
+          rowKey: `${params.current}:${params.pageSize}:${index}`,
         }))}
         expandable={{
           expandedRowRender: (row) => (
@@ -567,7 +731,7 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
         loading={logs.isFetching}
         locale={{ emptyText: <PageEmpty description={intl.formatMessage({ id: 'log.empty' })} /> }}
         pagination={{
-          current: params.page,
+          current: params.current,
           pageSize: params.pageSize,
           pageSizeOptions: OPERATIONS_PAGE_SIZES.map(String),
           showSizeChanger: true,
@@ -575,37 +739,48 @@ function RuntimeLogTable({ canExport }: { canExport: boolean }) {
           onChange: (page, pageSize) =>
             setParams((previous) => ({
               ...previous,
-              page,
+              current: page,
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['timestamp', 'level', 'message']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="rowKey"
         scroll={{ x: 760 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
     </Space>
   );
 }
 
-export default function LogViewer({ canExportRuntime, canReadRuntime }: LogViewerProps) {
-  const intl = useIntl();
+export default function LogViewer({
+  auditPresentationRuntime,
+  canExportRuntime,
+  canReadRuntime,
+  loginPresentationRuntime,
+  runtimePresentationRuntime,
+}: LogViewerProps) {
   const items = [
     {
       key: 'login',
-      label: intl.formatMessage({ id: 'log.tab.login' }),
-      children: <LoginLogTable />,
+      label: loginPresentationRuntime.model.title,
+      children: <LoginLogTable presentationRuntime={loginPresentationRuntime} />,
     },
     {
       key: 'audit',
-      label: intl.formatMessage({ id: 'log.tab.audit' }),
-      children: <AuditLogTable />,
+      label: auditPresentationRuntime.model.title,
+      children: <AuditLogTable presentationRuntime={auditPresentationRuntime} />,
     },
     ...(canReadRuntime
       ? [
           {
             key: 'runtime',
-            label: intl.formatMessage({ id: 'log.tab.runtime' }),
-            children: <RuntimeLogTable canExport={canExportRuntime} />,
+            label: runtimePresentationRuntime.model.title,
+            children: (
+              <RuntimeLogTable
+                canExport={canExportRuntime}
+                presentationRuntime={runtimePresentationRuntime}
+              />
+            ),
           },
         ]
       : []),

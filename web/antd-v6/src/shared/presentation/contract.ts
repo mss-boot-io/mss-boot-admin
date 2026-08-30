@@ -7,7 +7,16 @@ export type PresentationLayer = 'application' | 'role' | 'user';
 export type PresentationDensity = 'compact' | 'middle' | 'large';
 export type PresentationActionPlacement = 'toolbar' | 'row' | 'form' | 'detail';
 export type PresentationSortDirection = 'asc' | 'desc';
-export type PresentationValueType = 'string' | 'number' | 'boolean' | 'enum' | 'date' | 'date-time';
+export type PresentationValueType =
+  | 'string'
+  | 'integer'
+  | 'number'
+  | 'boolean'
+  | 'enum'
+  | 'date'
+  | 'date-time'
+  | 'json';
+export type PresentationFieldFormat = 'plain' | 'email' | 'identifier' | 'date' | 'date-time';
 
 export interface LocalizedText {
   'zh-CN'?: string;
@@ -41,11 +50,35 @@ export interface PageCapabilityField {
   id: string;
   label: LocalizedText;
   valueType: PresentationValueType;
+  // Empty string is a historical v1 Go-wire zero value. Version 2 requires a
+  // concrete catalog format and validation rejects the empty value there.
+  format?: PresentationFieldFormat | '';
   required: boolean;
+  nullable?: boolean;
+  readOnly?: boolean;
+  searchable?: boolean;
   sortable: boolean;
   filterable: boolean;
   surfaces: readonly PresentationSurface[];
   components: readonly string[];
+  validation?: {
+    minLength?: number;
+    maxLength?: number;
+    minimum?: string;
+    maximum?: string;
+    pattern?: string;
+    precision?: number;
+    scale?: number;
+  };
+  surfaceComponents?: readonly {
+    surface: PresentationSurface;
+    components: readonly string[];
+  }[];
+  enumValues?: readonly {
+    value: string;
+    label: LocalizedText;
+    color?: string;
+  }[];
 }
 
 export interface PageCapabilityComponent {
@@ -55,6 +88,9 @@ export interface PageCapabilityComponent {
 export interface PageCapabilityDataSource {
   id: string;
   requiredPermissions: readonly string[];
+  pageSizeOptions?: readonly number[];
+  maxPageSize?: number;
+  maxSortFields?: number;
 }
 
 export interface PageCapabilityAction {
@@ -148,6 +184,22 @@ export interface PageCapabilityDefinition {
   dataSources: readonly PageCapabilityDataSource[];
   actions: readonly PageCapabilityAction[];
   defaultPresentation: ResolvedPagePresentation;
+}
+
+/**
+ * Identifies the deliberately limited table-only capability shape used by
+ * compiled core Admin pages. These pages expose list and search presentation
+ * only, so they cannot safely consume runtime visibility conditions.
+ */
+export function isLimitedTablePresentationCapability(
+  capability: PageCapabilityDefinition,
+): boolean {
+  return (
+    capability.actions.length === 0 &&
+    capability.defaultPresentation.form.fields.length === 0 &&
+    capability.defaultPresentation.detail.fields.length === 0 &&
+    capability.defaultPresentation.actions.length === 0
+  );
 }
 
 export interface PagePresentationSpec {
@@ -267,7 +319,42 @@ export interface PageRenderModel {
 
 const layerOrder: readonly PresentationLayer[] = ['application', 'role', 'user'];
 const identifierPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const fieldIdentifierPattern = /^[a-z][A-Za-z0-9]*$/;
+const enumValuePattern = /^[a-z][a-z0-9_-]*$/;
 const definitionHashPattern = /^sha256:[0-9a-f]{64}$/;
+const protectedPageNamespaces = new Set([
+  'account',
+  'app-config',
+  'application-config',
+  'auth',
+  'authentication',
+  'authorization',
+  'config',
+  'configuration',
+  'login',
+  'presentation',
+  'presentation-config',
+  'recovery',
+  'release',
+  'system',
+]);
+const presentationValueTypes = new Set<PresentationValueType>([
+  'string',
+  'integer',
+  'number',
+  'boolean',
+  'enum',
+  'date',
+  'date-time',
+  'json',
+]);
+const presentationFieldFormats = new Set<PresentationFieldFormat>([
+  'plain',
+  'email',
+  'identifier',
+  'date',
+  'date-time',
+]);
 const predicateOperators = new Set<PresentationPredicateOperator>([
   'eq',
   'neq',
@@ -280,6 +367,24 @@ const predicateOperators = new Set<PresentationPredicateOperator>([
   'lt',
   'lte',
 ]);
+
+function isProfileFieldIdentifier(value: string): boolean {
+  return (
+    value.length >= 1 &&
+    value.length <= 120 &&
+    (identifierPattern.test(value) || fieldIdentifierPattern.test(value))
+  );
+}
+
+function validateProfileFieldIdentifier(
+  value: string,
+  path: string,
+  issues: PresentationIssue[],
+): boolean {
+  if (isProfileFieldIdentifier(value)) return true;
+  addIssue(issues, 'invalid-identifier', path, 'Value must be a stable field identifier');
+  return false;
+}
 const forbiddenProfileKeys = new Set([
   'permission',
   'permissions',
@@ -305,7 +410,9 @@ export function canonicalizeCapabilityContract(value: unknown): string {
     return JSON.stringify(value);
   }
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('Capability contract numbers must be finite');
+    if (!Number.isSafeInteger(value)) {
+      throw new Error('Capability contract numbers must be safe integers');
+    }
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
@@ -314,7 +421,7 @@ export function canonicalizeCapabilityContract(value: unknown): string {
   if (isRecord(value)) {
     const properties = Object.entries(value)
       .filter(([, nested]) => nested !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalizeCapabilityContract(nested)}`);
     return `{${properties.join(',')}}`;
   }
@@ -449,6 +556,7 @@ function validateCondition(
     validateCondition(condition.not, fields, `${path}.not`, issues, depth + 1);
     return;
   }
+  if (!validateProfileFieldIdentifier(condition.field, `${path}.field`, issues)) return;
   if (!fields.has(condition.field)) {
     addIssue(
       issues,
@@ -522,6 +630,7 @@ function validateFieldCollection(
   }
   fields.forEach((field, index) => {
     const fieldPath = `${path}[${index}]`;
+    if (!validateProfileFieldIdentifier(field.field, `${fieldPath}.field`, issues)) return;
     const definition = fieldDefinitions.get(field.field);
     if (!definition) {
       addIssue(issues, 'unknown-field', `${fieldPath}.field`, `Unknown field ${field.field}`);
@@ -543,7 +652,9 @@ function validateFieldCollection(
           `${fieldPath}.component`,
           `Unknown component ${field.component}`,
         );
-      } else if (!definition.components.includes(field.component)) {
+      } else if (
+        !fieldSupportsComponentOnSurface(capability, definition, surface, field.component)
+      ) {
         addIssue(
           issues,
           'unsupported-field-component',
@@ -558,6 +669,14 @@ function validateFieldCollection(
         'required-form-field-hidden',
         `${fieldPath}.hidden`,
         `Required form field ${field.field} cannot be hidden`,
+      );
+    }
+    if (surface === 'form' && definition.required && field.visibleWhen !== undefined) {
+      addIssue(
+        issues,
+        'required-form-field-conditional',
+        `${fieldPath}.visibleWhen`,
+        `Required form field ${field.field} cannot be conditionally hidden`,
       );
     }
     if (field.order !== undefined && (!Number.isInteger(field.order) || field.order < 0)) {
@@ -582,13 +701,29 @@ function validateFieldCollection(
     validateLocalizedText(field.label, `${fieldPath}.label`, issues);
     validateLocalizedText(field.placeholder, `${fieldPath}.placeholder`, issues);
     validateLocalizedText(field.help, `${fieldPath}.help`, issues);
-    validateCondition(
-      field.visibleWhen,
-      new Set(fieldDefinitions.keys()),
-      `${fieldPath}.visibleWhen`,
-      issues,
-    );
+    if (!isLimitedTablePresentationCapability(capability)) {
+      validateCondition(
+        field.visibleWhen,
+        new Set(fieldDefinitions.keys()),
+        `${fieldPath}.visibleWhen`,
+        issues,
+      );
+    }
   });
+}
+
+function fieldSupportsComponentOnSurface(
+  capability: PageCapabilityDefinition,
+  field: PageCapabilityField,
+  surface: PresentationSurface,
+  component: string,
+): boolean {
+  if (capability.definitionVersion !== '2') return field.components.includes(component);
+  return (
+    field.surfaceComponents
+      ?.find((mapping) => mapping.surface === surface)
+      ?.components.includes(component) === true
+  );
 }
 
 function surfaceFields(
@@ -599,13 +734,287 @@ function surfaceFields(
   return presentation[surface].fields;
 }
 
+function validateDataSourceLimits(
+  dataSource: PageCapabilityDataSource,
+  index: number,
+  issues: PresentationIssue[],
+) {
+  const path = `dataSources[${index}]`;
+  if (
+    dataSource.maxPageSize === undefined ||
+    !Number.isSafeInteger(dataSource.maxPageSize) ||
+    dataSource.maxPageSize < 1 ||
+    dataSource.maxPageSize > 200
+  ) {
+    addIssue(
+      issues,
+      'invalid-max-page-size',
+      `${path}.maxPageSize`,
+      'Maximum page size must be 1 to 200',
+    );
+  }
+  if (!dataSource.pageSizeOptions?.length) {
+    addIssue(
+      issues,
+      'missing-page-size-options',
+      `${path}.pageSizeOptions`,
+      'Version 2 data source needs page size options',
+    );
+  } else {
+    const seen = new Set<number>();
+    dataSource.pageSizeOptions.forEach((option, optionIndex) => {
+      const optionPath = `${path}.pageSizeOptions[${optionIndex}]`;
+      if (
+        !Number.isSafeInteger(option) ||
+        option < 1 ||
+        (dataSource.maxPageSize !== undefined && option > dataSource.maxPageSize)
+      ) {
+        addIssue(
+          issues,
+          'invalid-page-size-option',
+          optionPath,
+          'Page size option must be a safe integer within the data source maximum',
+        );
+      }
+      if (seen.has(option)) {
+        addIssue(
+          issues,
+          'duplicate-page-size-option',
+          optionPath,
+          'Page size option is duplicated',
+        );
+      }
+      const previousOption = dataSource.pageSizeOptions?.[optionIndex - 1];
+      if (previousOption !== undefined && option <= previousOption) {
+        addIssue(
+          issues,
+          'unsorted-page-size-options',
+          optionPath,
+          'Page size options must be strictly increasing',
+        );
+      }
+      seen.add(option);
+    });
+  }
+  if (
+    dataSource.maxSortFields === undefined ||
+    !Number.isSafeInteger(dataSource.maxSortFields) ||
+    dataSource.maxSortFields < 0 ||
+    dataSource.maxSortFields > 3
+  ) {
+    addIssue(
+      issues,
+      'invalid-max-sort-fields',
+      `${path}.maxSortFields`,
+      'Maximum sort fields must be 0 to 3',
+    );
+  }
+}
+
+function validateCapabilityNumericFacts(
+  field: PageCapabilityField,
+  fieldPath: string,
+  issues: PresentationIssue[],
+) {
+  const validation = field.validation;
+  if (!validation) return;
+  const decimalPattern = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:e[+-]?\d+)?$/i;
+  const parseBound = (value: string | undefined, path: string): number | undefined => {
+    if (value === undefined) return undefined;
+    const parsed = Number(value);
+    if (!decimalPattern.test(value) || !Number.isFinite(parsed)) {
+      addIssue(
+        issues,
+        'invalid-field-number-bound',
+        path,
+        'Numeric bound must be a finite decimal string',
+      );
+      return undefined;
+    }
+    return parsed;
+  };
+  const minimum = parseBound(validation.minimum, `${fieldPath}.validation.minimum`);
+  const maximum = parseBound(validation.maximum, `${fieldPath}.validation.maximum`);
+  if (minimum !== undefined && maximum !== undefined && minimum > maximum) {
+    addIssue(
+      issues,
+      'invalid-field-number-range',
+      `${fieldPath}.validation`,
+      'Minimum cannot exceed maximum',
+    );
+  }
+  if (
+    validation.precision !== undefined &&
+    (!Number.isSafeInteger(validation.precision) ||
+      validation.precision < 1 ||
+      validation.precision > 38)
+  ) {
+    addIssue(
+      issues,
+      'invalid-field-precision',
+      `${fieldPath}.validation.precision`,
+      'Precision must be a safe integer from 1 to 38',
+    );
+  }
+  if (
+    validation.scale !== undefined &&
+    (!Number.isSafeInteger(validation.scale) || validation.scale < 0 || validation.scale > 38)
+  ) {
+    addIssue(
+      issues,
+      'invalid-field-scale',
+      `${fieldPath}.validation.scale`,
+      'Scale must be a safe integer from 0 to 38',
+    );
+  }
+  if (
+    validation.scale !== undefined &&
+    validation.precision !== undefined &&
+    validation.scale > validation.precision
+  ) {
+    addIssue(
+      issues,
+      'invalid-field-scale',
+      `${fieldPath}.validation.scale`,
+      'Scale cannot exceed precision',
+    );
+  }
+}
+
+function validateSurfaceComponents(
+  field: PageCapabilityField,
+  fieldPath: string,
+  componentIDs: ReadonlySet<string>,
+  issues: PresentationIssue[],
+) {
+  const mappings = field.surfaceComponents;
+  if (!mappings?.length) {
+    addIssue(
+      issues,
+      'missing-surface-components',
+      `${fieldPath}.surfaceComponents`,
+      'Version 2 field needs component choices for every surface',
+    );
+    return;
+  }
+  const declaredSurfaces = new Set(field.surfaces);
+  const declaredComponents = new Set(field.components);
+  const seenSurfaces = new Set<PresentationSurface>();
+  const usedComponents = new Set<string>();
+  mappings.forEach((mapping, mappingIndex) => {
+    const mappingPath = `${fieldPath}.surfaceComponents[${mappingIndex}]`;
+    if (!declaredSurfaces.has(mapping.surface)) {
+      addIssue(
+        issues,
+        'unexpected-surface-components',
+        `${mappingPath}.surface`,
+        'Surface components reference an undeclared field surface',
+      );
+    }
+    if (seenSurfaces.has(mapping.surface)) {
+      addIssue(
+        issues,
+        'duplicate-surface-components',
+        `${mappingPath}.surface`,
+        'Surface component mapping is duplicated',
+      );
+    }
+    seenSurfaces.add(mapping.surface);
+    if (mapping.components.length === 0) {
+      addIssue(
+        issues,
+        'missing-surface-component',
+        `${mappingPath}.components`,
+        'Surface needs at least one component',
+      );
+    }
+    const seenComponents = new Set<string>();
+    mapping.components.forEach((component, componentIndex) => {
+      const componentPath = `${mappingPath}.components[${componentIndex}]`;
+      if (!componentIDs.has(component)) {
+        addIssue(
+          issues,
+          'unknown-field-component',
+          componentPath,
+          'Surface references an unknown component',
+        );
+      }
+      if (!declaredComponents.has(component)) {
+        addIssue(
+          issues,
+          'surface-component-mismatch',
+          componentPath,
+          'Surface component is missing from the field component inventory',
+        );
+      }
+      if (seenComponents.has(component)) {
+        addIssue(
+          issues,
+          'duplicate-field-component',
+          componentPath,
+          'Surface component is duplicated',
+        );
+      }
+      seenComponents.add(component);
+      usedComponents.add(component);
+    });
+  });
+  for (const surface of declaredSurfaces) {
+    if (!seenSurfaces.has(surface)) {
+      addIssue(
+        issues,
+        'missing-surface-components',
+        `${fieldPath}.surfaceComponents`,
+        `Surface component mapping is missing for ${surface}`,
+      );
+    }
+  }
+  for (const component of declaredComponents) {
+    if (!usedComponents.has(component)) {
+      addIssue(
+        issues,
+        'surface-component-mismatch',
+        `${fieldPath}.surfaceComponents`,
+        `Field component is not available on any surface: ${component}`,
+      );
+    }
+  }
+}
+
+function validatePageSizeAgainstDataSource(
+  pageSize: number,
+  dataSource: PageCapabilityDataSource,
+  path: string,
+  issues: PresentationIssue[],
+) {
+  if (dataSource.maxPageSize !== undefined && pageSize > dataSource.maxPageSize) {
+    addIssue(
+      issues,
+      'page-size-exceeds-data-source-limit',
+      path,
+      'Page size exceeds the compiled data source maximum',
+    );
+  }
+  if (dataSource.pageSizeOptions && !dataSource.pageSizeOptions.includes(pageSize)) {
+    addIssue(
+      issues,
+      'unsupported-page-size',
+      path,
+      'Page size is not allowed by the compiled data source',
+    );
+  }
+}
+
 function validateCompletePresentation(
   capability: PageCapabilityDefinition,
   presentation: ResolvedPagePresentation,
 ): PresentationIssue[] {
   const issues: PresentationIssue[] = [];
-  const dataSourceIDs = new Set(capability.dataSources.map((dataSource) => dataSource.id));
-  if (!dataSourceIDs.has(presentation.dataSource)) {
+  const dataSources = new Map(
+    capability.dataSources.map((dataSource) => [dataSource.id, dataSource]),
+  );
+  const dataSource = dataSources.get(presentation.dataSource);
+  if (!dataSource) {
     addIssue(
       issues,
       'unknown-data-source',
@@ -641,6 +1050,48 @@ function validateCompletePresentation(
       'defaultPresentation.list.columns',
       'At least one list column must remain visible',
     );
+  }
+  if (
+    !Number.isSafeInteger(presentation.list.pageSize) ||
+    presentation.list.pageSize < 1 ||
+    presentation.list.pageSize > 200
+  ) {
+    addIssue(
+      issues,
+      'invalid-page-size',
+      'defaultPresentation.list.pageSize',
+      'Default page size must be a safe integer from 1 to 200',
+    );
+  }
+  for (const surface of ['form', 'detail'] as const) {
+    const columns = presentation[surface].columns;
+    if (!Number.isSafeInteger(columns) || columns < 1 || columns > 4) {
+      addIssue(
+        issues,
+        'invalid-layout-columns',
+        `defaultPresentation.${surface}.columns`,
+        'Layout columns must be a safe integer from 1 to 4',
+      );
+    }
+  }
+  if (capability.definitionVersion === '2' && dataSource) {
+    validatePageSizeAgainstDataSource(
+      presentation.list.pageSize,
+      dataSource,
+      'defaultPresentation.list.pageSize',
+      issues,
+    );
+    if (
+      dataSource.maxSortFields !== undefined &&
+      presentation.list.defaultSort.length > dataSource.maxSortFields
+    ) {
+      addIssue(
+        issues,
+        'too-many-data-source-sort-fields',
+        'defaultPresentation.list.defaultSort',
+        'Default sort exceeds the compiled data source limit',
+      );
+    }
   }
   const fields = new Map(capability.fields.map((field) => [field.id, field]));
   for (const [index, sort] of presentation.list.defaultSort.entries()) {
@@ -695,8 +1146,20 @@ export function validatePageCapabilityDefinition(
   capability: PageCapabilityDefinition,
 ): PresentationIssue[] {
   const issues: PresentationIssue[] = [];
-  if (!identifierPattern.test(capability.pageKey)) {
+  if (
+    capability.pageKey.length < 2 ||
+    capability.pageKey.length > 120 ||
+    !identifierPattern.test(capability.pageKey)
+  ) {
     addIssue(issues, 'invalid-page-key', 'pageKey', 'Page key must be a stable identifier');
+  }
+  if (protectedPageNamespaces.has(capability.pageKey.split('.', 1)[0] ?? '')) {
+    addIssue(
+      issues,
+      'protected-page',
+      'pageKey',
+      'Protected core page cannot be presentation-configurable',
+    );
   }
   if (!capability.definitionVersion.trim()) {
     addIssue(
@@ -704,6 +1167,13 @@ export function validatePageCapabilityDefinition(
       'missing-definition-version',
       'definitionVersion',
       'Definition version is required',
+    );
+  } else if (capability.definitionVersion !== '1' && capability.definitionVersion !== '2') {
+    addIssue(
+      issues,
+      'unsupported-definition-version',
+      'definitionVersion',
+      'Definition version must be 1 or 2',
     );
   }
   if (!definitionHashPattern.test(capability.definitionHash)) {
@@ -731,11 +1201,189 @@ export function validatePageCapabilityDefinition(
   }
   const componentIDs = new Set(capability.components.map((component) => component.id));
   capability.fields.forEach((field, index) => {
+    const fieldPath = `fields[${index}]`;
+    const validFieldID =
+      capability.definitionVersion === '2'
+        ? fieldIdentifierPattern.test(field.id)
+        : identifierPattern.test(field.id) || fieldIdentifierPattern.test(field.id);
+    if (!validFieldID) {
+      addIssue(
+        issues,
+        'invalid-field-identifier',
+        `${fieldPath}.id`,
+        capability.definitionVersion === '2'
+          ? 'Field id must be a stable lower-camel identifier'
+          : 'Field id must be a stable version 1 identifier',
+      );
+    }
+    validateLocalizedText(field.label, `${fieldPath}.label`, issues);
+    if (!presentationValueTypes.has(field.valueType)) {
+      addIssue(
+        issues,
+        'invalid-field-value-type',
+        `${fieldPath}.valueType`,
+        'Field value type is not supported',
+      );
+    }
+    if (
+      (capability.definitionVersion === '2' && !field.format) ||
+      (field.format !== undefined &&
+        field.format !== '' &&
+        !presentationFieldFormats.has(field.format))
+    ) {
+      addIssue(
+        issues,
+        'unsupported-field-format',
+        `${fieldPath}.format`,
+        'Field format is not supported',
+      );
+    }
+    if (
+      capability.definitionVersion === '2' &&
+      (typeof field.nullable !== 'boolean' ||
+        typeof field.readOnly !== 'boolean' ||
+        typeof field.searchable !== 'boolean')
+    ) {
+      addIssue(
+        issues,
+        'incomplete-field-facts',
+        fieldPath,
+        'Version 2 field requires explicit nullable, readOnly, and searchable facts',
+      );
+    }
+    if (
+      capability.definitionVersion === '2' &&
+      (field.validation === undefined ||
+        field.validation === null ||
+        typeof field.validation !== 'object' ||
+        Array.isArray(field.validation))
+    ) {
+      addIssue(
+        issues,
+        'missing-field-validation',
+        `${fieldPath}.validation`,
+        'Version 2 fields require an explicit validation object',
+      );
+    }
+    if (capability.definitionVersion === '2' && !Array.isArray(field.enumValues)) {
+      addIssue(
+        issues,
+        'missing-enum-values',
+        `${fieldPath}.enumValues`,
+        'Version 2 fields require an explicit enumValues array, including an empty array',
+      );
+    }
+    if (field.required && field.nullable) {
+      addIssue(
+        issues,
+        'conflicting-field-nullability',
+        fieldPath,
+        'Required and nullable cannot both be true',
+      );
+    }
+    const minLength = field.validation?.minLength;
+    const maxLength = field.validation?.maxLength;
+    if (minLength !== undefined && (!Number.isSafeInteger(minLength) || minLength < 0)) {
+      addIssue(
+        issues,
+        'invalid-field-min-length',
+        `${fieldPath}.validation.minLength`,
+        'Minimum length must be a non-negative safe integer',
+      );
+    }
+    if (maxLength !== undefined && (!Number.isSafeInteger(maxLength) || maxLength < 0)) {
+      addIssue(
+        issues,
+        'invalid-field-max-length',
+        `${fieldPath}.validation.maxLength`,
+        'Maximum length must be a non-negative safe integer',
+      );
+    }
+    if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) {
+      addIssue(
+        issues,
+        'invalid-field-length-range',
+        `${fieldPath}.validation`,
+        'Minimum length cannot exceed maximum length',
+      );
+    }
+    if (field.validation?.pattern) {
+      try {
+        if (capability.definitionVersion === '2') {
+          if (isPortableCapabilityPattern(field.validation.pattern)) {
+            compilePortablePresentationPattern(field.validation.pattern);
+          } else {
+            new RegExp(field.validation.pattern, 'u');
+          }
+        } else {
+          new RegExp(field.validation.pattern);
+        }
+      } catch {
+        addIssue(
+          issues,
+          'invalid-field-pattern',
+          `${fieldPath}.validation.pattern`,
+          'Field pattern is invalid',
+        );
+      }
+      if (
+        capability.definitionVersion === '2' &&
+        !isPortableCapabilityPattern(field.validation.pattern)
+      ) {
+        addIssue(
+          issues,
+          'non-portable-field-pattern',
+          `${fieldPath}.validation.pattern`,
+          'Field pattern must use the portable Go and ECMAScript subset',
+        );
+      }
+    }
+    validateCapabilityNumericFacts(field, fieldPath, issues);
+    const enumValues = new Set<string>();
+    field.enumValues?.forEach((enumValue, enumIndex) => {
+      const enumPath = `${fieldPath}.enumValues[${enumIndex}]`;
+      if (!enumValuePattern.test(enumValue.value)) {
+        addIssue(
+          issues,
+          'invalid-enum-value',
+          `${enumPath}.value`,
+          'Enum value must be a stable lower-case token',
+        );
+      }
+      validateLocalizedText(enumValue.label, `${enumPath}.label`, issues);
+      if (capability.definitionVersion === '2' && typeof enumValue.color !== 'string') {
+        addIssue(
+          issues,
+          'missing-enum-color',
+          `${enumPath}.color`,
+          'Version 2 enum values require an explicit color string',
+        );
+      }
+      if (enumValues.has(enumValue.value)) {
+        addIssue(issues, 'duplicate-enum-value', `${enumPath}.value`, 'Enum value is duplicated');
+      }
+      enumValues.add(enumValue.value);
+    });
+    if (
+      capability.definitionVersion === '2' &&
+      field.valueType === 'enum' &&
+      !field.enumValues?.length
+    ) {
+      addIssue(issues, 'missing-enum-values', `${fieldPath}.enumValues`, 'Enum field needs values');
+    }
+    if (field.valueType !== 'enum' && field.enumValues?.length) {
+      addIssue(
+        issues,
+        'unexpected-enum-values',
+        `${fieldPath}.enumValues`,
+        'Enum values require enum value type',
+      );
+    }
     if (field.surfaces.length === 0) {
       addIssue(
         issues,
         'missing-field-surface',
-        `fields[${index}].surfaces`,
+        `${fieldPath}.surfaces`,
         `Field ${field.id} needs at least one surface`,
       );
     }
@@ -743,7 +1391,7 @@ export function validatePageCapabilityDefinition(
       addIssue(
         issues,
         'missing-field-component',
-        `fields[${index}].components`,
+        `${fieldPath}.components`,
         `Field ${field.id} needs at least one component`,
       );
     }
@@ -752,10 +1400,13 @@ export function validatePageCapabilityDefinition(
         addIssue(
           issues,
           'unknown-field-component',
-          `fields[${index}].components`,
+          `${fieldPath}.components`,
           `Field ${field.id} references unknown component ${component}`,
         );
       }
+    }
+    if (capability.definitionVersion === '2') {
+      validateSurfaceComponents(field, fieldPath, componentIDs, issues);
     }
   });
   capability.dataSources.forEach((dataSource, index) => {
@@ -770,8 +1421,19 @@ export function validatePageCapabilityDefinition(
         `Data source ${dataSource.id} needs non-empty permissions`,
       );
     }
+    if (capability.definitionVersion === '2') {
+      validateDataSourceLimits(dataSource, index, issues);
+    }
   });
   capability.actions.forEach((action, index) => {
+    if (capability.definitionVersion === '2' && typeof action.destructive !== 'boolean') {
+      addIssue(
+        issues,
+        'missing-action-destructive',
+        `actions[${index}].destructive`,
+        'Version 2 actions require an explicit destructive boolean',
+      );
+    }
     if (
       action.requiredPermissions.length === 0 ||
       action.requiredPermissions.some((permission) => !permission.trim())
@@ -788,12 +1450,131 @@ export function validatePageCapabilityDefinition(
   return issues;
 }
 
+function isPortableCapabilityPattern(value: string): boolean {
+  if (value.includes('(?') || value.includes('[[:')) return false;
+  for (const current of value) {
+    const codePoint = current.codePointAt(0) ?? 0;
+    if (codePoint > 0xffff || codePoint === 0x2028 || codePoint === 0x2029) return false;
+  }
+  let inClass = false;
+  let classHasContent = false;
+  let classAtStart = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value[index];
+    if (current === '\\') {
+      index += 1;
+      if (index >= value.length) return false;
+      const escaped = value[index];
+      if (escaped === undefined) return false;
+      if (escaped === 'x') {
+        const hex = value.slice(index + 1, index + 3);
+        if (!/^[0-9A-Fa-f]{2}$/.test(hex)) return false;
+        index += 2;
+      } else {
+        const allowed = inClass ? 'dDfnrtvwW$()*+-./?[\\]^{|}' : 'bBdDfnrtvwW$()*+./?[\\]^{|}';
+        if (!allowed.includes(escaped)) return false;
+      }
+      if (inClass) {
+        classHasContent = true;
+        classAtStart = false;
+      }
+      continue;
+    }
+    if (current === '[') {
+      if (inClass) {
+        classHasContent = true;
+        classAtStart = false;
+      } else {
+        inClass = true;
+        classHasContent = false;
+        classAtStart = true;
+      }
+    } else if (current === ']') {
+      if (!inClass || !classHasContent) return false;
+      inClass = false;
+      classHasContent = false;
+      classAtStart = false;
+    } else if (current === '^') {
+      if (inClass) {
+        if (classAtStart) classAtStart = false;
+        else classHasContent = true;
+      }
+    } else if (current === '{' || current === '}') {
+      if (!inClass) return false;
+      classHasContent = true;
+      classAtStart = false;
+    } else if (current === '.') {
+      if (!inClass) return false;
+      classHasContent = true;
+      classAtStart = false;
+    } else if (inClass) {
+      classHasContent = true;
+      classAtStart = false;
+    }
+  }
+  return !inClass;
+}
+
+export function compilePortablePresentationPattern(pattern: string): RegExp {
+  if (!isPortableCapabilityPattern(pattern)) {
+    throw new Error('Pattern is outside the portable Go and ECMAScript subset');
+  }
+  return new RegExp(pattern, 'u');
+}
+
 export function validatePagePresentationProfile(
   capability: PageCapabilityDefinition,
   profile: AdminPagePresentationProfile,
 ): PresentationIssue[] {
   const issues: PresentationIssue[] = [];
   inspectForbiddenKeys(profile, '$', issues);
+  if (isLimitedTablePresentationCapability(capability)) {
+    for (const surface of ['dataSource', 'form', 'detail', 'actions'] as const) {
+      if (Object.hasOwn(profile.spec, surface)) {
+        addIssue(
+          issues,
+          'unsupported-limited-surface',
+          `spec.${surface}`,
+          `Limited table capabilities do not support spec.${surface}`,
+        );
+      }
+    }
+    if (profile.spec.list && Object.hasOwn(profile.spec.list, 'defaultSort')) {
+      addIssue(
+        issues,
+        'unsupported-limited-surface',
+        'spec.list.defaultSort',
+        'Limited table capabilities do not support spec.list.defaultSort',
+      );
+    }
+    const validateLimitedFields = (
+      fields: readonly PageFieldPresentationPatch[] | undefined,
+      path: string,
+      allowedProperties: ReadonlySet<string>,
+    ) => {
+      fields?.forEach((field, index) => {
+        for (const property of Object.keys(field)) {
+          if (allowedProperties.has(property)) continue;
+          addIssue(
+            issues,
+            'unsupported-limited-surface',
+            `${path}[${index}].${property}`,
+            `Limited table capabilities do not support ${property} on ${path}`,
+          );
+        }
+      });
+    };
+    validateLimitedFields(
+      profile.spec.list?.columns,
+      'spec.list.columns',
+      new Set(['field', 'label', 'order', 'hidden', 'width']),
+    );
+    validateLimitedFields(
+      profile.spec.search?.fields,
+      'spec.search.fields',
+      new Set(['field', 'label', 'order', 'hidden']),
+    );
+  }
   if (profile.apiVersion !== ADMIN_PRESENTATION_API_VERSION) {
     addIssue(
       issues,
@@ -829,8 +1610,10 @@ export function validatePagePresentationProfile(
       'Scope subject is required',
     );
   }
-  const dataSourceIDs = new Set(capability.dataSources.map((dataSource) => dataSource.id));
-  if (profile.spec.dataSource && !dataSourceIDs.has(profile.spec.dataSource)) {
+  const dataSources = new Map(
+    capability.dataSources.map((dataSource) => [dataSource.id, dataSource]),
+  );
+  if (profile.spec.dataSource && !dataSources.has(profile.spec.dataSource)) {
     addIssue(
       issues,
       'unknown-data-source',
@@ -838,6 +1621,9 @@ export function validatePagePresentationProfile(
       `Unknown data source ${profile.spec.dataSource}`,
     );
   }
+  const effectiveDataSource = dataSources.get(
+    profile.spec.dataSource ?? capability.defaultPresentation.dataSource,
+  );
   validateLocalizedText(profile.spec.title, 'spec.title', issues);
   if (profile.spec.list?.columns) {
     validateFieldCollection(
@@ -877,23 +1663,42 @@ export function validatePagePresentationProfile(
   }
   const fieldDefinitions = new Map(capability.fields.map((field) => [field.id, field]));
   profile.spec.list?.defaultSort?.forEach((sort, index) => {
+    const sortFieldPath = `spec.list.defaultSort[${index}].field`;
+    if (!validateProfileFieldIdentifier(sort.field, sortFieldPath, issues)) return;
     const definition = fieldDefinitions.get(sort.field);
     if (!definition) {
-      addIssue(
-        issues,
-        'unknown-sort-field',
-        `spec.list.defaultSort[${index}].field`,
-        `Unknown sort field ${sort.field}`,
-      );
+      addIssue(issues, 'unknown-sort-field', sortFieldPath, `Unknown sort field ${sort.field}`);
     } else if (!definition.sortable) {
       addIssue(
         issues,
         'unsupported-sort-field',
-        `spec.list.defaultSort[${index}].field`,
+        sortFieldPath,
         `Field ${sort.field} is not sortable`,
       );
     }
   });
+  if (capability.definitionVersion === '2' && effectiveDataSource) {
+    if (profile.spec.list?.pageSize !== undefined) {
+      validatePageSizeAgainstDataSource(
+        profile.spec.list.pageSize,
+        effectiveDataSource,
+        'spec.list.pageSize',
+        issues,
+      );
+    }
+    if (
+      profile.spec.list?.defaultSort &&
+      effectiveDataSource.maxSortFields !== undefined &&
+      profile.spec.list.defaultSort.length > effectiveDataSource.maxSortFields
+    ) {
+      addIssue(
+        issues,
+        'too-many-data-source-sort-fields',
+        'spec.list.defaultSort',
+        'Default sort exceeds the compiled data source limit',
+      );
+    }
+  }
   const actions = new Map(capability.actions.map((action) => [action.id, action]));
   for (const duplicate of duplicateIDs(
     (profile.spec.actions ?? []).map((action) => action.action),

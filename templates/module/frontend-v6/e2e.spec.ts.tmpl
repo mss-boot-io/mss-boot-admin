@@ -2,6 +2,9 @@
 
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+{{- if and .Presentation.Enabled .NeedsRegexp }}
+import { compilePortablePresentationPattern } from '{{ .AdminWebPackage }}/runtime/presentation';
+{{- end }}
 
 const APP_BASE_URL = process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:18001';
 const API_BASE_URL = (process.env.MSS_E2E_API_URL ?? `${APP_BASE_URL}/admin/api`).replace(/\/$/, '');
@@ -74,7 +77,7 @@ const BASE_UPDATE_VALUE: FixtureValue | undefined = undefined;
 {{- if .HasE2EMarkerField }}
 const UNIQUE_MIN_LENGTH = {{ if .E2EMarkerField.HasMinLength }}{{ .E2EMarkerField.MinLength }}{{ else }}0{{ end }};
 const UNIQUE_MAX_LENGTH: number | undefined = {{ if .E2EMarkerField.HasMaxLength }}{{ .E2EMarkerField.MaxLength }}{{ else }}undefined{{ end }};
-const UNIQUE_PATTERN: RegExp | undefined = {{ if .E2EMarkerField.HasPattern }}new RegExp({{ .E2EMarkerField.PatternTS }}){{ else }}undefined{{ end }};
+const UNIQUE_PATTERN: RegExp | undefined = {{ if .E2EMarkerField.HasPattern }}{{ if $.Presentation.Enabled }}compilePortablePresentationPattern({{ .E2EMarkerField.PatternTS }}){{ else }}new RegExp({{ .E2EMarkerField.PatternTS }}){{ end }}{{ else }}undefined{{ end }};
 const UNIQUE_EMAIL = {{ .E2EMarkerField.EmailFormat }};
 
 function uniqueFixture(base: string, variant: 'A' | 'B'): string {

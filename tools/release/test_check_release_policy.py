@@ -653,7 +653,9 @@ class ReleasePolicyTest(unittest.TestCase):
                 content = (
                     REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
                 ).read_text(encoding="utf-8")
-                self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
+                workflow = yaml.load(content, Loader=yaml.BaseLoader)
+                self.assertNotIn("pull_request", workflow["on"])
+                self.assertIn("tools/release/**", workflow["on"]["push"]["paths"])
 
     def test_docs_release_is_component_scoped_and_merged_main_only(self):
         content = (
@@ -693,6 +695,9 @@ class ReleasePolicyTest(unittest.TestCase):
         playwright = (
             REPOSITORY_ROOT / "web" / "antd-v6" / "playwright.config.ts"
         ).read_text(encoding="utf-8")
+        runner = (
+            REPOSITORY_ROOT / "tools" / "verification" / "run-frontend-e2e.sh"
+        ).read_text(encoding="utf-8")
         package = (
             REPOSITORY_ROOT / "web" / "antd-v6" / "package.json"
         ).read_text(encoding="utf-8")
@@ -731,6 +736,34 @@ class ReleasePolicyTest(unittest.TestCase):
         self.assertNotIn("reuseExistingServer: !process.env.CI", playwright)
         self.assertEqual(playwright.count("reuseExistingServer: false"), 2)
         self.assertIn("http://127.0.0.1:18001", playwright)
+        for required in (
+            "MSS_V6_BACKEND_ORIGIN",
+            "MSS_V6_BACKEND_PORT",
+            "MSS_V6_WEB_PORT",
+            "qualificationBackendOrigin",
+            "qualificationWebPort",
+            "corepack pnpm@10.34.5 exec max dev",
+        ):
+            self.assertIn(required, playwright)
+        for required in (
+            "flock -w 600",
+            "current.bind(('127.0.0.1', 0))",
+            'export MSS_V6_BACKEND_ORIGIN="http://127.0.0.1:${backend_port}"',
+            'export MSS_V6_BASE_URL="http://127.0.0.1:${web_port}"',
+            'export MSS_E2E_BACKEND_API_URL="${MSS_V6_BACKEND_ORIGIN}/admin/api"',
+        ):
+            self.assertIn(required, runner)
+        self.assertLess(
+            runner.index("playwright install chromium"),
+            runner.index("read -r backend_port web_port"),
+        )
+        for required in (
+            "MSS_V6_BACKEND_PORT",
+            "MSS_V6_WEB_PORT",
+            '"${runtime_dir}/config/application.yml"',
+            '"${runtime_dir}/config/application-e2e.yml"',
+        ):
+            self.assertIn(required, backend)
         self.assertIn('"start:e2e"', package)
         self.assertIn("MSS_V6_E2E=1", package)
         self.assertIn(

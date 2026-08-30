@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/enum"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/response/actions"
 )
 
@@ -43,8 +44,9 @@ type AccountPasswordChangeResponse struct {
 
 type UserSearch struct {
 	actions.Pagination `search:"inline"`
-	ID                 string `query:"id" form:"id" search:"type:contains;column:id"`
-	Name               string `query:"name" form:"name" search:"type:contains;column:name"`
+	ID                 string      `query:"id" form:"id" search:"type:contains;column:id"`
+	Name               string      `query:"name" form:"name" search:"type:contains;column:name"`
+	Status             enum.Status `query:"status" form:"status" binding:"omitempty,oneof=enabled disabled locked" search:"type:exact;column:status"`
 }
 
 // BrowserSessionResponse intentionally omits the Admin JWT. The browser owns

@@ -4,6 +4,11 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -30,13 +35,20 @@ import {
   administrationSubtreeIDs,
   type DepartmentSummary,
   type DepartmentWriteValues,
+  isAdminPageSize,
 } from './contract';
 import { useAdministrationCatalog, useAdministrationPage } from './query';
+import {
+  departmentPresentationListComponents,
+  departmentPresentationMobileFields,
+  departmentPresentationSearchComponents,
+} from './tablePresentation';
 
 interface DepartmentManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -50,12 +62,17 @@ export default function DepartmentManagement({
   canCreate,
   canDelete,
   canEdit,
+  presentationRuntime,
   routeIntent,
 }: DepartmentManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const departments = useAdministrationPage('departments', params);
   const departmentCatalog = useAdministrationCatalog('departments');
   const users = useAdministrationCatalog('users');
@@ -135,7 +152,7 @@ export default function DepartmentManagement({
     },
   });
 
-  const columns: TableColumnsType<DepartmentSummary> = [
+  const compiledColumns: TableColumnsType<DepartmentSummary> = [
     {
       title: intl.formatMessage({ id: 'administration.field.name' }),
       dataIndex: 'name',
@@ -199,16 +216,31 @@ export default function DepartmentManagement({
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: departmentPresentationListComponents,
+    mobileColumnKeys: [...departmentPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: departmentPresentationSearchComponents,
+  });
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'department.empty' })}
+        nameSearch={tablePresentation.searchFields.get('name') ?? null}
         params={params}
         query={departments}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
         setParams={setParams}
-        mobileColumnKeys={['name', 'code', 'leaderID', 'status', 'actions']}
+        statusSearch={tablePresentation.searchFields.get('status') ?? null}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

@@ -12,24 +12,13 @@ on:
       - 'mss-boot/pkg/migration/**'
       - 'tools/release/**'
       - '.github/workflows/v0.7-upgrade-integration.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'admin/cmd/migrate/**'
-      - 'admin/models/**'
-      - 'admin/go.mod'
-      - 'admin/go.sum'
-      - 'mss-boot/pkg/migration/**'
-      - 'tools/release/**'
-      - '.github/workflows/v0.7-upgrade-integration.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: v0-7-upgrade-${{ github.event.pull_request.number || github.ref }}
+  group: v0-7-upgrade-${{ github.ref }}
   cancel-in-progress: true
 
 env:

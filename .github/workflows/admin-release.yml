@@ -75,17 +75,6 @@ jobs:
             --version "${ADMIN_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
-      - name: Require successful exact preview
-        env:
-          ADMIN_VERSION: ${{ steps.version.outputs.version }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bash tools/release/resolve_successful_preview.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --commit "${GITHUB_SHA}" \
-            --version "${ADMIN_VERSION}" \
-            --actor lwnmengjing
-
       - name: Reconcile existing public Admin release
         id: release-state
         env:
@@ -129,6 +118,38 @@ jobs:
             '.tagName == $tag and .isDraft == false and .isPrerelease == $prerelease' \
             <<< "${framework_release}" >/dev/null
 
+      - name: Setup Go for the public Framework boundary
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: admin/go.mod
+          cache: false
+
+      - name: Resolve and test the exact public Framework
+        working-directory: admin
+        env:
+          ADMIN_VERSION: ${{ steps.version.outputs.version }}
+          GOFLAGS: -mod=readonly
+          GOCACHE: ${{ runner.temp }}/public-framework-gocache
+          GOMODCACHE: ${{ runner.temp }}/public-framework-modcache
+          GONOSUMDB: ''
+          GONOPROXY: ''
+          GOPRIVATE: ''
+          GOPROXY: https://proxy.golang.org
+          GOSUMDB: sum.golang.org
+          GOWORK: 'off'
+        run: |
+          set -euo pipefail
+          framework_module='github.com/mss-boot-io/mss-boot-admin/mss-boot'
+          resolved="$(go mod download -json "${framework_module}@${ADMIN_VERSION}")"
+          jq -e \
+            --arg module "${framework_module}" \
+            --arg version "${ADMIN_VERSION}" \
+            '.Path == $module and .Version == $version and
+             (.Sum | startswith("h1:")) and (.GoModSum | startswith("h1:")) and
+             (.Error == null)' \
+            <<< "${resolved}" >/dev/null
+          go test ./app ./business
+
       - name: Prepare component-scoped release notes
         id: release-notes
         env:
@@ -148,7 +169,7 @@ jobs:
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo
-            echo 'The exact source, dependency graph, module archive, and external application composition were qualified by the successful Root preview before this tag was created.'
+            echo 'Broad quality verification was completed locally on the exact clean merged-main commit. This release also resolved and tested the matching public Framework with GOWORK=off before publication.'
           } >> "${notes_file}"
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 

@@ -2,83 +2,138 @@ import DepartmentManagement from '@mss-admin-core/modules/administration/Departm
 import MenuManagement from '@mss-admin-core/modules/administration/MenuManagement';
 import PostManagement from '@mss-admin-core/modules/administration/PostManagement';
 import RoleManagement from '@mss-admin-core/modules/administration/RoleManagement';
+import {
+  departmentPresentationRegistryEntry,
+  menuPresentationRegistryEntry,
+  postPresentationRegistryEntry,
+  rolePresentationRegistryEntry,
+} from '@mss-admin-core/modules/administration/tablePresentation';
 import UserManagement from '@mss-admin-core/modules/administration/UserManagement';
+import { userPresentationRegistryEntry } from '@mss-admin-core/modules/administration/userPresentation';
 import { hasPermission, isRootIdentity } from '@mss-admin-core/shared/auth/access';
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
 import { PageForbidden } from '@mss-admin-core/shared/design-system/PageState';
 import type { ManagementRouteIntent } from '@mss-admin-core/shared/navigation/managementRoute';
+import {
+  type PagePresentationRuntime,
+  type PresentationRegistryEntry,
+  usePagePresentation,
+} from '@mss-admin-core/shared/presentation/runtime';
 import { useIntl, useLocation, useModel } from '@umijs/max';
 
 interface AdministrationRouteDefinition {
   description: string;
   permission: string;
-  render: (root: boolean, intent?: ManagementRouteIntent) => React.ReactNode;
-  title: string;
+  presentationEntry: PresentationRegistryEntry;
+  render: (
+    root: boolean,
+    intent: ManagementRouteIntent | undefined,
+    presentationRuntime: PagePresentationRuntime,
+  ) => React.ReactNode;
+}
+
+function AdministrationPresentationPage({
+  initialState,
+  root,
+  route,
+  routeIntent,
+}: {
+  initialState?: InitialState;
+  root: boolean;
+  route: AdministrationRouteDefinition;
+  routeIntent?: ManagementRouteIntent;
+}) {
+  const intl = useIntl();
+  const presentationRuntime = usePagePresentation(
+    route.presentationEntry,
+    intl.locale === 'en-US' ? 'en-US' : 'zh-CN',
+    initialState?.currentUser,
+    initialState?.authorizationVersion,
+  );
+
+  return (
+    <PageContainer
+      content={intl.formatMessage({ id: route.description })}
+      title={presentationRuntime.model.title}
+    >
+      {route.render(root, routeIntent, presentationRuntime)}
+    </PageContainer>
+  );
 }
 
 const administrationRoutes: Record<string, AdministrationRouteDefinition> = {
   '/users': {
     permission: '/users',
-    title: 'user.title',
     description: 'user.description',
-    render: (root, routeIntent) => (
+    presentationEntry: userPresentationRegistryEntry,
+    render: (root, routeIntent, presentationRuntime) => (
       <UserManagement
         canCreate={root}
         canDelete={root}
         canEdit={root}
         canResetPassword={root}
+        presentationRuntime={presentationRuntime}
         routeIntent={routeIntent}
       />
     ),
   },
   '/role': {
     permission: '/role',
-    title: 'role.title',
     description: 'role.description',
-    render: (root, routeIntent) => (
+    presentationEntry: rolePresentationRegistryEntry,
+    render: (root, routeIntent, presentationRuntime) => (
       <RoleManagement
         canAuthorize={root}
         canCreate={root}
         canDelete={root}
         canEdit={root}
+        presentationRuntime={presentationRuntime}
         routeIntent={routeIntent}
       />
     ),
   },
   '/menu': {
     permission: '/menu',
-    title: 'menu.title',
     description: 'menu.description',
-    render: (root, routeIntent) => (
+    presentationEntry: menuPresentationRegistryEntry,
+    render: (root, routeIntent, presentationRuntime) => (
       <MenuManagement
         canBindAPI={root}
         canCreate={root}
         canDelete={root}
         canEdit={root}
+        presentationRuntime={presentationRuntime}
         routeIntent={routeIntent}
       />
     ),
   },
   '/departments': {
     permission: '/departments',
-    title: 'department.title',
     description: 'department.description',
-    render: (root, routeIntent) => (
+    presentationEntry: departmentPresentationRegistryEntry,
+    render: (root, routeIntent, presentationRuntime) => (
       <DepartmentManagement
         canCreate={root}
         canDelete={root}
         canEdit={root}
+        presentationRuntime={presentationRuntime}
         routeIntent={routeIntent}
       />
     ),
   },
   '/posts': {
     permission: '/posts',
-    title: 'post.title',
     description: 'post.description',
-    render: (root, routeIntent) => (
-      <PostManagement canCreate={root} canDelete={root} canEdit={root} routeIntent={routeIntent} />
+    presentationEntry: postPresentationRegistryEntry,
+    render: (root, routeIntent, presentationRuntime) => (
+      <PostManagement
+        canCreate={root}
+        canDelete={root}
+        canEdit={root}
+        presentationRuntime={presentationRuntime}
+        routeIntent={routeIntent}
+      />
     ),
   },
 };
@@ -118,11 +173,11 @@ export default function AdministrationPage() {
   const root = isRootIdentity(user);
   const intent = routeIntent(rawPathname, pathname ?? rawPathname);
   return (
-    <PageContainer
-      content={intl.formatMessage({ id: route.description })}
-      title={intl.formatMessage({ id: route.title })}
-    >
-      {route.render(root, intent)}
-    </PageContainer>
+    <AdministrationPresentationPage
+      initialState={initialState}
+      root={root}
+      route={route}
+      routeIntent={intent}
+    />
   );
 }

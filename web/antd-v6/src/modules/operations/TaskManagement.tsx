@@ -18,6 +18,12 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -50,8 +56,14 @@ import {
   taskFormValues,
 } from './contract';
 import { useTask, useTaskFunctions, useTaskPage } from './query';
+import {
+  taskPresentationListComponents,
+  taskPresentationMobileFields,
+  taskPresentationSearchComponents,
+} from './tablePresentation';
 
 interface TaskManagementProps {
+  presentationRuntime: PagePresentationRuntime;
   root: boolean;
   routeIntent?: ManagementRouteIntent;
 }
@@ -104,14 +116,23 @@ function validateJSONObject(value: string | undefined, message: string): Promise
   }
 }
 
-export default function TaskManagement({ root, routeIntent }: TaskManagementProps) {
+export default function TaskManagement({
+  presentationRuntime,
+  root,
+  routeIntent,
+}: TaskManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const screens = Grid.useBreakpoint();
   const [filterForm] = Form.useForm<TaskFilterValues>();
   const [editorForm] = Form.useForm<TaskWriteValues>();
-  const [params, setParams] = useState<OperationsListParams>(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOperationsPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const [editing, setEditing] = useState<'create' | string>();
   const tasks = useTaskPage(params);
   const detail = useTask(editing && editing !== 'create' ? editing : undefined);
@@ -188,7 +209,7 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
         }).format(new Date(value))
       : '—';
 
-  const columns: TableColumnsType<TaskSummary> = [
+  const compiledColumns: TableColumnsType<TaskSummary> = [
     {
       title: intl.formatMessage({ id: 'task.field.name' }),
       dataIndex: 'name',
@@ -297,6 +318,18 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
         ] as TableColumnsType<TaskSummary>)
       : []),
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isOperationsPageSize,
+    listComponents: taskPresentationListComponents,
+    mobileColumnKeys: [...taskPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: taskPresentationSearchComponents,
+  });
+  const nameSearch = tablePresentation.searchFields.get('name');
+  const statusSearch = tablePresentation.searchFields.get('status');
 
   const listStatus = getRequestStatus(tasks.error);
   if (listStatus === 403) {
@@ -361,35 +394,48 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
         }
       >
         <Row align="bottom" gutter={16}>
-          <Col xs={24} sm={12} lg={8}>
-            <Form.Item name="name" label={intl.formatMessage({ id: 'task.field.name' })}>
-              <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Form.Item name="status" label={intl.formatMessage({ id: 'task.field.status' })}>
-              <Select
-                options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
-                  value,
-                  label: intl.formatMessage({ id: `task.status.${value}` }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={10}>
+          {searchPresentation.expanded && nameSearch ? (
+            <Col xs={24} sm={12} lg={8} style={{ order: nameSearch.order }}>
+              <Form.Item name="name" label={nameSearch.label} extra={nameSearch.help}>
+                <Input allowClear maxLength={255} placeholder={nameSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && statusSearch ? (
+            <Col xs={24} sm={12} lg={6} style={{ order: statusSearch.order }}>
+              <Form.Item name="status" label={statusSearch.label} extra={statusSearch.help}>
+                <Select
+                  placeholder={statusSearch.placeholder}
+                  options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
+                    value,
+                    label: intl.formatMessage({ id: `task.status.${value}` }),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} lg={10} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    filterForm.resetFields();
-                    setParams(initialParams);
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        filterForm.resetFields();
+                        setParams({ ...initialParams, pageSize: tablePresentation.pageSize });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={tasks.isFetching}
@@ -408,7 +454,7 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
         </Row>
       </Form>
       <ResponsiveEntityTable<TaskSummary>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={tasks.data?.data ?? []}
         loading={tasks.isFetching}
         locale={{ emptyText: <PageEmpty description={intl.formatMessage({ id: 'task.empty' })} /> }}
@@ -425,9 +471,10 @@ export default function TaskManagement({ root, routeIntent }: TaskManagementProp
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['name', 'provider', 'schedule', 'status', 'lastRun', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: root ? 1_080 : 760 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <Modal
         destroyOnHidden

@@ -18,6 +18,11 @@ vi.mock('@umijs/max', () => ({
 vi.mock('@ant-design/pro-components', () => ({
   PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
 }));
+vi.mock('@mss-admin-core/shared/presentation/runtime', () => ({
+  usePagePresentation: (entry: { definition: { pageKey: string } }) => ({
+    model: { title: `presentation:${entry.definition.pageKey}` },
+  }),
+}));
 vi.mock('@mss-admin-core/modules/operations/TaskManagement', () => ({
   default: ({ root }: { root: boolean }) => <div>{`task:${root}`}</div>,
 }));

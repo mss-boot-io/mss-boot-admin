@@ -4,6 +4,11 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -28,15 +33,22 @@ import {
   administrationSelectOptions,
   administrationSubtreeIDs,
   type DataScope,
+  isAdminPageSize,
   type PostSummary,
   type PostWriteValues,
 } from './contract';
 import { useAdministrationCatalog, useAdministrationPage } from './query';
+import {
+  postPresentationListComponents,
+  postPresentationMobileFields,
+  postPresentationSearchComponents,
+} from './tablePresentation';
 
 interface PostManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -60,12 +72,17 @@ export default function PostManagement({
   canCreate,
   canDelete,
   canEdit,
+  presentationRuntime,
   routeIntent,
 }: PostManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const posts = useAdministrationPage('posts', params);
   const postCatalog = useAdministrationCatalog('posts');
   const departments = useAdministrationCatalog('departments');
@@ -135,7 +152,7 @@ export default function PostManagement({
     },
   });
 
-  const columns: TableColumnsType<PostSummary> = [
+  const compiledColumns: TableColumnsType<PostSummary> = [
     {
       title: intl.formatMessage({ id: 'administration.field.name' }),
       dataIndex: 'name',
@@ -191,16 +208,31 @@ export default function PostManagement({
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: postPresentationListComponents,
+    mobileColumnKeys: [...postPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: postPresentationSearchComponents,
+  });
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'post.empty' })}
+        nameSearch={tablePresentation.searchFields.get('name') ?? null}
         params={params}
         query={posts}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
         setParams={setParams}
-        mobileColumnKeys={['name', 'code', 'dataScope', 'status', 'actions']}
+        statusSearch={tablePresentation.searchFields.get('status') ?? null}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

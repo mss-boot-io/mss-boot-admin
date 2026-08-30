@@ -111,7 +111,7 @@ jobs:
             --version "${FRAMEWORK_VERSION}" \
             --tag "${GITHUB_REF_NAME}"
 
-      - name: Require successful exact preview
+      - name: Require successful exact artifact preview
         env:
           FRAMEWORK_VERSION: ${{ steps.version.outputs.version }}
           GH_TOKEN: ${{ github.token }}
@@ -160,7 +160,7 @@ jobs:
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo
-            echo 'The exact source, dependency graph, module archive, and external consumer were qualified by the successful Root preview before this tag was created.'
+            echo 'Broad quality verification was completed locally on the exact clean merged-main commit. As the first irreversible component, this workflow also confirms the exact artifact-staging preview before publication.'
           } >> "${notes_file}"
           echo "path=${notes_file}" >> "${GITHUB_OUTPUT}"
 

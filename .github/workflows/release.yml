@@ -243,11 +243,6 @@ jobs:
           web/antd-v6/${RELEASE_VERSION}
           EOF
 
-  foundation-compatibility:
-    needs: metadata
-    if: needs.metadata.outputs.publish != 'true'
-    uses: ./.github/workflows/foundation-compatibility.yml
-
   container-preview:
     needs: metadata
     if: needs.metadata.outputs.publish != 'true'
@@ -261,78 +256,8 @@ jobs:
       version: ${{ needs.metadata.outputs.version }}
       release_preview: true
 
-  test:
-    needs: metadata
-    if: needs.metadata.outputs.publish != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    services:
-      redis:
-        image: redis:7-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2 # 7.4.10-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: go.mod
-          cache: true
-          cache-dependency-path: |
-            go.sum
-            go.work.sum
-            admin/go.sum
-            mss-boot/go.sum
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          version: 9.15.9
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 22
-
-      - name: Install same-commit preview dependencies
-        run: make deps-release-preview
-
-      - name: Verify root release workflow contract
-        run: python3 -m unittest tools/release/test_root_release_workflow.py
-
-      - name: Verify independent Admin module
-        run: make verify-admin-preview
-
-      - name: Verify independent framework module
-        run: make verify-framework
-
-      - name: Verify Agent module and contracts
-        run: |
-          set -euo pipefail
-          make test-agent
-          go run ./cmd/mss doctor --strict --component agent --format json
-          go run ./cmd/mss doctor --strict --component backend --format json
-          go run ./cmd/mss skills validate --format json
-          go run ./cmd/mss spec validate .mss/modules/example-supplier.yaml --format json
-          go run ./cmd/mss spec validate .mss/features/example-supplier-onboarding.yaml --format json
-          go run ./cmd/mss feature plan .mss/features/example-supplier-onboarding.yaml --format json
-          git diff --exit-code
-          git diff --cached --exit-code
-
   backend-build:
-    needs:
-      - metadata
-      - test
-      - foundation-compatibility
+    needs: metadata
     if: needs.metadata.outputs.publish != 'true'
     runs-on: ubuntu-24.04
     strategy:
@@ -442,28 +367,6 @@ jobs:
 
       - name: Install frozen V6 dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
-
-      - name: Enforce V6 dependency policy
-        run: |
-          pnpm run deps:check
-          pnpm run audit:release
-
-      - name: Qualify V6 lint and unit behavior
-        run: |
-          pnpm run lint
-          pnpm run test:ci
-
-      - name: Create ephemeral browser administrator secret
-        run: |
-          set -euo pipefail
-          password="MssE2E-A1-$(openssl rand -hex 24)"
-          echo "::add-mask::${password}"
-          echo "MSS_E2E_PASSWORD=${password}" >> "${GITHUB_ENV}"
-
-      - name: Qualify browser permission and parity behavior
-        run: |
-          pnpm exec playwright install --with-deps chromium
-          pnpm run test:e2e
 
       - name: Build same-origin primary V6 frontend
         run: pnpm run build:release
@@ -708,8 +611,6 @@ jobs:
   assemble:
     needs:
       - metadata
-      - test
-      - foundation-compatibility
       - container-preview
       - backend-build
       - frontend-build

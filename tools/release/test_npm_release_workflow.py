@@ -80,18 +80,15 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("minor < 5", npm_setup)
         self.assertIn("patch < 1", npm_setup)
 
-    def test_requires_merged_main_preview_and_only_the_frontend_release(self):
+    def test_requires_merged_main_and_only_the_exact_frontend_release(self):
         source = self.step("Verify merged-main release source")["run"]
         self.assertIn("verify_release_source.py", source)
         self.assertIn('--commit "${RELEASE_COMMIT}"', source)
         self.assertIn('--tag "${RELEASE_VERSION}"', source)
         self.assertIn("--intent publish", source)
 
-        preview = self.step("Require successful exact preview")["run"]
-        self.assertIn("resolve_successful_preview.sh", preview)
-        self.assertIn('--commit "${RELEASE_COMMIT}"', preview)
-        self.assertIn('--version "${RELEASE_VERSION}"', preview)
-        self.assertIn("--actor lwnmengjing", preview)
+        self.assertNotIn("Require successful exact preview", self.content)
+        self.assertNotIn("resolve_successful_preview.sh", self.content)
 
         train = self.step("Require the exact frontend release")["run"]
         for required in (

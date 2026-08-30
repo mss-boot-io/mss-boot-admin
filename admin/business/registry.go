@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	moduleruntime "github.com/mss-boot-io/mss-boot-admin/admin/modules/runtime"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
@@ -88,10 +89,11 @@ type MigrationRegistrar func(*migration.Migration) error
 
 // Registration is the complete first-version BusinessModule projection.
 type Registration struct {
-	Descriptor Descriptor
-	Migrations MigrationRegistrar
-	Readiness  ReadinessCheck
-	Routes     RouteRegistrar
+	Descriptor    Descriptor
+	Migrations    MigrationRegistrar
+	Readiness     ReadinessCheck
+	Routes        RouteRegistrar
+	Presentations []presentation.CapabilityDefinition
 }
 
 // MigrationPhases keeps Foundation-owned migrations ahead of business-owned
@@ -110,10 +112,11 @@ type Module interface {
 }
 
 type entry struct {
-	name       string
-	descriptor Descriptor
-	readiness  ReadinessCheck
-	routes     RouteRegistrar
+	name          string
+	descriptor    Descriptor
+	readiness     ReadinessCheck
+	routes        RouteRegistrar
+	presentations []presentation.CapabilityDefinition
 }
 
 // registrationTransaction stages every side effect from one Module.Register
@@ -241,15 +244,28 @@ type Registry struct {
 	businessMigrations *migration.Migration
 	migrations         *migration.Migration
 	entries            []entry
+	presentationDefs   []presentation.CapabilityDefinition
+	presentations      *presentation.Registry
 	modules            map[string]struct{}
 	active             *registrationTransaction
 	transaction        *registrationTransaction
 	frozen             bool
 }
 
-// NewRegistry clones only the core migration registrations. It never copies a
-// database handle, version model, or previous execution state.
+// NewRegistry clones only the core migration registrations. It preserves the
+// original empty-core-presentation construction contract for existing hosts.
 func NewRegistry(coreMigrations *migration.Migration) (*Registry, error) {
+	return NewRegistryWithPresentations(coreMigrations)
+}
+
+// NewRegistryWithPresentations creates an application-local registry seeded
+// with trusted core presentation definitions. Both migrations and definitions
+// are defensively cloned so later caller mutations cannot alter composition.
+// Business-module definitions are still staged transactionally by Add.
+func NewRegistryWithPresentations(
+	coreMigrations *migration.Migration,
+	corePresentations ...presentation.CapabilityDefinition,
+) (*Registry, error) {
 	if coreMigrations == nil {
 		return nil, errors.New("core migration runner is required")
 	}
@@ -257,17 +273,33 @@ func NewRegistry(coreMigrations *migration.Migration) (*Registry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("clone core migrations: %w", err)
 	}
+	corePresentationRegistry, err := presentation.NewRegistry(corePresentations...)
+	if err != nil {
+		return nil, fmt.Errorf("validate core presentation definitions: %w", err)
+	}
 	return &Registry{
 		registrationGate:   make(chan struct{}, 1),
 		coreMigrations:     coreRunner,
 		businessMigrations: migration.New(),
+		presentationDefs:   corePresentationRegistry.List(),
 		modules:            make(map[string]struct{}),
 	}, nil
 }
 
 // Compose creates, registers, and freezes one deterministic module set.
 func Compose(coreMigrations *migration.Migration, modules ...Module) (*Registry, error) {
-	registry, err := NewRegistry(coreMigrations)
+	return ComposeWithPresentations(coreMigrations, nil, modules...)
+}
+
+// ComposeWithPresentations creates one deterministic application registry from
+// trusted core definitions and transactional business modules, then freezes the
+// unified presentation inventory before it can be used by the runtime.
+func ComposeWithPresentations(
+	coreMigrations *migration.Migration,
+	corePresentations []presentation.CapabilityDefinition,
+	modules ...Module,
+) (*Registry, error) {
+	registry, err := NewRegistryWithPresentations(coreMigrations, corePresentations...)
 	if err != nil {
 		return nil, err
 	}
@@ -372,10 +404,19 @@ func (r *Registry) Add(module Module) error {
 	if _, err := migration.CombineRegistrations(r.coreMigrations, nextBusinessMigrations); err != nil {
 		return fmt.Errorf("validate business module %s migrations: %w", name, err)
 	}
+	nextPresentationDefs := append(
+		append([]presentation.CapabilityDefinition(nil), r.presentationDefs...),
+		stagedEntry.presentations...,
+	)
+	nextPresentations, err := presentation.NewRegistry(nextPresentationDefs...)
+	if err != nil {
+		return fmt.Errorf("register business module %s presentation definitions: %w", name, err)
+	}
 
 	r.mu.Lock()
 	r.businessMigrations = nextBusinessMigrations
 	r.entries = append(r.entries, *stagedEntry)
+	r.presentationDefs = nextPresentations.List()
 	r.modules[name] = struct{}{}
 	r.active = nil
 	r.mu.Unlock()
@@ -446,6 +487,14 @@ func (r *Registry) Register(registration Registration) error {
 			))
 		}
 	}
+	stagedPresentations, err := presentation.NewRegistry(registration.Presentations...)
+	if err != nil {
+		return transaction.failRegistration(fmt.Errorf(
+			"validate business module %s presentation definitions: %w",
+			transaction.module,
+			err,
+		))
+	}
 	if err := transaction.migrations.ValidateRegistrations(); err != nil {
 		return transaction.failRegistration(fmt.Errorf(
 			"validate business module %s migrations: %w",
@@ -455,10 +504,11 @@ func (r *Registry) Register(registration Registration) error {
 	}
 
 	return transaction.completeRegistration(entry{
-		name:       transaction.module,
-		descriptor: descriptor,
-		readiness:  registration.Readiness,
-		routes:     registration.Routes,
+		name:          transaction.module,
+		descriptor:    descriptor,
+		readiness:     registration.Readiness,
+		routes:        registration.Routes,
+		presentations: stagedPresentations.List(),
 	})
 }
 
@@ -493,7 +543,12 @@ func (r *Registry) Freeze() error {
 	if err != nil {
 		return fmt.Errorf("combine application migrations: %w", err)
 	}
+	presentationRegistry, err := presentation.NewFrozenRegistry(r.presentationDefs...)
+	if err != nil {
+		return fmt.Errorf("freeze application presentation registry: %w", err)
+	}
 	r.migrations = combinedRunner
+	r.presentations = presentationRegistry
 	r.frozen = true
 	return nil
 }
@@ -510,6 +565,27 @@ func (r *Registry) Descriptors() []Descriptor {
 		result = append(result, cloneDescriptor(registered.descriptor))
 	}
 	return result
+}
+
+// PresentationRegistry returns the immutable application-owned capability
+// registry after composition has frozen. Definitions are staged in the same
+// module transaction as descriptors, migrations, readiness, and routes.
+func (r *Registry) PresentationRegistry() (*presentation.Registry, error) {
+	if r == nil {
+		return nil, errors.New("business module registry is required")
+	}
+	if r.transactionView() {
+		return nil, r.rejectTransactionLifecycle("PresentationRegistry")
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if !r.frozen {
+		return nil, ErrRegistryNotFrozen
+	}
+	if r.presentations == nil {
+		return nil, errors.New("application presentation registry is not initialized")
+	}
+	return r.presentations, nil
 }
 
 // MigrationRunner returns an isolated executable clone after composition.

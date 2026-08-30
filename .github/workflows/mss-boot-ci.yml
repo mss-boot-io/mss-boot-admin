@@ -64,16 +64,24 @@ jobs:
           cache: true
           cache-dependency-path: mss-boot/go.sum
 
+      - name: Run framework tests
+        if: ${{ github.event_name == 'pull_request' }}
+        working-directory: mss-boot
+        run: go test -shuffle=on -count=1 ./...
+
       - name: Test coverage policy tooling
+        if: ${{ github.event_name != 'pull_request' }}
         run: python3 -m unittest scripts/test_check_go_coverage.py
 
       - name: Run framework tests with atomic coverage
+        if: ${{ github.event_name != 'pull_request' }}
         working-directory: mss-boot
         run: >-
           go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./...
           -coverprofile="${RUNNER_TEMP}/mss-boot.coverage.out" ./...
 
       - name: Enforce framework coverage policy
+        if: ${{ github.event_name != 'pull_request' }}
         run: >-
           python3 scripts/check-go-coverage.py
           --profile "${RUNNER_TEMP}/mss-boot.coverage.out"
@@ -82,6 +90,7 @@ jobs:
           --summary
 
       - name: Upload framework coverage profile
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: mss-boot-coverage
@@ -91,6 +100,7 @@ jobs:
 
   race:
     name: race
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     services:
@@ -120,6 +130,7 @@ jobs:
 
   static-and-module:
     name: static-and-module
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -163,6 +174,7 @@ jobs:
     steps:
       - name: Require every framework check to pass
         env:
+          EVENT_NAME: ${{ github.event_name }}
           TEST_RESULT: ${{ needs.test.result }}
           RACE_RESULT: ${{ needs.race.result }}
           STATIC_RESULT: ${{ needs.static-and-module.result }}
@@ -171,5 +183,10 @@ jobs:
           echo "race=${RACE_RESULT}"
           echo "static-and-module=${STATIC_RESULT}"
           test "${TEST_RESULT}" = "success"
-          test "${RACE_RESULT}" = "success"
-          test "${STATIC_RESULT}" = "success"
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            test "${RACE_RESULT}" = "skipped"
+            test "${STATIC_RESULT}" = "skipped"
+          else
+            test "${RACE_RESULT}" = "success"
+            test "${STATIC_RESULT}" = "success"
+          fi

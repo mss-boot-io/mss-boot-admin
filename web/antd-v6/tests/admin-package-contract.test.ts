@@ -50,6 +50,8 @@ describe('Admin web package contract', () => {
         './runtime',
         './runtime/access',
         './runtime/app',
+        './runtime/presentation',
+        './runtime/presentation/client',
         './runtime/locales/en-US',
         './runtime/locales/zh-CN',
         './styles',
@@ -178,6 +180,62 @@ describe('Admin web package contract', () => {
             },
           },
         },
+      },
+    });
+  });
+
+  it('deduplicates release dependencies across initial and lazy route chunks', () => {
+    const businessPath = resolve(import.meta.dirname, '../package/business.cjs');
+    const output = execFileSync(
+      process.execPath,
+      [
+        '-e',
+        `const { defineBusinessAdmin } = require(${JSON.stringify(businessPath)});
+const path = require('node:path');
+const packageRoot = path.resolve(path.dirname(${JSON.stringify(businessPath)}), '..');
+let groups;
+const config = defineBusinessAdmin();
+const memo = {
+  plugin: () => ({ use: () => undefined }),
+  optimization: {
+    runtimeChunk: () => undefined,
+    splitChunks: (value) => { groups = value.cacheGroups; },
+  },
+};
+config.chainWebpack(memo);
+const moduleAt = (resource) => ({ nameForCondition: () => resource });
+console.log(JSON.stringify({
+  chunks: Object.fromEntries(Object.entries(groups).map(([name, value]) => [name, value.chunks])),
+  vendorMatches: {
+    packageSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'src/node_modules/fixture/page.tsx'))),
+    packageDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, 'node_modules/react/index.js'))),
+    externalDependency: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/node_modules/dayjs/index.js'))),
+    hostSource: groups.vendors.test(moduleAt(path.resolve(packageRoot, '../host/src/business/page.tsx'))),
+  },
+}));`,
+      ],
+      {
+        cwd: resolve(import.meta.dirname, '..'),
+        encoding: 'utf8',
+        env: { ...process.env, UMI_ENV: 'release' },
+      },
+    );
+    expect(JSON.parse(output)).toEqual({
+      chunks: {
+        antDesignRuntime: 'all',
+        antdRuntime: 'all',
+        applicationShell: 'all',
+        proComponents: 'all',
+        queryRuntime: 'all',
+        rcRuntime: 'all',
+        umiRuntime: 'all',
+        vendors: 'all',
+      },
+      vendorMatches: {
+        packageSource: false,
+        packageDependency: true,
+        externalDependency: true,
+        hostSource: false,
       },
     });
   });

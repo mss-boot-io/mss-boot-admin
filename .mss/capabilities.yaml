@@ -159,17 +159,28 @@ spec:
 
     - id: platform.presentation-configuration
       displayName: Governed Admin Page Presentation Configuration
-      status: planned
+      status: beta
       owners: [frontend, backend, security, agent-infrastructure]
       paths:
         - .mss/features/admin-presentation-configuration.yaml
         - .mss/features/admin-presentation-publication-workflow.yaml
+        - .mss/features/admin-presentation-complete-design.yaml
+        - .mss/features/admin-presentation-all-management-pages.yaml
+        - .mss/admin-presentation-page-inventory.yaml
+        - .mss/core-pages
         - .mss/schemas/admin-page-presentation.schema.json
+        - .mss/schemas/admin-core-page-presentation.schema.json
+        - .mss/schemas/admin-presentation-page-inventory.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
         - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
+        - docs/adr/2026-08-28-admin-presentation-complete-design.md
+        - docs/adr/2026-08-30-all-management-page-presentation-coverage.md
         - docs/docs/admin/presentation-configuration.md
+        - docs/docs/admin/presentation-complete-design.md
+        - docs/docs/admin/presentation-all-management-pages.md
       backendPaths:
         - admin/presentation
+        - admin/presentation/core
         - admin/models/presentation_profile.go
         - admin/dto/presentation_profile.go
         - admin/service/presentation_profile.go
@@ -178,21 +189,35 @@ spec:
         - admin/cmd/migrate/migration/system/20260824121000_presentation_profile_permissions.go
       frontendPaths:
         - web/antd-v6/src/shared/presentation
+        - web/antd-v6/src/generated/core-presentation-registry.generated.ts
         - web/antd-v6/src/modules/presentation-config
         - web/antd-v6/src/pages/PresentationConfig
       guidance: >-
-        P0 defines a strict data-only sparse profile over compiled page, field, data-source,
-        component, action, and permission capabilities and proves it with a non-production Supplier
-        prototype. Code defaults resolve beneath application, role, and user layers; exact definition
-        hash validation rejects stale profiles, and trusted permissions are intersected last. The
-        prototype has no production route, persistence, API, menu, migration, browser storage, or
-        generated-file replacement. The dedicated P1 contract now fixes authoritative drafts, strong
-        conditional transitions, idempotent publication, immutable history, rollback republication,
-        independent permissions, redacted audit, drift fallback, startup recovery mode, and a compiled
-        governance console, while deliberately registering no production business page. Keep this
-        capability Planned until P1 implementation and exact-Head browser evidence pass. Never add scripts,
-        HTML, SQL, transport definitions, component imports, permissions, runtime models, virtual CRUD, or
-        browser code generation to a presentation profile.
+        P0 defines strict data-only sparse profiles over compiled capabilities and P1 owns draft,
+        publication, history, rollback, adoption, and recovery. The machine route inventory classifies
+        every compiled Admin route. Foundation owns exactly fourteen built-in table-management page keys:
+        user.list, role.list, menu.list, department.list, post.list, task.list, notice.list, language.list,
+        option.list, system-config.list, online-session.list, log.login, log.audit, and log.runtime. All
+        fourteen expose only title, safe list and search presentation, density, and compiled page-size
+        choices from one source under .mss/core-pages. Supplier is a separate external business-extension
+        AdminModule and the full list/search/form/detail/action Thin Host example. It is not a Foundation
+        built-in page and never enters the Foundation core registry, built-in activePages, built-in Browser
+        acceptance matrix, completion count, or rollout waves. The deterministic generator owns the Go and
+        TypeScript definitions, canonical hashes, manifest, and registries for each source kind; handwritten
+        projections are forbidden. Runtime adapters may only select and arrange exact compiled renderers,
+        while actions, forms, details, routes, APIs, queries, permissions, row scope, secrets, task execution
+        facts, raw logs, configuration content, and session controls remain compiled and backend-authorized.
+        The exact fourteen Foundation built-ins have completed disabled and isolated-shadow qualification
+        and are now exact-allowlisted active with acceptance passed. Browser acceptance covered all fourteen
+        page keys across twelve routes, reload persistence, 390x844 user and log layouts, limited-editor
+        enforcement, Supplier compiled-default isolation, and a clean console; its screenshots remain in a
+        system temporary directory rather than the repository. Recovery always wins and newly generated
+        pages are never activated implicitly.
+        The reference Admin explicitly composes Supplier as an external business module and exposes its
+        generated route; Thin Hosts consume the packaged Foundation core registry without copying it and
+        may explicitly compose the same separately owned extension evidence. Never add scripts, HTML, SQL,
+        transport, imports, permissions, runtime models, virtual CRUD, remote components, or browser code
+        generation.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters
@@ -850,12 +875,13 @@ spec:
         - .mss/features/foundation-v1-3-5-release-recovery.yaml
         - .mss/features/foundation-v1-3-6-release.yaml
         - .mss/features/foundation-v1-3-7-release.yaml
-        - .github/workflows/foundation-compatibility.yml
+        - tools/compatibility/test-standalone-mss-consumer.sh
         - docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md
         - internal/mss/app
         - internal/mss/blueprint
         - internal/mss/doctor
         - internal/mss/mcp
+        - internal/mss/verify
         - .mss/blueprints
       guidance: >-
         v1.3.7 preserves strict Foundation, Blueprint, generator, snapshot, lock, and manifest
@@ -863,6 +889,11 @@ spec:
         embedded release source. A local --foundation path is an explicit Foundation-contributor
         override, never a consumer prerequisite. Plan remains read-only, apply is confirmed and
         conflict-free, business-owned paths are preserved, and the baseline pair is committed last.
+        The local `mss verify --all` gate owns the standalone next-Foundation generation and
+        upgrade rehearsal, CLI/MCP/doctor identity parity, deterministic conflict, empty second
+        upgrade, and eval evidence. Release qualification binds that same suite to one exact clean
+        commit with `mss verify --all --release-evidence --expect-commit <sha>`; the retired
+        Foundation compatibility workflow is not a separate release authority.
 
     - id: foundation.versioned-release
       displayName: Versioned Foundation Release Governance
@@ -931,10 +962,14 @@ spec:
         b1fe47a3a83209574e09d53526b122dd2cbc5277, but its Root image and official npm workflows
         failed and Docs was never created. It is an immutable partial train and must not be continued;
         npm recovery uses the exact Trusted Publisher binding and never restores NPM_TOKEN. The
-        reviewed active v1.3.7 version must be built from one exact clean merged-main commit and
-        first pass the candidate-only Release preview. Formal Framework, Admin, frontend, and Root
-        tags created by lwnmengjing then publish automatically; the Root tag also starts the image
-        and official npm workflows, while Docs follows later from its independent tag. Reconcile
-        public Go, npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair
-        requires a follow-up PR and a new merged-main commit; no workflow may mutate an already-public
-        Release or reuse historical evidence.
+        reviewed active v1.3.7 version must be built from one exact clean merged-main commit. Pull
+        requests keep only fast required contexts; the complete local `mss verify --all
+        --release-evidence --expect-commit <sha>` result is externally recorded against the full
+        commit and tracked-clean state. The Root candidate workflow then stages exact immutable
+        artifacts instead of replaying broad quality suites. Formal Framework, Admin, frontend, and
+        Root tags created by lwnmengjing publish automatically; the Admin release uniquely resolves
+        the exact public Framework with `GOWORK=off`, while the Root tag also starts the image and
+        official npm workflows and Docs follows later from its independent tag. Reconcile public Go,
+        npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair requires a
+        follow-up PR and a new merged-main commit; no workflow may mutate an already-public Release
+        or reuse historical evidence.

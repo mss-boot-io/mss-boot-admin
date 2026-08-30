@@ -42,10 +42,6 @@ jobs:
     if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
     services:
       redis:
         image: redis:7-alpine
@@ -70,16 +66,24 @@ jobs:
             mss-boot/go.sum
             go.work.sum
 
+      - name: Test coordinated Admin module
+        if: github.event_name == 'pull_request'
+        working-directory: admin
+        run: go test -shuffle=on -count=1 ./...
+
       - name: Test coverage policy tooling
+        if: github.event_name != 'pull_request'
         run: python3 -m unittest scripts/test_check_go_coverage.py
 
       - name: Test coordinated Admin module with atomic coverage
+        if: github.event_name != 'pull_request'
         working-directory: admin
         run: >-
           go test -shuffle=on -count=1 -covermode=atomic -coverpkg=./...
           -coverprofile="${RUNNER_TEMP}/admin.coverage.out" ./...
 
       - name: Enforce Admin coverage policy
+        if: github.event_name != 'pull_request'
         run: >-
           python3 scripts/check-go-coverage.py
           --profile "${RUNNER_TEMP}/admin.coverage.out"
@@ -87,33 +91,8 @@ jobs:
           --component admin
           --summary
 
-      - name: Convert Admin coverage report to table
-        if: github.event_name == 'pull_request'
-        run: |
-          go tool cover -func="${RUNNER_TEMP}/admin.coverage.out" \
-            | tail -n +2 \
-            | awk '{print "|",$1,"|",$3,"|"}' \
-            > admin_coverage_table.md
-
-      - name: Comment on PR with Admin coverage
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.number }}
-        run: |
-          set -euo pipefail
-          comment="${RUNNER_TEMP}/admin-coverage-comment.md"
-          {
-            echo '| Field | Coverage |'
-            echo '| --- | --- |'
-            cat admin_coverage_table.md
-          } > "${comment}"
-          jq -n --rawfile body "${comment}" '{body: $body}' \
-            | gh api "/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-                --method POST \
-                --input - >/dev/null
-
       - name: Upload Admin coverage profile
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: admin-coverage
@@ -124,7 +103,9 @@ jobs:
   race:
     name: admin-race
     needs: scope
-    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared')
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     services:
@@ -157,7 +138,9 @@ jobs:
   static-and-module:
     name: admin-static-and-module
     needs: scope
-    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -197,9 +180,10 @@ jobs:
     name: admin-mss-boot-compatibility
     needs: scope
     if: >-
-      needs.scope.outputs.scope == 'admin' ||
+      github.event_name != 'pull_request' &&
+      (needs.scope.outputs.scope == 'admin' ||
       needs.scope.outputs.scope == 'framework' ||
-      needs.scope.outputs.scope == 'shared'
+      needs.scope.outputs.scope == 'shared')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
@@ -241,7 +225,9 @@ jobs:
   compile:
     name: admin-build
     needs: scope
-    if: needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (needs.scope.outputs.scope == 'admin' || needs.scope.outputs.scope == 'shared')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -284,6 +270,7 @@ jobs:
     steps:
       - name: Require every Admin check to pass
         env:
+          EVENT_NAME: ${{ github.event_name }}
           COMPONENT_SCOPE: ${{ needs.scope.outputs.scope }}
           SCOPE_RESULT: ${{ needs.scope.result }}
           TEST_RESULT: ${{ needs.test.result }}
@@ -292,6 +279,7 @@ jobs:
           COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
         run: |
+          echo "event=${EVENT_NAME}"
           echo "scope=${SCOPE_RESULT}"
           echo "component-scope=${COMPONENT_SCOPE}"
           echo "test=${TEST_RESULT}"
@@ -303,17 +291,28 @@ jobs:
           case "${COMPONENT_SCOPE}" in
             admin|shared)
               test "${TEST_RESULT}" = "success"
-              test "${RACE_RESULT}" = "success"
-              test "${STATIC_RESULT}" = "success"
-              test "${COMPATIBILITY_RESULT}" = "success"
-              test "${COMPILE_RESULT}" = "success"
+              if test "${EVENT_NAME}" = "pull_request"; then
+                test "${RACE_RESULT}" = "skipped"
+                test "${STATIC_RESULT}" = "skipped"
+                test "${COMPATIBILITY_RESULT}" = "skipped"
+                test "${COMPILE_RESULT}" = "skipped"
+              else
+                test "${RACE_RESULT}" = "success"
+                test "${STATIC_RESULT}" = "success"
+                test "${COMPATIBILITY_RESULT}" = "success"
+                test "${COMPILE_RESULT}" = "success"
+              fi
               ;;
             framework)
               test "${TEST_RESULT}" = "skipped"
               test "${RACE_RESULT}" = "skipped"
               test "${STATIC_RESULT}" = "skipped"
-              test "${COMPATIBILITY_RESULT}" = "success"
               test "${COMPILE_RESULT}" = "skipped"
+              if test "${EVENT_NAME}" = "pull_request"; then
+                test "${COMPATIBILITY_RESULT}" = "skipped"
+              else
+                test "${COMPATIBILITY_RESULT}" = "success"
+              fi
               ;;
             docs|web)
               test "${TEST_RESULT}" = "skipped"

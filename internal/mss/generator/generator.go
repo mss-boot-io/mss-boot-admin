@@ -30,9 +30,10 @@ const (
 	moduleTemplateRevision       = "1.3.0-fullstack.2"
 	backendTemplateRevision      = "1.3.0-backend.2"
 	instructionsTemplateRevision = "1.3.0-module-instructions.1"
-	frontendV6TemplateRevision   = "1.3.0-frontend-v6.5"
+	frontendV6TemplateRevision   = "1.3.0-frontend-v6.6"
 	docsTemplateRevision         = "1.3.7-docs.1"
-	e2eV6TemplateRevision        = "1.3.0-e2e-v6.8"
+	e2eV6TemplateRevision        = "1.3.0-e2e-v6.9"
+	presentationTemplateRevision = "1.3.7-presentation-v2.2"
 )
 
 // Action describes how one output differs from the workspace.
@@ -56,14 +57,17 @@ type Options struct {
 
 // Change is one deterministic output decision.
 type Change struct {
-	Path     string `json:"path"`
-	Action   Action `json:"action"`
-	Managed  bool   `json:"managed"`
-	Bytes    int    `json:"bytes"`
-	SHA256   string `json:"sha256"`
-	Source   string `json:"source,omitempty"`
-	content  []byte
-	fileMode os.FileMode
+	Path             string `json:"path"`
+	Action           Action `json:"action"`
+	Managed          bool   `json:"managed"`
+	Bytes            int    `json:"bytes"`
+	SHA256           string `json:"sha256"`
+	Source           string `json:"source,omitempty"`
+	content          []byte
+	fileMode         os.FileMode
+	preimage         []byte
+	preimageExists   bool
+	preimageRecorded bool
 }
 
 // Plan is safe to render for humans or agents before applying writes.
@@ -220,11 +224,23 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 	if err != nil {
 		return plan, err
 	}
+	presentationOutputs, err := renderPresentationOutputs(module, data, layout)
+	if err != nil {
+		return plan, err
+	}
+	presentationEnabled := len(presentationOutputs) > 0
+	outputs = append(outputs, presentationOutputs...)
 	registryOutputs, err := renderRegistryOutputs(repository, module, frontendTarget, layout)
 	if err != nil {
 		return plan, err
 	}
 	outputs = append(outputs, registryOutputs...)
+	corePresentationOutputs, err := renderCorePresentationOutputs(repository, layout)
+	if err != nil {
+		return plan, err
+	}
+	corePresentationEnabled := len(corePresentationOutputs) > 0
+	outputs = append(outputs, corePresentationOutputs...)
 
 	plan.Changes = make([]Change, 0, len(outputs))
 
@@ -235,7 +251,18 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 		}
 		plan.Changes = append(plan.Changes, change)
 	}
-	for _, obsoletePath := range obsoleteModuleOutputPaths(module, frontendTarget, layout) {
+	if layout.Kind == layoutFoundation && !corePresentationEnabled {
+		for _, obsoletePath := range corePresentationOutputGroupPaths(layout) {
+			change, exists, err := compareObsoleteOutput(repository, obsoletePath)
+			if err != nil {
+				return plan, err
+			}
+			if exists {
+				plan.Changes = append(plan.Changes, change)
+			}
+		}
+	}
+	for _, obsoletePath := range obsoleteModuleOutputPaths(module, frontendTarget, layout, presentationEnabled) {
 		change, exists, err := compareObsoleteOutput(repository, obsoletePath)
 		if err != nil {
 			return plan, err
@@ -243,6 +270,15 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 		if exists {
 			plan.Changes = append(plan.Changes, change)
 		}
+	}
+	if err := validatePresentationOutputGroup(repository, module.Metadata.Name, layout); err != nil {
+		return plan, err
+	}
+	if err := validatePresentationRegistryOutputPair(repository, layout); err != nil {
+		return plan, err
+	}
+	if err := validateCorePresentationOutputGroup(repository, layout, corePresentationEnabled); err != nil {
+		return plan, err
 	}
 	sort.SliceStable(plan.Changes, func(i, j int) bool {
 		return plan.Changes[i].Path < plan.Changes[j].Path
@@ -262,13 +298,8 @@ func Generate(module *spec.Module, options Options) (Plan, error) {
 	}
 
 	if options.Write {
-		for _, change := range plan.Changes {
-			if change.Action == ActionUnchanged {
-				continue
-			}
-			if err := writeAtomic(repository, change); err != nil {
-				return plan, err
-			}
+		if err := applyChanges(repository, plan.Changes); err != nil {
+			return plan, err
 		}
 	}
 	return plan, nil
@@ -380,6 +411,21 @@ type templateData struct {
 	PermissionUpdatePath           string
 	PermissionDeletePath           string
 	PermissionExportPath           string
+	Presentation                   presentationTemplateData
+}
+
+type presentationTemplateData struct {
+	Enabled                     bool
+	TemplateRevision            string
+	Identifier                  string
+	PageKey                     string
+	JSONGo                      string
+	JSONPretty                  string
+	DefinitionHashTS            string
+	ViewAdapterJSONPretty       string
+	BusinessAdapterJSONPretty   string
+	QueryBindingsJSONPretty     string
+	OperationBindingsJSONPretty string
 }
 
 // ConflictError prevents the generator from replacing a user-owned file at a
@@ -390,6 +436,24 @@ type ConflictError struct {
 
 func (e *ConflictError) Error() string {
 	return "generated output conflicts with user-owned file: " + e.Path
+}
+
+// OutputGroupConflictError prevents generation from repairing only part of a
+// coordinated managed-output group. Callers must either preserve every member
+// or remove every member before regenerating the group from its source spec.
+type OutputGroupConflictError struct {
+	Group   string
+	Present []string
+	Missing []string
+}
+
+func (e *OutputGroupConflictError) Error() string {
+	return fmt.Sprintf(
+		"managed output group %s is incomplete (present: %s; missing: %s)",
+		e.Group,
+		strings.Join(e.Present, ", "),
+		strings.Join(e.Missing, ", "),
+	)
 }
 
 // MigrationIDCollisionError prevents a module migration from sharing a
@@ -577,6 +641,7 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 		UIMobile:                     module.Spec.UI.Mobile != nil && *module.Spec.UI.Mobile,
 		UIExport:                     module.Spec.UI.Export,
 		HasFrontendV6:                module.SupportsFrontendTarget(spec.FrontendTargetAntDV6),
+		Presentation:                 presentationTemplateData{Enabled: module.Spec.Presentation != nil},
 		Menu: menuData{
 			Name:                       escapeGoContent(module.Metadata.Name),
 			Path:                       escapeGoContent(module.Spec.Menu.Path),
@@ -593,6 +658,9 @@ func buildTemplateData(module *spec.Module) (templateData, error) {
 	}
 	if data.SourceSpec == "" {
 		data.SourceSpec = "module.yaml"
+	}
+	if module.Spec.Presentation != nil {
+		data.Presentation.PageKey = module.Spec.Presentation.PageKey
 	}
 	data.SourceSpecLink = data.SourceSpec
 
@@ -841,6 +909,10 @@ func mapField(module *spec.Module, field spec.FieldSpec) (fieldData, error) {
 		searchKind = "contains"
 	}
 	searchTag := "type:" + searchKind + ";column:" + field.Column
+	displayNameEn := field.DisplayNameEn
+	if displayNameEn == "" {
+		displayNameEn = titleWords(field.Name)
+	}
 	return fieldData{
 		JSONName:           field.Name,
 		Column:             field.Column,
@@ -850,7 +922,7 @@ func mapField(module *spec.Module, field spec.FieldSpec) (fieldData, error) {
 		GormTag:            gormTag,
 		SearchTag:          searchTag,
 		DisplayName:        field.DisplayName,
-		DisplayNameEn:      titleWords(field.Name),
+		DisplayNameEn:      displayNameEn,
 		SpecType:           field.Type,
 		Required:           field.Required,
 		Immutable:          field.Immutable,
@@ -1467,7 +1539,7 @@ func renderModuleOutputs(repository *os.Root, module *spec.Module, data template
 	return outputs, nil
 }
 
-func obsoleteModuleOutputPaths(module *spec.Module, frontendTarget string, layout targetLayout) []string {
+func obsoleteModuleOutputPaths(module *spec.Module, frontendTarget string, layout targetLayout, presentationEnabled bool) []string {
 	moduleDir := filepath.Join(filepath.FromSlash(layout.ModulesDir), module.Metadata.Name)
 	paths := []string{
 		filepath.ToSlash(filepath.Join(moduleDir, "controller_generated.go")),
@@ -1480,6 +1552,17 @@ func obsoleteModuleOutputPaths(module *spec.Module, frontendTarget string, layou
 	}
 	if !module.Spec.Tests.E2E {
 		paths = append(paths, filepath.ToSlash(filepath.Join(filepath.FromSlash(layout.FrontendE2EDir), module.Metadata.Name+".spec.ts")))
+	}
+	if !presentationEnabled {
+		frontendDir := filepath.Join(filepath.FromSlash(layout.GeneratedDir), "modules", module.Metadata.Name)
+		paths = append(paths,
+			filepath.ToSlash(filepath.Join(moduleDir, "presentation_generated.go")),
+			filepath.ToSlash(filepath.Join(moduleDir, "presentation_generated_test.go")),
+			filepath.ToSlash(filepath.Join(moduleDir, "presentation_manifest.generated.json")),
+			filepath.ToSlash(filepath.Join(frontendDir, "presentation.generated.ts")),
+			filepath.ToSlash(filepath.Join(frontendDir, "presentation.generated.test.ts")),
+			filepath.ToSlash(filepath.Join(frontendDir, "presentation.adapter.generated.tsx")),
+		)
 	}
 	return paths
 }
@@ -1598,6 +1681,11 @@ func renderRegistryOutputs(repository *os.Root, current *spec.Module, frontendTa
 			fileMode: 0o644,
 		},
 	)
+	presentationRegistryOutputs, err := renderPresentationRegistryOutputs(modules, layout)
+	if err != nil {
+		return nil, err
+	}
+	outputs = append(outputs, presentationRegistryOutputs...)
 	return outputs, nil
 }
 
@@ -1703,7 +1791,10 @@ func moduleLocaleEntries(module *spec.Module, locale string) []localeEntry {
 	for _, field := range module.Spec.Entity.Fields {
 		label := field.DisplayName
 		if locale == "en-US" {
-			label = titleWords(field.Name)
+			label = field.DisplayNameEn
+			if label == "" {
+				label = titleWords(field.Name)
+			}
 		}
 		entries = append(entries, localeEntry{key: prefix + "fields." + field.Name, value: label})
 		if field.Required {
@@ -1939,7 +2030,11 @@ func renderLocales(modules []*spec.Module) (string, string) {
 		for _, field := range module.Spec.Entity.Fields {
 			fieldKey := "module." + module.Metadata.Name + ".field." + field.Name
 			fmt.Fprintf(&zhCN, "  %s: %s,\n", tsQuote(fieldKey), tsQuote(field.DisplayName))
-			fmt.Fprintf(&enUS, "  %s: %s,\n", tsQuote(fieldKey), tsQuote(field.DisplayName))
+			englishFieldName := field.DisplayNameEn
+			if englishFieldName == "" {
+				englishFieldName = titleWords(field.Name)
+			}
+			fmt.Fprintf(&enUS, "  %s: %s,\n", tsQuote(fieldKey), tsQuote(englishFieldName))
 		}
 	}
 	zhCN.WriteString("};\n")
@@ -1955,7 +2050,7 @@ func compareOutput(repository *os.Root, candidate output) (Change, error) {
 	action := ActionCreate
 	existing, readErr := repository.ReadFile(relative)
 	if readErr == nil {
-		if candidate.managed && !bytes.Contains(existing, []byte(generatedMarker)) {
+		if candidate.managed && !sameGeneratedArtifactKind(existing, candidate.content) {
 			return Change{}, &ConflictError{Path: filepath.ToSlash(candidate.path)}
 		}
 		action = ActionUpdate
@@ -1966,15 +2061,19 @@ func compareOutput(repository *os.Root, candidate output) (Change, error) {
 		return Change{}, fmt.Errorf("read existing output %s: %w", candidate.path, readErr)
 	}
 	digest := sha256.Sum256(candidate.content)
+	preimageExists := readErr == nil
 	return Change{
-		Path:     filepath.ToSlash(candidate.path),
-		Action:   action,
-		Managed:  candidate.managed,
-		Bytes:    len(candidate.content),
-		SHA256:   hex.EncodeToString(digest[:]),
-		Source:   candidate.source,
-		content:  candidate.content,
-		fileMode: candidate.fileMode,
+		Path:             filepath.ToSlash(candidate.path),
+		Action:           action,
+		Managed:          candidate.managed,
+		Bytes:            len(candidate.content),
+		SHA256:           hex.EncodeToString(digest[:]),
+		Source:           candidate.source,
+		content:          candidate.content,
+		fileMode:         candidate.fileMode,
+		preimage:         bytes.Clone(existing),
+		preimageExists:   preimageExists,
+		preimageRecorded: true,
 	}, nil
 }
 
@@ -1990,18 +2089,74 @@ func compareObsoleteOutput(repository *os.Root, path string) (Change, bool, erro
 	if err != nil {
 		return Change{}, false, fmt.Errorf("read obsolete generated output %s: %w", path, err)
 	}
-	if !bytes.Contains(existing, []byte(generatedMarker)) {
+	if !recognizedGeneratedArtifactForPath(path, existing) {
 		return Change{}, false, &ConflictError{Path: filepath.ToSlash(path)}
 	}
 	digest := sha256.Sum256(existing)
 	return Change{
-		Path:    filepath.ToSlash(path),
-		Action:  ActionDelete,
-		Managed: true,
-		Bytes:   len(existing),
-		SHA256:  hex.EncodeToString(digest[:]),
-		Source:  "obsolete generated output",
+		Path:             filepath.ToSlash(path),
+		Action:           ActionDelete,
+		Managed:          true,
+		Bytes:            len(existing),
+		SHA256:           hex.EncodeToString(digest[:]),
+		Source:           "obsolete generated output",
+		preimage:         bytes.Clone(existing),
+		preimageExists:   true,
+		preimageRecorded: true,
 	}, true, nil
+}
+
+func applyChanges(repository *os.Root, changes []Change) error {
+	// Revalidate every planned managed mutation before the first filesystem
+	// change. This prevents a late conflict from leaving an earlier output
+	// updated, created, or deleted.
+	for _, change := range changes {
+		if err := preflightManagedChange(repository, change); err != nil {
+			return err
+		}
+	}
+	for _, change := range changes {
+		if change.Action == ActionUnchanged {
+			continue
+		}
+		if err := writeAtomic(repository, change); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func preflightManagedChange(repository *os.Root, change Change) error {
+	if !change.Managed {
+		return nil
+	}
+	if !change.preimageRecorded {
+		return fmt.Errorf("managed output %s has no recorded preimage", change.Path)
+	}
+	relative, err := rootedName(change.Path)
+	if err != nil {
+		return err
+	}
+	existing, readErr := repository.ReadFile(relative)
+	if !change.preimageExists {
+		if errors.Is(readErr, os.ErrNotExist) {
+			return nil
+		}
+		if readErr != nil {
+			return fmt.Errorf("revalidate managed output %s: %w", change.Path, readErr)
+		}
+		return &ConflictError{Path: change.Path}
+	}
+	if errors.Is(readErr, os.ErrNotExist) {
+		return &ConflictError{Path: change.Path}
+	}
+	if readErr != nil {
+		return fmt.Errorf("revalidate managed output %s: %w", change.Path, readErr)
+	}
+	if !bytes.Equal(existing, change.preimage) {
+		return &ConflictError{Path: change.Path}
+	}
+	return nil
 }
 
 func writeAtomic(repository *os.Root, change Change) error {
@@ -2009,17 +2164,14 @@ func writeAtomic(repository *os.Root, change Change) error {
 	if err != nil {
 		return err
 	}
+	// Keep the exact preimage check next to the mutation as well as in the
+	// all-change preflight. The second check closes the per-path race window
+	// without weakening the zero-write guarantee for conflicts already present
+	// when application begins.
+	if err := preflightManagedChange(repository, change); err != nil {
+		return err
+	}
 	if change.Action == ActionDelete {
-		existing, readErr := repository.ReadFile(relative)
-		if errors.Is(readErr, os.ErrNotExist) {
-			return nil
-		}
-		if readErr != nil {
-			return fmt.Errorf("read obsolete generated output %s before delete: %w", change.Path, readErr)
-		}
-		if !bytes.Contains(existing, []byte(generatedMarker)) {
-			return &ConflictError{Path: change.Path}
-		}
 		if err := repository.Remove(relative); err != nil {
 			return fmt.Errorf("delete obsolete generated output %s: %w", change.Path, err)
 		}
@@ -2064,6 +2216,91 @@ func writeAtomic(repository *os.Root, change Change) error {
 		return fmt.Errorf("replace output %s: %w", change.Path, err)
 	}
 	return nil
+}
+
+func sameGeneratedArtifactKind(existing, candidate []byte) bool {
+	existingKind, existingOK := generatedArtifactKind(existing)
+	candidateKind, candidateOK := generatedArtifactKind(candidate)
+	return existingOK && candidateOK && existingKind == candidateKind
+}
+
+func recognizedGeneratedArtifactForPath(path string, content []byte) bool {
+	kind, ok := generatedArtifactKind(content)
+	if !ok {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".go", ".js", ".jsx", ".ts", ".tsx":
+		return kind == "slash-comment"
+	case ".json":
+		return kind == "json-metadata"
+	case ".md", ".mdx":
+		return kind == "html-comment"
+	case ".yaml", ".yml", ".sh", ".feature":
+		return kind == "hash-comment"
+	case ".sql":
+		return kind == "dash-comment"
+	default:
+		return true
+	}
+}
+
+func generatedArtifactKind(content []byte) (string, bool) {
+	if marker, ok := generatedMarkdownFrontMatterMarker(content); ok && validGeneratedMarkerText(marker) {
+		return "html-comment", true
+	}
+	firstLine := content
+	if index := bytes.IndexByte(firstLine, '\n'); index >= 0 {
+		firstLine = firstLine[:index]
+	}
+	firstLine = bytes.TrimSuffix(firstLine, []byte{'\r'})
+	line := string(firstLine)
+	for prefix, kind := range map[string]string{
+		"// ": "slash-comment",
+		"# ":  "hash-comment",
+		"-- ": "dash-comment",
+	} {
+		if strings.HasPrefix(line, prefix) && validGeneratedMarkerText(strings.TrimPrefix(line, prefix)) {
+			return kind, true
+		}
+	}
+	if strings.HasPrefix(line, "<!-- ") && strings.HasSuffix(line, " -->") {
+		marker := strings.TrimSuffix(strings.TrimPrefix(line, "<!-- "), " -->")
+		if validGeneratedMarkerText(marker) {
+			return "html-comment", true
+		}
+	}
+	var metadata struct {
+		Generated string `json:"$generated"`
+	}
+	if json.Unmarshal(content, &metadata) == nil && validGeneratedMarkerText(metadata.Generated) {
+		return "json-metadata", true
+	}
+	return "", false
+}
+
+func generatedMarkdownFrontMatterMarker(content []byte) (string, bool) {
+	normalized := string(normalizeNewline(content))
+	if !strings.HasPrefix(normalized, "---\n") {
+		return "", false
+	}
+	closing := strings.Index(normalized[len("---\n"):], "\n---\n")
+	if closing < 0 {
+		return "", false
+	}
+	remainder := normalized[len("---\n")+closing+len("\n---\n"):]
+	remainder = strings.TrimLeft(remainder, "\n")
+	line, _, _ := strings.Cut(remainder, "\n")
+	if !strings.HasPrefix(line, "<!-- ") || !strings.HasSuffix(line, " -->") {
+		return "", false
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(line, "<!-- "), " -->"), true
+}
+
+func validGeneratedMarkerText(value string) bool {
+	return strings.HasPrefix(value, generatedMarker) &&
+		strings.HasSuffix(value, "DO NOT EDIT.") &&
+		!strings.ContainsAny(value, "\r\n")
 }
 
 func createRootTemp(repository *os.Root, directory string, mode os.FileMode) (*os.File, string, error) {

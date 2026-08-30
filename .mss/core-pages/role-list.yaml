@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: role-list
+spec:
+  binding: administration.roles
+  pageKey: role.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 角色管理
+    en-US: Roles
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [name, status]
+  form: []
+  detail: []
+  actions: []

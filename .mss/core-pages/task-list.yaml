@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: task-list
+spec:
+  binding: operations.tasks
+  pageKey: task.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 任务调度
+    en-US: Task scheduler
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [name, status]
+  form: []
+  detail: []
+  actions: []

@@ -2,20 +2,6 @@ name: Container Image
 run-name: ${{ inputs.release_preview == true && format('Root Image candidate {0}', inputs.version) || format('Container Image {0}', github.ref_name) }}
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'admin/**'
-      - 'mss-boot/**'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - 'templates/**'
-      - 'Dockerfile'
-      - '.dockerignore'
-      - '.github/workflows/container.yml'
   push:
     branches:
       - main
@@ -48,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.event.pull_request.number || github.ref }}
+  group: container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.ref }}
   cancel-in-progress: ${{ inputs.release_preview != true && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
@@ -228,7 +214,7 @@ jobs:
             type=sha,prefix=,format=long,enable=true,priority=100
 
       - name: Build candidate image
-        if: github.ref_type != 'tag'
+        if: github.ref_type != 'tag' && inputs.release_preview != true
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
@@ -253,7 +239,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=admin-image
 
       - name: Smoke-test candidate image
-        if: github.ref_type != 'tag'
+        if: github.ref_type != 'tag' && inputs.release_preview != true
         env:
           IMAGE: ${{ steps.build-info.outputs.local-tag }}
           EXPECTED_VERSION: ${{ steps.build-info.outputs.version }}
@@ -349,6 +335,17 @@ jobs:
                .config.Labels["org.opencontainers.image.revision"] == $commit' \
               <<< "${config}" >/dev/null
           done
+
+          smoke_image="mss-boot-admin-preview:${GITHUB_SHA}"
+          skopeo copy \
+            --override-os linux \
+            --override-arch amd64 \
+            "oci-archive:${source_archive}" \
+            "docker-daemon:${smoke_image}"
+          output="$(docker run --rm "${smoke_image}" --version)"
+          [[ "${output}" == *"${RELEASE_VERSION}"* ]]
+          [[ "${output}" == *"${GITHUB_SHA}"* ]]
+          docker image rm -f "${smoke_image}" >/dev/null
 
           mkdir -p "${artifact_dir}"
           install -m 0644 "${source_archive}" "${artifact_dir}/root-image.oci.tar"

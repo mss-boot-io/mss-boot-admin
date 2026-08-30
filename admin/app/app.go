@@ -13,6 +13,8 @@ import (
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	compatcmd "github.com/mss-boot-io/mss-boot-admin/admin/cmd"
 	internalcmd "github.com/mss-boot-io/mss-boot-admin/admin/internal/cmd"
+	"github.com/mss-boot-io/mss-boot-admin/admin/presentation"
+	corepresentation "github.com/mss-boot-io/mss-boot-admin/admin/presentation/core"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration"
 )
 
@@ -67,7 +69,11 @@ func New(applicationOptions ...Option) (*Application, error) {
 			return nil, fmt.Errorf("apply Admin application option %d: %w", index, err)
 		}
 	}
-	registry, err := business.Compose(migration.Migrate, configuration.modules...)
+	registry, err := business.ComposeWithPresentations(
+		migration.Migrate,
+		corepresentation.Definitions(),
+		configuration.modules...,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("compose Admin business modules: %w", err)
 	}
@@ -81,6 +87,19 @@ func (application *Application) BusinessDescriptors() []business.Descriptor {
 		return nil
 	}
 	return application.registry.Descriptors()
+}
+
+// PresentationDefinitions returns defensive copies of the complete frozen
+// application inventory, including both core and composed business pages.
+func (application *Application) PresentationDefinitions() []presentation.CapabilityDefinition {
+	if application == nil || application.registry == nil {
+		return nil
+	}
+	registry, err := application.registry.PresentationRegistry()
+	if err != nil {
+		return nil
+	}
+	return registry.List()
 }
 
 // Command preserves the v1.3.0 source signature but never exposes the real

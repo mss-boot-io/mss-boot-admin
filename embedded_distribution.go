@@ -9,7 +9,7 @@ import "embed"
 // all: prefix is required because Thin Host contracts include dot-directories
 // and dotfiles such as .mss, .github, .gitignore, and web/.npmrc.
 //
-//go:embed .mss/blueprints/management-system.yaml all:templates/application
+//go:embed .mss/admin-presentation-catalog.yaml .mss/schemas/admin-presentation-catalog.schema.json .mss/blueprints/management-system.yaml all:templates/application
 var embeddedDistribution embed.FS
 
 // EmbeddedFS returns the immutable read-only Distribution source compiled into

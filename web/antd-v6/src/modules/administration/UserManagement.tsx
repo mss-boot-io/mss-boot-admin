@@ -4,6 +4,11 @@ import {
   type ManagementRouteIntent,
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -17,16 +22,23 @@ import {
   administrationReferenceName,
   administrationSelectOptions,
   flattenAdministrationTree,
+  isAdminPageSize,
   type UserSummary,
   type UserWriteValues,
 } from './contract';
 import { useAdministrationCatalog, useAdministrationPage } from './query';
+import {
+  userPresentationListComponents,
+  userPresentationMobileFields,
+  userPresentationSearchComponents,
+} from './userPresentation';
 
 interface UserManagementProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
   canResetPassword: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -41,12 +53,17 @@ export default function UserManagement({
   canDelete,
   canEdit,
   canResetPassword,
+  presentationRuntime,
   routeIntent,
 }: UserManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const users = useAdministrationPage('users', params);
   const roles = useAdministrationCatalog('roles');
   const departments = useAdministrationCatalog('departments');
@@ -148,7 +165,7 @@ export default function UserManagement({
     },
   });
 
-  const columns: TableColumnsType<UserSummary> = [
+  const compiledColumns: TableColumnsType<UserSummary> = [
     {
       title: intl.formatMessage({ id: 'user.field.account' }),
       dataIndex: 'username',
@@ -175,7 +192,7 @@ export default function UserManagement({
     },
     {
       title: intl.formatMessage({ id: 'user.field.role' }),
-      key: 'role',
+      key: 'roleName',
       width: 150,
       render: (_, user) => administrationReferenceName(user.role, user.roleID, roleNamesByID),
     },
@@ -248,17 +265,35 @@ export default function UserManagement({
     },
   ];
 
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: userPresentationListComponents,
+    mobileColumnKeys: [...userPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: userPresentationSearchComponents,
+  });
+  const nameSearch = tablePresentation.searchFields.get('name') ?? null;
+  const statusSearch = tablePresentation.searchFields.get('status') ?? null;
+
   const dependencyError = roles.error || departments.error || posts.error;
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'user.empty' })}
+        nameSearch={nameSearch}
         params={params}
         query={users}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
         setParams={setParams}
-        mobileColumnKeys={['username', 'name', 'role', 'status', 'actions']}
+        statusSearch={statusSearch}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

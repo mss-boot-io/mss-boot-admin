@@ -1,0 +1,232 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-presentation-generation
+  displayName: Admin presentation deterministic generation
+  description: >-
+    Implements the P2A contract for one optional AdminModule presentation source, an embedded
+    Foundation catalog, one version 2 normalized capability manifest and hash, paired Go and
+    TypeScript projections, generated adapter metadata, and deterministic registry snapshots.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: presentation
+    phase: p2a-generation
+spec:
+  problem: >-
+    P0 and P1 prove safe profile resolution and governed publication, but production pages still
+    have no deterministic capability source. The handwritten Supplier fixture is not equivalent to
+    the compiled page, version 1 hashes exclude complete defaults, and no machine catalog binds
+    component identifiers or query limits. P2A must create one strict generation contract without
+    registering or activating a production page.
+  goals:
+    - Add one optional spec.presentation section to AdminModule while preserving modules that omit it.
+    - Embed one Foundation-owned catalog for component compatibility and compiled pagination or sorting limits.
+    - Normalize one version 2 manifest whose exact canonical hash includes complete defaults and trusted capability facts.
+    - Generate paired backend, frontend, adapter, manifest-snapshot, and registry-index artifacts from that manifest.
+    - Replace the handwritten Supplier definition as source of truth with a production-equivalent generated projection.
+    - Prove schema, semantic, canonical, parity, cleanup, confinement, and two-run idempotency behavior.
+  nonGoals:
+    - Register generated Supplier capability in the production backend registry.
+    - Import a presentation registry or effective-profile hook from the Supplier production route.
+    - Add adoption configuration, disabled, shadow, active, recovery, or effective-layer runtime behavior.
+    - Add a visual editor, drag-and-drop controls, profile publication changes, or profile database migrations.
+    - Add routes, HTTP methods, query parameter names, permissions, component implementations, handlers, scripts, markup, or SQL to presentation source.
+    - Tag, release, publish npm packages, or create container images.
+  actors:
+    - id: module-author
+      displayName: AdminModule author
+      description: Declares complete safe presentation defaults using local stable references.
+    - id: platform-maintainer
+      displayName: Admin platform maintainer
+      description: Maintains the catalog, normalizer, generator, and parity gates.
+    - id: security-reviewer
+      displayName: Presentation security reviewer
+      description: Verifies that generated data cannot replace compiled transport, authorization, or executable adapters.
+  modules:
+    - name: presentation-catalog
+      kind: infrastructure
+      operation: create
+      description: Embedded version 2 component compatibility and bounded query-capability facts.
+    - name: admin-module-presentation-spec
+      kind: infrastructure
+      operation: extend
+      description: Optional strict AdminModule presentation schema, types, normalization, and semantic validation.
+    - name: presentation-generator
+      kind: infrastructure
+      operation: extend
+      description: One canonical manifest and deterministic paired projections with cleanup and registry indexes.
+    - name: supplier
+      kind: admin-module
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: First production-equivalent generated capability fixture, staged but not registered or activated.
+  requirements:
+    - id: define-version-two-catalog
+      title: Define one embedded version 2 catalog
+      description: Component identifiers and query constraints have one machine-readable Foundation source.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-catalog
+      rules:
+        - .mss/admin-presentation-catalog.yaml and its strict schema are embedded into the released mss distribution.
+        - The initial catalog contains only reviewed Supplier component, field-type, format, and surface combinations.
+        - Supplier list capability fixes pageSizeOptions to 20, 50, and 100, maxPageSize to 100, and maxSortFields to 1.
+        - Semantic validation fails closed for an unknown component, incompatible type, format, or surface, and an unsupported page-size or sort declaration.
+        - Frontend implementation inventory is not configurable data and later must match the catalog through a separate static build gate.
+    - id: validate-optional-presentation-source
+      title: Validate one strict optional AdminModule section
+      description: Presentation source references only facts already authorized by the module contract.
+      priority: must
+      actor: module-author
+      module: admin-module-presentation-spec
+      rules:
+        - Omission preserves existing generation and emits no presentation capability or registry entry.
+        - pageKey is explicit, globally unique across discovered modules, stable, and rejected when protected.
+        - definitionVersion must be 2 for the first generated contract because version 1 used a different hash interpretation.
+        - Data-source and action source values are unqualified local identifiers without dots and normalize to <module>.<local-id>.
+        - Fields resolve to declared entity fields or generated read-only id and timestamp response fields.
+        - Defaults are complete for every declared surface, required form fields remain visible, and sort, filter, component, action placement, pagination, and layout declarations are capability-compatible.
+        - Unknown properties, duplicate references, duplicate stable identifiers, executable or transport properties, and editable permission strings are rejected before generation.
+    - id: normalize-and-hash-one-manifest
+      title: Normalize and hash one complete manifest
+      description: Every projection uses the same semantic object and exact definition identity.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-generator
+      rules:
+        - The normalizer derives labels, value types, required state, field surfaces, component allowlists, data-source permissions and limits, action permissions, destructive flags, and complete defaults from trusted inputs.
+        - Fields and actions order by declared order then stable identifier, capability inventories order by stable identifier, and default sort preserves semantic precedence.
+        - Canonical JSON sorts fixed ASCII property names, preserves normalized arrays, emits UTF-8 JSON without HTML-only escaping, uses bounded integers only, and omits only definitionHash and nonsemantic generation provenance.
+        - SHA-256 covers the complete normalized capability including title, layout, fields, components, permissions, pagination, sorting, actions, and defaults.
+        - Unicode, ampersand, angle-bracket, property-order, array-order, empty-collection, and changed-default golden vectors produce identical Go and TypeScript bytes and hashes.
+    - id: emit-paired-generated-artifacts
+      title: Emit paired owned projections and indexes
+      description: An enabled presentation page can never have only one language projection or a handwritten duplicate manifest.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-generator
+      rules:
+        - Backend definition, frontend serializable definition, pure view adapter metadata, effectful business binding metadata, and data-only normalized snapshot come from one in-memory manifest.
+        - Deterministic backend and frontend registry indexes contain the same sorted page inventory and exact hashes but are not imported by production composition in P2A.
+        - Generated headers name the canonical repository-relative AdminModule source and generator revision without absolute paths or timestamps.
+        - Removing spec.presentation deletes only recognized generated presentation artifacts and preserves user-owned files.
+        - Missing, stale, conflicting, symlink-escaped, or one-sided outputs fail closed before any partial write.
+        - Dry-run, check, write, obsolete cleanup, path confinement, and a second write with zero changes are covered by focused tests.
+    - id: preserve-supplier-runtime-parity
+      title: Stage Supplier without changing production behavior
+      description: The first generated manifest represents the current page but P2A does not activate it.
+      priority: must
+      actor: security-reviewer
+      module: supplier
+      rules:
+        - Supplier keeps pageKey supplier.list, version 2, large density, page size 20 from 20/50/100, no initial sort, and expanded search.
+        - Search exposes keyword through the compiled code-to-q binding plus country, creditLevel, and three-state enabled controls.
+        - Form and detail remain single-column; detail includes generated read-only id, createdAt, and updatedAt fields.
+        - Toolbar order remains export then create, row actions remain read, update, delete, and delete stays destructive with compiled confirmation behavior.
+        - Current route, API, query encoding, CRUD, export, permissions, validators, locales, responsive layout, loading, empty, error, forbidden, not-found, and conflict states remain unchanged.
+        - SupplierPage and application composition do not import or consume generated presentation registry outputs in P2A.
+  constraints:
+    - id: compiled-authority
+      type: security
+      statement: Presentation source and generated serializable definitions cannot carry routes, transport, query encoders, permissions, handlers, imports, executable code, SQL, or component implementations.
+    - id: paired-projection
+      type: compatibility
+      statement: Backend, frontend, snapshot, and registry identities originate from one normalized manifest and must never be updated independently.
+    - id: no-runtime-adoption
+      type: operations
+      statement: P2A changes no database, API, menu, production registry composition, effective-profile request, page route, adoption mode, or active page.
+    - id: generated-ownership
+      type: compatibility
+      statement: Generator-owned files are never hand-edited and cleanup cannot delete an unrecognized or user-owned file.
+    - id: exact-version-two-hash
+      type: compatibility
+      statement: Version 2 hashes complete defaults and query constraints; version 1 fixtures are historical evidence and are not reused as generated identities.
+    - id: no-publication
+      type: operations
+      statement: This checkpoint creates no tag, GitHub Release, npm publication, Go publication, or container image.
+  acceptance:
+    - id: catalog-contract-gate
+      requirement: define-version-two-catalog
+      statement: Catalog schema, embed, inventory, compatibility, pagination, and sorting limit tests pass.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec presentation catalog suites
+    - id: module-schema-semantic-gate
+      requirement: validate-optional-presentation-source
+      statement: AdminModule schema and semantic tests cover omission, complete valid Supplier, unknown fields, protected and duplicate page keys, local references, derived fields, components, required form fields, pagination, sort, and action placement.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec AdminModule presentation suites
+    - id: canonical-hash-parity-gate
+      requirement: normalize-and-hash-one-manifest
+      statement: Golden canonical bytes and hashes match across Go and TypeScript and change for every normalized semantic or default mutation.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/generator and web/antd-v6 generated presentation parity suites
+    - id: generator-ownership-gate
+      requirement: emit-paired-generated-artifacts
+      statement: Dry-run, write, check, paired output, registry inventory, snapshot, conflict, cleanup, confinement, and two-run idempotency tests pass.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/generator presentation output suites
+        - type: command
+          value: go run ./cmd/mss module generate .mss/modules/example-supplier.yaml --frontend-target antd-v6 --check
+    - id: supplier-staging-parity-gate
+      requirement: preserve-supplier-runtime-parity
+      statement: Generated Supplier Go and TypeScript definitions share one version 2 identity, match current compiled defaults, and remain absent from production route and application imports.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/supplier and web/antd-v6 generated Supplier presentation suites
+        - type: command
+          value: corepack pnpm@10.34.5 --dir web/antd-v6 tsc
+    - id: p2a-changed-verification
+      requirement: emit-paired-generated-artifacts
+      statement: The P2A FeatureSpec validates, docs build, generated drift check, focused Go and frontend tests, and changed-scope verification pass on one exact Head.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-presentation-generation.yaml --format json
+        - type: command
+          value: go run ./cmd/mss verify --changed
+  risks:
+    - id: source-and-runtime-drift
+      description: A generated default may look complete while differing from the current compiled Supplier behavior.
+      severity: high
+      mitigation: Encode exact production-equivalent defaults, keep P2A disconnected from routes, and require explicit parity tests before P2C.
+    - id: cross-language-canonical-drift
+      description: Go and TypeScript may escape strings or order objects differently and silently produce different identities.
+      severity: high
+      mitigation: Hash once from normalized canonical bytes, embed the result in both projections, and maintain cross-language hostile-string golden vectors.
+    - id: cleanup-removes-owned-code
+      description: Optional presentation removal could delete a custom adapter or unrelated module file.
+      severity: high
+      mitigation: Delete only exact generated paths containing the generated ownership marker and test conflicts before writes.
+    - id: transport-range-mismatch
+      description: A globally valid page size or sort list may exceed what the compiled Supplier query contract can encode.
+      severity: high
+      mitigation: Derive bounded data-source facts, validate profile values against them, and keep parameter encoding in compiled adapters.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+  rollout:
+    strategy: phased
+    migration: No database migration; generated capability remains staged and disconnected from production registries and routes.
+    rollback: Remove spec.presentation through a reviewed follow-up and regenerate; cleanup removes only recognized generated presentation artifacts.

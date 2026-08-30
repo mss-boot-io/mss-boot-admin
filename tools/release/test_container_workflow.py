@@ -108,7 +108,7 @@ class ContainerWorkflowTest(unittest.TestCase):
     def test_root_tag_container_run_does_not_share_the_root_release_lock(self):
         self.assertEqual(
             self.workflow["concurrency"]["group"],
-            "container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.event.pull_request.number || github.ref }}",
+            "container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.ref }}",
         )
         self.assertEqual(
             self.workflow["concurrency"]["cancel-in-progress"],
@@ -120,7 +120,7 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertNotIn("foundation-release-${{ github.ref }}", root_content)
         self.assertNotIn("foundation-release-{0}", self.content)
 
-    def test_root_preview_qualifies_amd64_smoke_and_both_release_platforms(self):
+    def test_pr_smokes_amd64_while_root_preview_builds_and_smokes_one_exact_multiarch_artifact(self):
         build_steps = self.jobs["build"]["steps"]
         build_info = next(step for step in build_steps if step.get("id") == "build-info")
         for required in (
@@ -197,6 +197,10 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertEqual(build_image["with"]["push"], "false")
         self.assertEqual(build_image["with"]["load"], "true")
         self.assertEqual(build_image["with"]["platforms"], "linux/amd64")
+        self.assertEqual(
+            build_image["if"],
+            "github.ref_type != 'tag' && inputs.release_preview != true",
+        )
         self.assertFalse(
             any(
                 step.get("uses", "").startswith("docker/login-action@")
@@ -207,7 +211,10 @@ class ContainerWorkflowTest(unittest.TestCase):
         smoke = next(
             step for step in build_steps if step.get("name") == "Smoke-test candidate image"
         )
-        self.assertEqual(smoke["if"], "github.ref_type != 'tag'")
+        self.assertEqual(
+            smoke["if"],
+            "github.ref_type != 'tag' && inputs.release_preview != true",
+        )
         for label in (
             "org.opencontainers.image.title=mss-boot-admin",
             "org.opencontainers.image.description=Complete Go Admin backend for the mss-boot agent-native management-system distribution.",
@@ -249,6 +256,12 @@ class ContainerWorkflowTest(unittest.TestCase):
             '.platform.architecture == "amd64"',
             '.platform.architecture == "arm64"',
             'inspect --config "oci-archive:${source_archive}"',
+            'skopeo copy',
+            '--override-arch amd64',
+            '"docker-daemon:${smoke_image}"',
+            'docker run --rm "${smoke_image}" --version',
+            '[[ "${output}" == *"${RELEASE_VERSION}"* ]]',
+            '[[ "${output}" == *"${GITHUB_SHA}"* ]]',
             'org.opencontainers.image.title"] == "mss-boot-admin"',
             'org.opencontainers.image.version"] == $version',
             'org.opencontainers.image.revision"] == $commit',
@@ -283,18 +296,28 @@ class ContainerWorkflowTest(unittest.TestCase):
         self.assertEqual(upload["with"]["if-no-files-found"], "error")
         self.assertEqual(upload["with"]["compression-level"], "0")
 
-        non_tag_ci_steps = {
+        non_tag_setup_steps = {
             "Setup Go",
             "Vendor workspace for Docker context",
             "Set up Docker Buildx",
             "Extract Docker metadata",
+        }
+        for step in build_steps:
+            if step.get("name") in non_tag_setup_steps:
+                with self.subTest(step=step["name"]):
+                    self.assertEqual(step["if"], "github.ref_type != 'tag'")
+
+        non_preview_ci_steps = {
             "Build candidate image",
             "Smoke-test candidate image",
         }
         for step in build_steps:
-            if step.get("name") in non_tag_ci_steps:
+            if step.get("name") in non_preview_ci_steps:
                 with self.subTest(step=step["name"]):
-                    self.assertEqual(step["if"], "github.ref_type != 'tag'")
+                    self.assertEqual(
+                        step["if"],
+                        "github.ref_type != 'tag' && inputs.release_preview != true",
+                    )
 
         root_preview_only_steps = {
             "Set up QEMU",

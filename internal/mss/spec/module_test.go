@@ -109,6 +109,28 @@ func TestModuleValidationRejectsUnsafeOrAmbiguousEvents(t *testing.T) {
 	}
 }
 
+func TestModuleValidationEnforcesSchemaFieldNameLimit(t *testing.T) {
+	module := validModule()
+	module.Spec.Entity.Fields[0].Name = "a" + strings.Repeat("b", 64)
+	for _, issue := range module.Validate() {
+		if issue.Code == "invalid-field-name" && issue.Path == "spec.entity.fields[0].name" {
+			return
+		}
+	}
+	t.Fatal("Validate() accepted a field name longer than the AdminModule schema limit")
+}
+
+func TestModuleValidationEnforcesEnglishFieldDisplayNameLimit(t *testing.T) {
+	module := validModule()
+	module.Spec.Entity.Fields[0].DisplayNameEn = strings.Repeat("A", 101)
+	for _, issue := range module.Validate() {
+		if issue.Code == "invalid-display-name" && issue.Path == "spec.entity.fields[0].displayNameEn" {
+			return
+		}
+	}
+	t.Fatal("Validate() accepted an English field display name longer than the AdminModule schema limit")
+}
+
 func TestModuleNormalizeDerivesStableDefaults(t *testing.T) {
 	module := validModule()
 	module.Spec.Entity.GoName = ""

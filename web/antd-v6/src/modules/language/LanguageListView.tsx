@@ -12,6 +12,12 @@ import {
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
 import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, useIntl } from '@umijs/max';
@@ -41,11 +47,17 @@ import {
 } from './contract';
 import LanguageDetailDrawer from './LanguageDetailDrawer';
 import { useLanguagePage } from './query';
+import {
+  languagePresentationListComponents,
+  languagePresentationMobileFields,
+  languagePresentationSearchComponents,
+} from './tablePresentation';
 
 interface LanguageListViewProps {
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
 }
 
 interface LanguageFilterValues {
@@ -59,12 +71,22 @@ const initialParams: LanguageListParams = {
   status: 'all',
 };
 
-export default function LanguageListView({ canCreate, canDelete, canEdit }: LanguageListViewProps) {
+export default function LanguageListView({
+  canCreate,
+  canDelete,
+  canEdit,
+  presentationRuntime,
+}: LanguageListViewProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
   const [form] = Form.useForm<LanguageFilterValues>();
-  const [params, setParams] = useState<LanguageListParams>(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isLanguagePageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const [detailID, setDetailID] = useState<string>();
   const languages = useLanguagePage(params);
   const remove = useMutation({
@@ -91,7 +113,7 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
       timeStyle: 'medium',
     }).format(new Date(value));
 
-  const columns: TableColumnsType<LanguageSummary> = [
+  const compiledColumns: TableColumnsType<LanguageSummary> = [
     {
       title: intl.formatMessage({ id: 'language.field.name' }),
       dataIndex: 'name',
@@ -171,6 +193,18 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isLanguagePageSize,
+    listComponents: languagePresentationListComponents,
+    mobileColumnKeys: [...languagePresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: languagePresentationSearchComponents,
+  });
+  const nameSearch = tablePresentation.searchFields.get('name');
+  const statusSearch = tablePresentation.searchFields.get('status');
 
   if (languages.isPending && !languages.data) return <PageLoading rows={8} />;
   if (languages.isError && (listStatus === 401 || !languages.data)) {
@@ -217,35 +251,48 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
         }
       >
         <Row align="bottom" gutter={16}>
-          <Col xs={24} sm={12} lg={7}>
-            <Form.Item name="name" label={intl.formatMessage({ id: 'language.field.name' })}>
-              <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={5}>
-            <Form.Item name="status" label={intl.formatMessage({ id: 'language.field.status' })}>
-              <Select
-                options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
-                  value,
-                  label: intl.formatMessage({ id: `language.status.${value}` }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={12}>
+          {searchPresentation.expanded && nameSearch ? (
+            <Col xs={24} sm={12} lg={7} style={{ order: nameSearch.order }}>
+              <Form.Item name="name" label={nameSearch.label} extra={nameSearch.help}>
+                <Input allowClear maxLength={255} placeholder={nameSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && statusSearch ? (
+            <Col xs={24} sm={12} lg={5} style={{ order: statusSearch.order }}>
+              <Form.Item name="status" label={statusSearch.label} extra={statusSearch.help}>
+                <Select
+                  placeholder={statusSearch.placeholder}
+                  options={(['all', 'enabled', 'disabled'] as const).map((value) => ({
+                    value,
+                    label: intl.formatMessage({ id: `language.status.${value}` }),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} lg={12} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields();
-                    setParams(initialParams);
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        form.resetFields();
+                        setParams({ ...initialParams, pageSize: tablePresentation.pageSize });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={languages.isFetching}
@@ -268,7 +315,7 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
         </Row>
       </Form>
       <ResponsiveEntityTable<LanguageSummary>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={languages.data?.data ?? []}
         loading={languages.isFetching}
         locale={{
@@ -287,9 +334,10 @@ export default function LanguageListView({ canCreate, canDelete, canEdit }: Lang
               pageSize: isLanguagePageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['name', 'status', 'remark', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: 720 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <Typography.Text type="secondary">
         {intl.formatMessage({ id: 'language.summaryNotice' })}
