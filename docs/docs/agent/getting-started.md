@@ -1,22 +1,34 @@
 ---
-title: Agent 开发合同状态
+title: Agent 协作起步
 order: 2
-description: Foundation 源码与 v1.3.7 候选 Thin Host 的检查、规划和交付顺序
+description: 人类维护者如何为 Foundation Agent 或 Thin Host Agent 选择正确的本地权威入口
 ---
 
-# Agent 开发合同状态
+# Agent 协作起步
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未发布。本页保留 source-only 和候选 Agent 工作流合同；
-公共制品对账前，v1.3.7 不可采用，也不是 Thin Host 操作指南。
+为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
+远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是 Thin Host
+安装、创建或升级指南。
 :::
+
+## 先选择上下文
+
+| 要完成的工作 | Agent 从哪里开始 | 当前边界 |
+| --- | --- | --- |
+| 修改 mss-boot-admin Foundation | 根与目标目录最近的 `AGENTS.md` | 使用源码内 `.mss`、Skills 和仓库命令，所有发行变更通过 PR |
+| 修改已经生成的 Thin Host | 该生成仓库自己的 `AGENTS.md` | 只使用它固定的 Distribution 与本地业务合同 |
+| 创建新的 Thin Host | 当前采用状态页 | v1.3.7 完成 stable promotion 与最终对账前不开放 |
+
+两种上下文不能混用。Foundation 源码验证不是已发布工具证据，未来 Thin Host 也不得借用
+Foundation checkout 或本地 `replace` 掩盖公共包问题。
 
 ## 1. 建立可验证上下文
 
-Agent 先读取根和目标目录最近的 `AGENTS.md`，再读取 `.mss/project.yaml`、
-`.mss/capabilities.yaml` 与 `.mss/commands.yaml`，并记录工作树状态。Foundation
-源码使用仓库声明的命令；v1.3.7 候选 Thin Host 仅在发布后使用其 Release 工具。两种上下文不能混用。
+Agent 读取本地权威入口与 `.mss/project.yaml`、`.mss/capabilities.yaml`、
+`.mss/commands.yaml`，并记录工作树状态。人类维护者检查 Agent 是否使用了正确仓库、
+分支、版本和文件所有权。
 
 ## 2. 先查能力，再写规格
 
@@ -33,7 +45,8 @@ Agent 先读取根和目标目录最近的 `AGENTS.md`，再读取 `.mss/project
 
 先运行最小相关检查，再按影响扩大。迁移覆盖空库和升级路径，权限覆盖正反例，前端覆盖
 loading、empty、error、denied 与 locale，高风险交互增加 Codex 内置浏览器验收。一般
-源码 `verify` 合同仍有效，但必须明确是贡献者工作区验证，不是 v1.3.5 采用证据。
+源码 `verify` 合同仍有效，但必须明确是贡献者工作区验证，不是 v1.3.5、v1.3.6 或
+未稳定 v1.3.7 的采用证据。
 
 ## 5. 可审查交付
 

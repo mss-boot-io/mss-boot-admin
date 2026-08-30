@@ -4,11 +4,11 @@
 
 ## v1.3.7 candidate component status
 
-v1.3.7 is the selected complete package-first candidate, but
-`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7` is not public yet.
-Candidate preview may qualify it from the exact repository workspace; formal
-Admin publication must later resolve this exact public Framework with
-`GOWORK=off`.
+v1.3.7 is the selected complete package-first candidate and remains neither
+stable nor adoptable. Its Framework surface can become public during staged
+candidate publication; the remote ledger is authoritative. Candidate preview
+may qualify it from the exact repository workspace, and formal Admin
+publication must resolve this exact public Framework with `GOWORK=off`.
 
 v1.3.5 and v1.3.6 remain immutable-partial trains. The public v1.3.6 Framework
 component is bound to commit `b1fe47a3a83209574e09d53526b122dd2cbc5277`,

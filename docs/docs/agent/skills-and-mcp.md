@@ -1,24 +1,39 @@
 ---
 title: Skills 与 MCP 合同状态
 order: 5
-description: Foundation 源码 Skill 清单，以及 v1.3.7 候选 mss-mcp 的安全边界
+description: 面向人类的 Foundation 维护 Skill、Thin Host 分发 Skill 与 v1.3.7 候选 MCP 边界
 ---
 
 # Skills 与 MCP 合同状态
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但 Root Release 与 `mss`、`mss-mcp` 尚未发布。本页记录 Foundation
-源码中的 Skill 和候选合同；公共制品对账前，v1.3.7 不可采用，也不是工具安装或 MCP
-客户端配置指引。
+为 release candidate，但尚未稳定且不可采用。Root Release、`mss` 与 `mss-mcp` 可能处于
+不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，
+本页不是工具安装、应用创建、升级或 MCP 客户端配置指引。
 :::
 
 Skill 描述一类可复用工作流。源码实现由确定性 CLI、生成器和验证器承载，v1.3.7 候选
 的 MCP 工具复用同一合同；Skill 不应复制实现逻辑。
 
-## Foundation 源码 Skill 清单
+## Foundation 维护者 Skills
 
-当前仓库源码维护以下下游 Skill 设计：
+Foundation 根 `.agents/skills/` 包含维护当前仓库的工作流：
+
+- `mss-project-onboarding`：建立仓库与架构上下文；
+- `mss-new-application`：从 Blueprint 创建新的独立管理系统；
+- `mss-add-module`、`mss-add-field`、`mss-add-permission`、`mss-add-workflow`：按支持边界扩展能力；
+- `mss-debug-fullstack`、`mss-review-change`：诊断与独立审查；
+- `mss-upgrade-foundation`：协调 Distribution/Blueprint 升级；
+- `mss-release`：候选、发布与公共制品对账；
+- `mss-update-release-docs`：源码文档与生产 Docs 状态对账。
+
+这些 Skills 调用 `mss` 和仓库验证器，不复制实现。发布、文档发布、新应用创建和
+Foundation 工作流设计属于维护者能力，不自动进入下游应用。
+
+## Thin Host 分发 Skills
+
+生成应用模板只分发以下七个本地 Skills：
 
 - `mss-thin-host`：项目所有权和日常生成/验证边界；
 - `mss-add-module`：当前生成器支持的基础 CRUD 模块；
@@ -28,8 +43,8 @@ Skill 描述一类可复用工作流。源码实现由确定性 CLI、生成器�
 - `mss-review-change`：安全、迁移、生成漂移与兼容性评审；
 - `mss-upgrade-foundation`：协调 Admin Distribution 三方升级。
 
-工作流生成、关系字段生成、行级权限生成、Foundation 发布和文档发布不在这一公开集合
-中。仓库中存在内部流程不代表 v1.3.5 下游工具已经分发这些能力。
+mss-add-workflow、关系字段生成、行级权限生成、Foundation 发布、文档发布与新应用
+创建不在这套 Thin Host 分发集合中。仓库中存在维护者流程不代表下游已经获得该能力。
 
 ## 未来 MCP 合同
 

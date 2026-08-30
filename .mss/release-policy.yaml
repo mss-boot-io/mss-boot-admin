@@ -31,8 +31,13 @@ spec:
         frontend: web/antd-v6/v1.3.6
         docs: docs/v1.3.6
         npm: "@mss-boot-io/admin-web@1.3.6"
-  publicationWorkflowsReady: false
+  publicationWorkflowsReady: true
   docsRevisionPublicationReady: false
+  docsRevisionVersion: disabled
+  docsRevisionCommit: disabled
+  stablePromotionReady: false
+  stablePromotionVersion: v1.3.7
+  stablePromotionCommit: disabled
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"

@@ -21,32 +21,37 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
     def step(self, name):
         return next(step for step in self.steps if step.get("name") == name)
 
-    def test_root_tag_push_automatically_binds_the_exact_release_identity(self):
-        self.assertEqual(set(self.workflow["on"]), {"push"})
-        self.assertEqual(self.workflow["on"]["push"]["tags"], ["v*.*.*"])
+    def test_stable_promotion_dispatch_binds_the_exact_root_tag_identity(self):
+        self.assertEqual(set(self.workflow["on"]), {"workflow_dispatch"})
+        dispatch_inputs = self.workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(set(dispatch_inputs), {"version"})
+        self.assertEqual(dispatch_inputs["version"]["required"], "true")
 
         identity = self.step("Validate exact root tag identity")["run"]
+        identity_step = self.step("Validate exact root tag identity")
+        self.assertEqual(identity_step["env"]["REQUESTED_VERSION"], "${{ inputs.version }}")
         for required in (
             "^v(0|[1-9][0-9]*)",
             "^[0-9a-f]{40}$",
-            '"${GITHUB_EVENT_NAME}" != \'push\'',
+            '"${GITHUB_EVENT_NAME}" != \'workflow_dispatch\'',
             '"${GITHUB_REF_TYPE}" != \'tag\'',
+            '"${REQUESTED_VERSION}" != "${GITHUB_REF_NAME}"',
             "RELEASE_VERSION=${GITHUB_REF_NAME}",
             "RELEASE_COMMIT=${GITHUB_SHA}",
         ):
             self.assertIn(required, identity)
+        self.assertNotIn("${{ inputs.", identity)
 
         checkout = self.step("Checkout exact release commit")
         self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
         self.assertEqual(checkout["with"]["fetch-depth"], "0")
         for forbidden in (
-            "workflow_dispatch",
-            "inputs.version",
             "inputs.commit",
             "allow_npm_token_bootstrap",
             "Root Release publish",
         ):
             self.assertNotIn(forbidden, self.content)
+        self.assertNotRegex(self.content, r"\bnpm dist-tag (?:add|rm)\b")
 
     def test_uses_the_trusted_publisher_environment_and_minimal_permissions(self):
         self.assertEqual(self.job["runs-on"], "ubuntu-24.04")
@@ -85,6 +90,7 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("verify_release_source.py", source)
         self.assertIn('--commit "${RELEASE_COMMIT}"', source)
         self.assertIn('--tag "${RELEASE_VERSION}"', source)
+        self.assertIn("--source-mode promotion", source)
         self.assertIn("--intent publish", source)
 
         self.assertNotIn("Require successful exact preview", self.content)
@@ -129,15 +135,11 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, assets)
 
-        for forbidden in (
-            "pnpm ",
-            "npm pack",
-            "npm run",
-            "build:release",
-            "docker build",
-            "generate_admin_web_sbom.py",
-        ):
+        for forbidden in ("pnpm ", "npm run", "build:release"):
             self.assertNotIn(forbidden, self.content)
+        self.assertNotRegex(self.content, r"(?m)^\s*npm pack(?:\s|$)")
+        self.assertNotRegex(self.content, r"(?m)^\s*docker build(?:\s|$)")
+        self.assertNotIn("generate_admin_web_sbom.py", self.content)
 
     def test_github_packages_must_match_the_release_asset_byte_for_byte(self):
         github_packages = self.step(
@@ -158,29 +160,34 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             self.assertIn(required, github_packages)
         self.assertNotIn("dist-tags.latest", github_packages)
 
-    def test_official_dist_tag_is_monotonic_and_old_versions_are_version_scoped(self):
-        selector = self.step("Select a monotonic official npm dist-tag")
+    def test_official_publish_moves_latest_only_after_current_stable_preflight(self):
+        selector = self.step("Require current stable npm alias before promotion")
         self.assertEqual(selector["id"], "npm-tag")
         script = selector["run"]
         for required in (
             "selected_tag=latest",
             'expected_latest="${UNPREFIXED_VERSION}"',
             'npm view "${package}" dist-tags.latest --json',
-            'sort -V | tail -n 1',
-            '"${highest}" != "${UNPREFIXED_VERSION}"',
-            '"release-${UNPREFIXED_VERSION}"',
-            'expected_latest="${current_latest}"',
+            'reviewed_latest="${CURRENT_STABLE_VERSION#v}"',
+            'case "${GITHUB_LATEST_VERSION}:${current_latest}" in',
+            '"${CURRENT_STABLE_VERSION}:${reviewed_latest}"',
+            '"${CURRENT_STABLE_VERSION}:${UNPREFIXED_VERSION}"',
+            '"${RELEASE_VERSION}:${UNPREFIXED_VERSION}")',
+            '"${RELEASE_VERSION}:${reviewed_latest}")',
+            "GitHub Latest cannot advance before npmjs latest",
             'echo "dist-tag=${selected_tag}"',
             'echo "expected-latest=${expected_latest}"',
         ):
             self.assertIn(required, script)
+        self.assertNotIn("sort -V", script)
+        self.assertNotIn("release-${UNPREFIXED_VERSION}", script)
 
         publish = self.step("Publish the existing tarball to official npm")
         self.assertEqual(
             publish["env"]["NPM_DIST_TAG"],
             "${{ steps.npm-tag.outputs.dist-tag }}",
         )
-        self.assertIn("latest|release-*", publish["run"])
+        self.assertIn("latest)", publish["run"])
         self.assertIn('--tag "${NPM_DIST_TAG}"', publish["run"])
 
         verify = self.step(
@@ -191,8 +198,58 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             "${{ steps.npm-tag.outputs.expected-latest }}",
         )
         self.assertIn('"${latest}" == "${EXPECTED_LATEST}"', verify["run"])
-        self.assertIn('"dist-tags.${NPM_DIST_TAG}"', verify["run"])
-        self.assertIn('"${NPM_DIST_TAG}" != \'latest\'', verify["run"])
+        self.assertNotIn('"dist-tags.${NPM_DIST_TAG}"', verify["run"])
+
+    def test_stable_promotion_requires_reviewed_policy_and_complete_public_ledger(self):
+        preflight = self.step(
+            "Require reviewed stable promotion and complete candidate ledger"
+        )["run"]
+        for required in (
+            "origin/main:.mss/release-policy.yaml",
+            "--intent promote",
+            '--commit "${RELEASE_COMMIT}"',
+            '"mss-boot/${RELEASE_VERSION}"',
+            '"admin/${RELEASE_VERSION}"',
+            '"web/antd-v6/${RELEASE_VERSION}"',
+            '"docs/${RELEASE_VERSION}"',
+            'releases/latest',
+            '"${current_stable}"|"${RELEASE_VERSION}")',
+            'https://docs.mss-boot-io.top/release.json',
+        ):
+            self.assertIn(required, preflight)
+
+        go_modules = self.step("Verify exact public Go modules")["run"]
+        self.assertIn("GOPROXY=https://proxy.golang.org", go_modules)
+        self.assertIn("mss-boot", go_modules)
+        self.assertIn("admin", go_modules)
+
+        images = self.step("Verify exact Root and Admin Web image aliases")["run"]
+        self.assertIn("ghcr.io/${GITHUB_REPOSITORY}", images)
+        self.assertIn("mss-boot-admin-antd-v6", images)
+        self.assertIn('"${image}:${RELEASE_COMMIT}"', images)
+        self.assertIn('.platform.os == "linux"', images)
+        self.assertIn('.platform.architecture == "amd64"', images)
+        self.assertIn('.platform.architecture == "arm64"', images)
+
+    def test_github_latest_moves_only_after_verified_npm_latest(self):
+        promotion = self.workflow["jobs"]["promote-github"]
+        self.assertEqual(promotion["needs"], "publish")
+        self.assertEqual(promotion["environment"], "release-auto")
+        self.assertEqual(promotion["permissions"]["contents"], "write")
+        steps = promotion["steps"]
+        verify = next(
+            step for step in steps if step.get("name") == "Validate exact completed npm promotion"
+        )["run"]
+        mutate = next(
+            step for step in steps if step.get("name") == "Promote exact Root release to GitHub Latest"
+        )["run"]
+        self.assertIn("dist-tags.latest", verify)
+        self.assertIn("dist.attestations", verify)
+        self.assertIn('gh release edit "${RELEASE_VERSION}" --latest=true', mutate)
+        self.assertLess(
+            next(i for i, step in enumerate(steps) if step.get("name") == "Validate exact completed npm promotion"),
+            next(i for i, step in enumerate(steps) if step.get("name") == "Promote exact Root release to GitHub Latest"),
+        )
 
     def test_npmjs_preflight_is_fail_closed_and_safe_to_rerun(self):
         reconcile = self.step("Reconcile immutable npmjs publication state")
@@ -269,9 +326,9 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             "dist-tags.latest",
             'cmp -- "${PACKAGE_TARBALL}" "${published_tarball}"',
             '"${latest}" == "${EXPECTED_LATEST}"',
-            '"dist-tags.${NPM_DIST_TAG}"',
         ):
             self.assertIn(required, verify)
+        self.assertNotIn('"dist-tags.${NPM_DIST_TAG}"', verify)
         for forbidden in (
             "npm install",
             "--ignore-scripts",

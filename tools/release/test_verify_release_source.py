@@ -137,13 +137,20 @@ class ReleaseSourceGitTest(unittest.TestCase):
             pr_payload(commit), repository, commit, branch
         )
 
-    def verify(self, *, commit: str | None = None, tag: str | None = "v1.1.0"):
+    def verify(
+        self,
+        *,
+        commit: str | None = None,
+        tag: str | None = "v1.1.0",
+        source_mode: str = "release",
+    ):
         return SOURCE.verify_release_source(
             repository_root=self.work,
             policy_path=POLICY_PATH,
             repository=REPOSITORY,
             commit=commit or self.candidate,
             tag=tag,
+            source_mode=source_mode,
             pr_evidence_loader=self.loader,
         )
 
@@ -196,6 +203,20 @@ class ReleaseSourceGitTest(unittest.TestCase):
 
         with self.assertRaisesRegex(SOURCE.SourceError, "does not equal current"):
             self.verify(tag=None)
+
+    def test_promotion_accepts_exact_tagged_ancestor_after_main_advances(self):
+        (self.work / "tracked.txt").write_text("promotion policy\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "review promotion policy")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", self.candidate)
+
+        evidence = self.verify(source_mode="promotion")
+        self.assertEqual(evidence["number"], 474)
+
+    def test_promotion_requires_an_exact_remote_tag(self):
+        with self.assertRaisesRegex(SOURCE.SourceError, "requires an exact release tag"):
+            self.verify(tag=None, source_mode="promotion")
 
     def test_rejects_checkout_that_does_not_match_candidate(self):
         run_git(self.work, "checkout", "--detach", self.base_commit)

@@ -232,14 +232,14 @@ spec:
       category: verification
 
     release-policy-check:
-      command: python3 tools/release/check_release_policy.py --component <root|framework|admin|frontend|docs> --version <version> --tag <tag> --intent <qualify|publish>
-      description: Validate the reviewed target and namespace; qualify permits unpublished candidate work, while publish also requires the tag-driven publication workflows to be enabled.
+      command: python3 tools/release/check_release_policy.py --component <root|framework|admin|frontend|docs|npm> --version <version> --tag <tag> --intent <qualify|publish|promote> [--commit <full-sha>]
+      description: Validate the reviewed target and namespace; qualify permits candidate work, publish requires enabled immutable publication workflows, promote additionally requires a reviewed exact stable-promotion version and commit for Root or official npm aliases, and Docs revisions require a reviewed exact revision plus source commit pair.
       outputFormats: [text]
       category: release
 
     release-source-verify:
-      command: python3 tools/release/verify_release_source.py --repository <owner/repository> --commit <full-sha> [--tag <tag>]
-      description: Fail closed unless the clean exact checkout is contained in fresh origin/main, is the final merge or squash commit produced by a merged PR targeting main, and any supplied remote tag peels exactly to that commit.
+      command: python3 tools/release/verify_release_source.py --repository <owner/repository> --commit <full-sha> [--tag <tag>] [--source-mode <release|promotion>]
+      description: Fail closed unless the clean exact checkout is the reviewed merged-PR source, any supplied remote tag peels exactly to it, and it is contained in fresh origin/main; release mode additionally requires the current main tip, while promotion mode is reserved for an already-tagged exact ancestor whose later reviewed policy is read separately.
       outputFormats: [text]
       category: release
       idempotent: true
@@ -263,6 +263,13 @@ spec:
       description: Build and verify only the unique non-publishing Root binaries, archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform image candidate after a self-bound local release-evidence result on the same merged-main commit; this is artifact staging, not a second broad quality suite.
       outputFormats: [text]
       category: release
+
+    official-npm-stable-promotion:
+      command: gh workflow run npm-release.yml --ref <exact-root-tag> -f version=<version>
+      description: After every immutable component, Root, image, Go module, package, and Docs candidate surface reconciles, dispatch the reviewed exact Root tag to publish or reconcile official npm latest through Trusted Publishing; the workflow verifies npm identity and provenance before moving GitHub Latest.
+      outputFormats: [text]
+      category: release
+      idempotent: true
 
     direct-verify-all:
       command: make verify-all

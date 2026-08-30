@@ -379,12 +379,11 @@ class RootReleaseWorkflowTest(unittest.TestCase):
             '.isDraft == false and .isPrerelease == $prerelease',
             "is already public with the exact preview assets",
             "exit 0",
-            'current_latest="$(gh api',
-            'sort -V | tail -n 1',
-            'release_latest=false',
-            '--latest="${release_latest}"',
+            '--latest=false',
         ):
             self.assertIn(required, publish)
+        self.assertNotIn('current_latest="$(gh api', publish)
+        self.assertNotIn('sort -V | tail -n 1', publish)
         self.assertNotIn("is already public; refusing to mutate it", publish)
 
     def test_release_notes_are_package_first(self):

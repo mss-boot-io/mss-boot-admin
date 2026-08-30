@@ -41,7 +41,10 @@ resumed, completed, or reused. v1.3.6 published its Framework, Admin, Admin Web,
 and Root releases, but its Root image and npm workflows failed and Docs was
 never created.
 
-v1.3.7 is the selected release candidate and is not published or adoptable yet.
+v1.3.7 is the selected release candidate and is not stable or adoptable.
+Candidate surfaces may be at different public stages; the remote release ledger
+is authoritative. Installation, application creation, and upgrades remain
+closed until stable promotion and the final policy/Docs reconciliation complete.
 Run one non-publishing Root preview for v1.3.7 on the exact merged-main commit.
 The reusable container call must receive `release_preview: true`, and the
 preview must contain the verified Root image artifact. The npm Trusted
@@ -50,14 +53,34 @@ After it succeeds, publish the Framework, Admin, and Admin Web tags in order.
 The first Framework workflow performs one cheap exact-preview lookup before the
 first irreversible Release; Admin then checks the exact public Framework without
 repeating that lookup. Frontend, Root, and Container directly consume staged
-preview artifacts, while official npm consumes the exact Frontend Release
-tarball. One Root tag starts the Root release, backend image, and official npm
-publication independently and in parallel. Formal tag workflows do not repeat
-its expensive qualification or accept a promotion, readiness run ID, second
-publish dispatch, or manual environment approval. Docs follows later from its own tag and
-later merged-main documentation commit without reissuing runtime components. A
-failure after any public v1.3.7 identity requires another unused version rather
-than a late artifact.
+preview artifacts. The Root tag starts only the Root Release and backend-image
+candidate; it explicitly leaves GitHub Latest unchanged. After Root and both
+versioned images reconcile, publish `docs/v1.3.7` from the same exact Root
+commit and reconcile the candidate Docs site. Throughout this candidate phase,
+GitHub Latest and npmjs `latest` remain v1.3.2.
+
+Stable promotion is a separate reviewed policy decision. Only after that policy
+binds v1.3.7 to the exact Root commit may `lwnmengjing` manually dispatch
+`npm-release.yml` from the exact `v1.3.7` Root tag. That workflow publishes the
+already-qualified Frontend Release tarball through Trusted Publishing/OIDC with
+`npm publish --tag latest --provenance`; no `NPM_TOKEN`, `NODE_AUTH_TOKEN`,
+temporary dist-tag, standalone `npm dist-tag`, or token fallback is allowed.
+Only after npm version, `gitHead`, integrity, provenance, and `latest` reconcile
+may the workflow promote the exact Root Release to GitHub Latest. A rerun must
+reconstruct and verify the same Root tag, commit, candidate Docs, package,
+image, npm, and alias identities before accepting existing public state.
+
+The final stable-policy and human-documentation reconciliation follows through
+another PR, whose exact merged commit becomes the only possible source for any
+stable-wording Docs update. If candidate Docs needs that wording, a subsequent
+reviewed one-shot authorization must bind `docsRevisionVersion` to the lowest
+unused `v1.3.7+docs.N` identity and `docsRevisionCommit` to that exact source;
+then publish the immutable `docs/v1.3.7+docs.N` revision instead of moving
+`docs/v1.3.7`, and disable the consumed authorization. Formal tag and promotion
+workflows do not repeat expensive qualification or accept a readiness run ID or
+manual environment approval. A failure after any public v1.3.7 identity
+requires another unused version when source repair is necessary, not a late
+artifact or moved immutable ref.
 
 ## Workflow location
 

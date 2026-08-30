@@ -8,9 +8,11 @@ repository. It is an independently publishable component, not a separate source
 repository. Product prose, implementation, tests, and `.mss/` machine contracts
 must describe the same behavior.
 
-Release-state baseline for this source-only contributor guide: v1.3.2 remains
-stable; v1.3.5 and v1.3.6 are permanently stopped immutable partial trains;
-v1.3.7 is the selected release candidate but is not published or adoptable yet.
+Release-state baseline for this source-only contributor guide: v1.3.5 and
+v1.3.6 are permanently stopped immutable partial trains. The reviewed release
+policy is authoritative for the current stable version. v1.3.7 is the selected
+release train; candidate surfaces may become public in stages, but it is not
+adoptable until stable aliases and final policy/Docs reconciliation complete.
 
 Use these locations consistently:
 

@@ -170,6 +170,7 @@ def verify_release_source(
     commit: str,
     tag: str | None,
     remote: str = "origin",
+    source_mode: str = "release",
     pr_evidence_loader: Callable[[str, str, str], dict[str, Any]] = (
         query_pr_merge_evidence
     ),
@@ -192,6 +193,10 @@ def verify_release_source(
         raise SourceError("commit must be a lowercase full SHA")
     if not remote or remote.startswith("-"):
         raise SourceError("remote must be a named Git remote")
+    if source_mode not in {"release", "promotion"}:
+        raise SourceError("source mode must be release or promotion")
+    if source_mode == "promotion" and tag is None:
+        raise SourceError("promotion source verification requires an exact release tag")
 
     root = Path(git(repository_root, "rev-parse", "--show-toplevel")).resolve()
     shallow = git(root, "rev-parse", "--is-shallow-repository")
@@ -230,7 +235,7 @@ def verify_release_source(
         "--verify",
         f"refs/remotes/{remote}/{branch}^{{commit}}",
     )
-    if remote_tip != commit:
+    if source_mode == "release" and remote_tip != commit:
         raise SourceError(
             f"candidate {commit} does not equal current {remote}/{branch} tip "
             f"{remote_tip}"
@@ -266,6 +271,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--commit", required=True)
     parser.add_argument("--tag")
     parser.add_argument("--remote", default="origin")
+    parser.add_argument(
+        "--source-mode", choices=("release", "promotion"), default="release"
+    )
     args = parser.parse_args(argv)
     try:
         evidence = verify_release_source(
@@ -275,14 +283,15 @@ def main(argv: list[str] | None = None) -> int:
             commit=args.commit,
             tag=args.tag,
             remote=args.remote,
+            source_mode=args.source_mode,
         )
     except SourceError as exc:
         print(f"release source rejected: {exc}", file=sys.stderr)
         return 1
     tag_message = f"; tag {args.tag} resolves exactly" if args.tag else ""
     print(
-        f"release source accepted: {args.commit} is PR #{evidence['number']} "
-        f"on origin/main{tag_message}",
+        f"release source accepted for {args.source_mode}: {args.commit} is PR "
+        f"#{evidence['number']} on origin/main{tag_message}",
         file=sys.stdout,
     )
     return 0

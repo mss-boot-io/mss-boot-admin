@@ -153,9 +153,11 @@ If `cmd/mss` is not yet available on an older branch, fall back to the Make targ
 
 ## Documentation rules
 
-- Long-lived architecture and product guidance belongs under `docs/docs/`.
-- Architecture decisions belong under `docs/adr/` when introduced.
-- Machine-executable facts belong under `.mss/`, not only in prose.
+- Public human-facing product, operations, contributor, architecture-summary, and release guidance belongs under `docs/docs/`, README files, and `CONTRIBUTING.md`.
+- Architecture decisions for maintainers belong under `docs/adr/`; they are durable decisions, not adopter tutorials.
+- Foundation AI Agents enter through the nearest `AGENTS.md`, then `.mss/` contracts and the applicable `.agents/skills/` workflow. Generated Thin Hosts instead use their generated `AGENTS.md`, `.mss/`, and local Skills. Do not merge these two Agent contexts.
+- `docs/docs/agent/` is public guidance for humans who collaborate with Agents. It explains and links to machine contracts but is not itself an executable Agent instruction source.
+- Machine-executable facts belong under `.mss/`, not only in prose. Skills orchestrate those facts without duplicating implementation logic.
 - Update examples, commands, repository names, and paths when structure changes.
 - Do not publish production credentials, private endpoints, personal paths, or unredacted sensitive logs.
 

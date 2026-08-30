@@ -6,18 +6,7 @@ tag namespaces.
 
 ## [Unreleased]
 
-### Changed
-
-- Make pull-request qualification local-first: retain lightweight governance,
-  security analysis, and ordinary Go smoke checks remotely while moving broad
-  Agent, Admin, Framework, frontend, Thin Host, container, documentation, and
-  multi-database matrices to `mss verify --all` plus post-merge/manual audit.
-- Bind frozen release evidence to one exact commit and clean tracked state with
-  `mss verify --all --release-evidence --expect-commit <full-sha>`.
-- Keep only one cheap exact artifact-preview lookup at the first irreversible
-  Framework publication; later component workflows avoid redundant lookups while
-  preserving public dependency, immutable artifact, OIDC, and reconciliation
-  boundaries.
+No unreleased changes are recorded.
 
 ## [v1.3.7] - 2026-08-29
 
@@ -40,6 +29,22 @@ supported before one exact merged-main preview and full public reconciliation.
   repository `mss-boot-admin`, workflow `npm-release.yml`, and environment
   `npm-auto`. Publication remains credentialless through GitHub Actions OIDC
   and provenance; no long-lived `NPM_TOKEN` or `NODE_AUTH_TOKEN` is restored.
+
+### Changed
+
+- Make pull-request qualification local-first: retain lightweight governance,
+  security analysis, and ordinary Go smoke checks remotely while moving broad
+  Agent, Admin, Framework, frontend, Thin Host, container, documentation, and
+  multi-database matrices to `mss verify --all` plus post-merge/manual audit.
+- Bind frozen release evidence to one exact commit and clean tracked state with
+  `mss verify --all --release-evidence --expect-commit <full-sha>`.
+- Keep only one cheap exact artifact-preview lookup at the first irreversible
+  Framework publication; later component workflows avoid redundant lookups while
+  preserving public dependency, immutable artifact, OIDC, and reconciliation
+  boundaries.
+- Separate public human guidance and architecture decisions from Foundation and
+  Thin Host Agent authority; the public Agent section now explains and links to
+  machine contracts instead of duplicating executable release logic.
 
 ### Release governance
 

@@ -7,8 +7,9 @@ description: 明确隔离的 mss-boot-admin 源码贡献流程
 # Foundation 贡献者入门
 
 > 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7
-> 已选为 release candidate，但尚未发布。本页只适用于修改 Foundation 的贡献者，下面
-> 是 source-only 合同；公共制品对账前，v1.3.7 不可采用，也不是安装、生成或升级指引。
+> 已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须
+> 以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页只适用于
+> 修改 Foundation 的贡献者，不是安装、创建或升级指引。
 
 ## 获取源码
 
@@ -20,6 +21,10 @@ git switch main
 
 阅读根和目标目录的 `AGENTS.md`，确认工作树和分支，再创建主题分支。不要覆盖无关
 本地改动。
+
+README、CONTRIBUTING 和 `docs/docs/**` 是给人类看的说明；Agent 的执行权威是最近的
+`AGENTS.md`、`.mss/**` 与适用 `.agents/skills/**`。不要把公开 `/agent` 页面当作提示词
+复制进任务，也不要把 Foundation 维护技能分发给 Thin Host。
 
 ## 建立上下文
 

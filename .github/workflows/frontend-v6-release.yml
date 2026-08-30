@@ -678,15 +678,17 @@ jobs:
           release_error="${RUNNER_TEMP}/github-release-view-error.log"
           if release_json="$(
             gh release view "${tag}" \
-              --json tagName,isDraft,isPrerelease,name,body,assets \
+              --json tagName,targetCommitish,isDraft,isPrerelease,name,body,assets \
               2> "${release_error}"
           )"; then
             rm -f "${release_error}"
             jq -e \
               --arg tag "${tag}" \
+              --arg commit "${GITHUB_SHA}" \
               --arg title "${title}" \
               --argjson prerelease "${PRERELEASE}" \
-              '.tagName == $tag and .name == $title and
+              '.tagName == $tag and .targetCommitish == $commit and
+               .name == $title and
                .isPrerelease == $prerelease' \
               <<< "${release_json}" >/dev/null
             if [[ "$(jq -r '.isDraft' <<< "${release_json}")" == 'false' ]]; then
@@ -716,6 +718,7 @@ jobs:
             gh release create \
               "${tag}" \
               --verify-tag \
+              --target "${GITHUB_SHA}" \
               --draft \
               --title "${title}" \
               --notes-file "${body}" \
@@ -729,6 +732,7 @@ jobs:
           test "${actual_names}" = "${expected_names}"
           gh release edit \
             "${tag}" \
+            --target "${GITHUB_SHA}" \
             --title "${title}" \
             --notes-file "${body}" \
             --draft=false \

@@ -1160,25 +1160,9 @@ jobs:
           release_json="$(gh release view "${RELEASE_VERSION}" --json isDraft,isPrerelease,assets)"
           verify_release_assets "${release_json}"
 
-          release_latest=false
-          if [[ "${RELEASE_PRERELEASE}" != "true" ]]; then
-            current_latest="$(gh api "/repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)"
-            if [[ -z "${current_latest}" ]]; then
-              release_latest=true
-            else
-              if [[ ! "${current_latest}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-                echo "current latest release has an unexpected tag: ${current_latest}" >&2
-                exit 1
-              fi
-              highest="$(printf '%s\n' "${current_latest}" "${RELEASE_VERSION}" | sort -V | tail -n 1)"
-              if [[ "${highest}" == "${RELEASE_VERSION}" ]]; then
-                release_latest=true
-              fi
-            fi
-          fi
           gh release edit "${RELEASE_VERSION}" \
             --title "${title}" \
             --notes-file "${RELEASE_NOTES}" \
             --draft=false \
             --prerelease="${RELEASE_PRERELEASE}" \
-            --latest="${release_latest}"
+            --latest=false

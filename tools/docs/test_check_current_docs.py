@@ -161,6 +161,38 @@ class CurrentDocsContractTest(unittest.TestCase):
 
         self.assertEqual(errors, [])
 
+    def test_release_status_claims_must_remain_stage_neutral(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            relative = Path("docs/docs/status.md")
+            page = root / relative
+            page.parent.mkdir(parents=True)
+            claims = (
+                "v1.3.7 remains unpublished.\n",
+                "v1.3.7 is the selected train but is not yet\npublished.\n",
+                "v1.3.7 尚未发布。\n",
+                "未公开的版本是 v1.3.7。\n",
+            )
+            for claim in claims:
+                with self.subTest(claim=claim):
+                    page.write_text(claim, encoding="utf-8")
+                    errors = check_current_docs.absolute_unpublished_claim_errors(
+                        root, "v1.3.7", [relative]
+                    )
+                    self.assertTrue(any("stage-neutral" in error for error in errors))
+
+            page.write_text(
+                "v1.3.7 is not yet stable or adoptable. Candidate surfaces may "
+                "become public in stages before final policy and Docs reconciliation.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                check_current_docs.absolute_unpublished_claim_errors(
+                    root, "v1.3.7", [relative]
+                ),
+                [],
+            )
+
     def test_partial_release_semantics_require_status_and_boundary_anchors(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -576,17 +608,73 @@ class CurrentDocsContractTest(unittest.TestCase):
             path = root / "docs/docs/agent/skills-and-mcp.md"
             path.parent.mkdir(parents=True)
             path.write_text(
-                "\n".join(f"`{name}`" for name in check_current_docs.PUBLIC_THIN_HOST_SKILLS),
+                "## Foundation 维护者 Skills\n"
+                + "\n".join(
+                    f"`{name}`" for name in check_current_docs.FOUNDATION_MAINTAINER_SKILLS
+                )
+                + "\n## Thin Host 分发 Skills\n"
+                + "\n".join(
+                    f"`{name}`" for name in check_current_docs.PUBLIC_THIN_HOST_SKILLS
+                ),
                 encoding="utf-8",
             )
             self.assertEqual(
                 check_current_docs.public_skill_documentation_errors(root), []
             )
 
-            path.write_text("`mss-add-workflow`\n", encoding="utf-8")
+            path.write_text(
+                "## Foundation 维护者 Skills\n"
+                "`mss-add-workflow`\n"
+                "## Thin Host 分发 Skills\n"
+                "`mss-add-workflow`\n",
+                encoding="utf-8",
+            )
             errors = check_current_docs.public_skill_documentation_errors(root)
             self.assertTrue(any("mss-thin-host" in error for error in errors))
-            self.assertTrue(any("unsupported Skill" in error for error in errors))
+            self.assertTrue(any("Thin Host section" in error for error in errors))
+
+    def test_documentation_audience_map_separates_human_and_agent_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for relative, markers in check_current_docs.AUDIENCE_BOUNDARY_MARKERS.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(markers), encoding="utf-8")
+            self.assertEqual(check_current_docs.documentation_audience_errors(root), [])
+
+            agent_index = root / "docs/docs/agent/index.md"
+            agent_index.write_text("Foundation 源码\n生成 Thin Host\n", encoding="utf-8")
+            errors = check_current_docs.documentation_audience_errors(root)
+            self.assertTrue(any("给人类看的公开说明" in error for error in errors))
+
+            duplicate = root / "docs/docs/agent/architecture.md"
+            duplicate.write_text("duplicate\n", encoding="utf-8")
+            errors = check_current_docs.documentation_audience_errors(root)
+            self.assertTrue(any("duplicate Agent architecture" in error for error in errors))
+
+    def test_stopped_versions_cannot_define_active_admin_guide_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for relative in check_current_docs.ACTIVE_ADMIN_SCOPE_FILES:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("---\ntitle: Current Admin guide\n---\n", encoding="utf-8")
+            self.assertEqual(
+                check_current_docs.active_admin_scope_errors(
+                    root, ("v1.3.5", "v1.3.6")
+                ),
+                [],
+            )
+
+            stale = root / check_current_docs.ACTIVE_ADMIN_SCOPE_FILES[0]
+            stale.write_text(
+                "---\ntitle: v1.3.5 Admin guide\n---\n",
+                encoding="utf-8",
+            )
+            errors = check_current_docs.active_admin_scope_errors(
+                root, ("v1.3.5", "v1.3.6")
+            )
+            self.assertTrue(any("must not define an active title" in error for error in errors))
 
     def test_template_container_bases_require_exact_versions_and_digests(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -648,11 +736,14 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "v1.3.6 is permanently stopped as an immutable partial release. "
                 "For a future unused version, run one non-publishing Root preview, "
                 "then publish the Framework, Admin, and Admin Web tags in order. "
-                "One Root tag starts the Root release, backend image, and official "
-                "npm publication independently and in parallel. Formal tags do not "
-                "repeat its expensive qualification or accept a promotion, readiness "
-                "run ID, second publish dispatch, or manual environment approval. "
-                "Docs follows later from its own tag.\n"
+                "The Root tag starts only the Root Release and backend-image candidate. "
+                "GitHub Latest and npmjs `latest` remain v1.3.2. Stable promotion is a "
+                "separate reviewed policy decision. The operator may manually dispatch "
+                "`npm-release.yml` from the exact `v1.3.7` Root tag and use "
+                "npm publish --tag latest --provenance. Only then may it promote the "
+                "exact Root Release to GitHub Latest. The final stable-policy and "
+                "human-documentation reconciliation follows through another PR. "
+                "Formal workflows do not repeat expensive qualification.\n"
             )
             monorepo.write_text(valid_monorepo, encoding="utf-8")
             layout = root / "web/antd-v6/src/shared/layout/LayoutChrome.tsx"

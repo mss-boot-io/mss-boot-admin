@@ -1,7 +1,7 @@
 ---
 title: v1.3.7 候选包发布状态
 order: 2
-description: v1.3.7 未发布候选包与 v1.3.5/v1.3.6 永久停止组件边界
+description: v1.3.7 未稳定候选包与 v1.3.5/v1.3.6 永久停止组件边界
 keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable partial]
 ---
 
@@ -9,8 +9,9 @@ keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutab
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但 Go Module、Admin Web npmjs 与 Root 包面尚未发布。公共制品
-对账前，v1.3.7 不可采用，也不开放安装或升级命令。
+为 release candidate，但尚未稳定且不可采用。Go Module、Admin Web npmjs 与 Root 包面可能
+处于不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账
+完成前，不开放安装、创建或升级命令。
 :::
 
 ## 已公开与缺失的身份

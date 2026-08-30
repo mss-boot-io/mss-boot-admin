@@ -1,5 +1,5 @@
 ---
-title: v1.3.5 configuration cache consistency
+title: Configuration cache consistency
 order: 15
 nav:
   order: 1
@@ -87,7 +87,7 @@ composition through its package-first gate:
 mss verify --all
 ```
 
-The v1.3.5 Admin package itself is released only after its independent fault-injection,
+The Admin package itself is released only after its independent fault-injection,
 isolation, transaction-rollback, cache-poisoning, and Redis-failure tests pass. Downstream
 applications must not copy those Foundation test packages or weaken the database-authoritative
 contract.

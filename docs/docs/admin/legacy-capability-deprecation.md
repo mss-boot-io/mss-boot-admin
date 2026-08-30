@@ -10,7 +10,7 @@ keywords: [admin removed capability virtual model code generation migration]
 
 ## 适用范围
 
-本文适用于 v1.3.5 Admin 产品和生产运行时。开发期确定性生成继续由 Release 中安装的
+本文适用于当前 Admin 产品和生产运行时合同。开发期确定性生成继续由完整 Release 中安装的
 `mss` 工具提供，与已经删除的浏览器运行时生成能力互不相同。
 
 ## 当前状态
@@ -67,7 +67,7 @@ mss verify --changed
 
 ## `mss` 为什么继续保留
 
-v1.3.5 候选合同将 `mss` 作为 Root Release 工具发布，公共对账完成后供 Thin Host
+v1.3.7 候选合同计划将 `mss` 作为 Root Release 工具发布，公共对账完成后供 Thin Host
 开发期使用。它与已移除的 Admin 浏览器生成器有不同的信任边界：
 
 | `mss` 确定性生成器 | 已移除的 Admin 浏览器生成器 |

@@ -1,6 +1,6 @@
 ---
 name: mss-release
-description: Prepare, execute, resume, and verify an MSS foundation, framework, Admin, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release policy or tag planning, the unique Root candidate preview, automatic tag-driven artifact or image publication, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
+description: Prepare, execute, resume, and verify an MSS foundation, framework, Admin, frontend, docs, or downstream-application release from one exact merged-main commit. Trigger for release policy or tag planning, the unique Root candidate preview, tag-driven candidate artifact or image publication, separately reviewed stable promotion, failed-release recovery, post-publication reconciliation, migration notes, and rollback preparation. Reuse exact successful evidence to shorten the release cycle; do not use this skill to merge an unverified feature PR or bypass a failed gate.
 ---
 
 # Release an MSS component
@@ -17,11 +17,15 @@ Record:
 - repository, component scope, version, and all tag names;
 - frozen full commit and merged PR;
 - browser and Blueprint evidence, Root candidate preview, Framework, Admin,
-  frontend, Root, container, npm, and later Docs run URLs;
+  frontend, Root, container, candidate Docs, stable-promotion, npm, and any
+  later stable Docs revision run URLs;
 - public release URLs, image digests, artifact checksums, and the active GitHub
   actor;
 - the npm Trusted Publisher identity as package, owner, repository, workflow
   filename, GitHub environment, and allowed action; record no credential value;
+- the reviewed stable-promotion version and exact Root commit, current npm
+  `latest`, current GitHub Latest, candidate Docs identity, and whether promotion
+  remains disabled or has been authorized by the latest merged policy;
 - status as `missing`, `running`, `successful`, `failed-before-publication`, or
   `public`.
 
@@ -37,6 +41,11 @@ Show only transitions. Do not repeatedly narrate an unchanged queued run.
 - Treat a code, contract, dependency, workflow, or release-policy change after freeze as a new commit. Invalidate every affected later phase.
 - Rerun only the failed workflow when no source or public state changed and the
   failure was transient.
+- Rerun stable promotion only from the same exact Root tag after reconstructing
+  the Root commit, candidate Docs, public module, image, frontend-tarball, npm
+  package, npm `latest`, and GitHub Latest identities. An exact existing npm
+  package may be reconciled; a different `gitHead`, integrity, provenance, or
+  mutable alias must fail closed rather than trigger another publish.
 - If a public tag, Release, package, or image already exists and repair needs source changes, preserve it and prepare a new patch version through a PR.
 
 ## Choose the release path
@@ -49,16 +58,41 @@ For the consolidated foundation repository, release the synchronized train in th
 4. push the Admin tag and verify its Release and external-module result;
 5. push the frontend tag and verify its GitHub Packages mirror, image, artifact,
    and Release;
-6. push the Root tag, which automatically starts Root Release, Root image, and
-   official npmjs publication;
-7. reconcile those public packages, assets, images, and checksums;
-8. after content is ready, push the independent Docs tag and reconcile the site.
+6. push the Root tag, which starts only the Root Release and Root image candidate
+   publication; reconcile them while keeping GitHub Latest and npm `latest` on
+   the reviewed current stable version;
+7. push the coordinated candidate Docs tag at the same Root commit and reconcile
+   the Docs Release, deployment, and `/release.json`;
+8. merge a separate reviewed stable-promotion policy that binds the exact Root
+   version and commit without yet changing `currentStableVersion`;
+9. manually dispatch `npm-release.yml` from the exact Root tag. Its first
+   official npm publication uses Trusted Publishing/OIDC with
+   `npm publish --tag latest --provenance`; only after npm identity and `latest`
+   converge may the same workflow promote the Root GitHub Release to Latest;
+10. merge the final stable-policy and human-documentation reconciliation and
+    record that exact merged source commit; when the public site needs the
+    stable wording, merge a separate one-shot Docs authorization that binds the
+    lowest unused revision and that exact source before publishing it.
+
+During steps 1 through 7, the candidate version is public evidence, not the
+coordinated stable. Both mutable aliases remain exactly on the reviewed current
+stable version (v1.3.2 for the v1.3.7 train). Do not create `next`, `candidate`,
+or `release-*` npm dist-tags, and never run a standalone `npm dist-tag` mutation.
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
-The foundation components are independently releasable. A Docs-only release uses `docs/{version}` and does not recreate root, Framework, or frontend refs. Qualify the documentation build and browser evidence on the Docs candidate, merge through PR, freeze the resulting exact `origin/main` commit, create only the Docs tag, wait for the tag-triggered Docs workflow and protected `prod` deployment, then reconcile the Docs Release assets, checksums, public `release.json`, and visible site against that commit.
+The foundation components are independently releasable. The initial coordinated
+candidate Docs tag uses `docs/{version}` at the exact Root commit and does not
+recreate Root, Framework, or frontend refs. A later Docs-only correction or
+stable-wording revision is first merged through its own PR and frozen as an
+exact source commit. A subsequent reviewed authorization PR sets
+`docsRevisionPublicationReady`, binds `docsRevisionVersion` to the lowest unused
+`+docs.N` identity, and binds `docsRevisionCommit` to that frozen source. Only
+then may the revision tag point to the older authorized merged-main source and
+reconcile the Docs Release assets, checksums, public `release.json`, and visible
+site against that commit.
 
-When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/${VERSION}+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass the exact merged-main source guard, protected deployment, Release, `/release.json`, and browser reconciliation.
+When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/${VERSION}+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass exact-tag resolution, the reviewed ancestor-source binding, merged-PR proof, protected deployment, Release, `/release.json`, and browser reconciliation. Disable the consumed one-shot Docs authorization in a follow-up PR.
 
 ## Procedure
 
@@ -202,7 +236,15 @@ the binding differs, or another publisher creates ambiguity. Changing this
 access binding is an external permission mutation: obtain explicit authorization
 immediately before saving it.
 
-### 7. Push the Root tag; publish Docs later
+Before creating candidate tags, also require both mutable public aliases to
+resolve to the reviewed current stable version from policy: npmjs
+`@mss-boot-io/admin-web` `dist-tags.latest` and the repository's GitHub Latest
+Root Release. For the v1.3.7 candidate they both remain v1.3.2. A component or
+Root candidate Release, versioned npm mirror, or versioned image is not authority
+to advance either alias. Stop on drift and repair the public alias through the
+governed stable path; never disguise it with a second npm dist-tag.
+
+### 7. Publish the Root and Docs candidates without moving stable aliases
 
 After all three component Releases and their exact tag workflows succeed, `lwnmengjing` creates and pushes the annotated Root tag at the same `SHA`:
 
@@ -211,27 +253,95 @@ git tag -a "${ROOT_TAG}" "${SHA}" -m "${ROOT_TAG}"
 git push origin "refs/tags/${ROOT_TAG}"
 ```
 
-That one push naturally starts `release.yml`, `container.yml`, and `npm-release.yml` in parallel. Root and the image workflow re-verify the exact merged-main tag, active policy, and successful exact preview before publishing the staged bytes. The npm workflow does not repeat the preview lookup: it requires the already-completed exact frontend Release, verifies its GitHub Packages version-specific mirror and byte identity, and publishes those same bytes through npm Trusted Publishing. Root, image, and npm never wait on one another, and none waits for Docs. Root and official npm publication are serialized across versions and never move a `latest` pointer backward.
+That push starts `release.yml` and `container.yml`; it does not start official
+npm publication. Root and the image workflow re-verify the exact merged-main
+tag, active policy, and successful exact preview before publishing the staged
+bytes. The Root Release must be public with `Latest=false`, and the versioned
+Root image is still candidate evidence. GitHub Latest and npm `latest` must both
+remain on the current stable version.
 
-Never dispatch a second publish run or approve a release environment after the tag. A retry is an ordinary workflow rerun by `lwnmengjing`; immutable identity checks refuse conflicting public state.
+After Root assets and both versioned images reconcile, create the initial
+coordinated `DOCS_TAG` at the same `SHA`:
 
-The automatic npm path is OIDC-only. If the npm package does not exist at all, it fails closed and requires a separately reviewed one-time bootstrap; do not expose a bootstrap token to the automatic tag workflow. Existing packages never use a long-lived npm write token. An `ENEEDAUTH` result from `npm publish --provenance` is a Trusted Publisher identity failure until disproved: compare the package, owner, repository, workflow filename, and environment first. Never add or restore `NPM_TOKEN` or `NODE_AUTH_TOKEN` as a fallback, and keep the workflow's explicit token unsetting intact.
+```bash
+git tag -a "${DOCS_TAG}" "${SHA}" -m "${DOCS_TAG}"
+git push origin "refs/tags/${DOCS_TAG}"
+```
 
-After the documentation content is merged, create `DOCS_TAG` from that later exact `origin/main` commit. Docs remains an independent later tag workflow: it requires the already-published base Root Release, then publishes the immutable Docs Release and deployment from its own merged-main source. Docs is not a prerequisite for Root or npm, and its commit need not equal the older Root commit.
+The candidate Docs workflow requires the base Root Release, then publishes the
+immutable Docs Release and deployment. Require `/release.json` to report
+`VERSION` and `SHA`, inspect the home page and a nested release route in the
+available browser, refresh both, and check the console and failed requests. A
+public candidate Docs site does not make the distribution stable or authorize
+npm publication.
 
-### 8. Reconcile public truth independently
+### 8. Authorize and execute stable promotion
+
+Only after Framework, Admin, frontend, Root, both images, and candidate Docs
+have reconciled may a separate PR set the stable-promotion policy to ready and
+bind `stablePromotionVersion` plus the exact Root `stablePromotionCommit`. That
+reviewed policy is read from current `origin/main`; it must not move or recreate
+the older Root tag, and it must not prematurely change `currentStableVersion`.
+
+Re-fetch policy and public state after the policy PR merges. Require the exact
+Root tag, candidate Docs tag, and every candidate component Release to peel to
+`SHA`; require public Go modules, versioned images, frontend tarball, candidate
+Docs `/release.json`, npm `latest`, and GitHub Latest to match the reviewed
+pre-promotion ledger. Then dispatch the official npm workflow from the exact
+Root tag, never from `main`:
+
+```bash
+test "$(gh api user --jq .login)" = "lwnmengjing"
+gh workflow run npm-release.yml \
+  --ref "${ROOT_TAG}" \
+  -f version="${VERSION}"
+```
+
+This is the only official npm mutation. It removes `NPM_TOKEN` and
+`NODE_AUTH_TOKEN`, publishes the already-qualified frontend tarball through the
+exact Trusted Publisher using `npm publish --tag latest --provenance`, and
+requires npm version, `gitHead`, integrity, provenance, and `latest` to converge.
+Do not add a token, create a temporary dist-tag, or invoke `npm dist-tag` before
+or after it. Only after that npm check succeeds may the workflow set the exact
+Root GitHub Release as Latest.
+
+If the dispatch is interrupted, reconstruct the ledger before rerun. Rerun only
+from the same Root tag, version, commit, actor, workflow, and reviewed promotion
+policy. The workflow may accept an already-public package only when its complete
+identity and `latest` are exact; it must not republish mismatched bytes or advance
+GitHub Latest before npm convergence. An `ENEEDAUTH` result is a Trusted
+Publisher identity failure until disproved. Never restore a long-lived token as
+a fallback.
+
+After npm and GitHub Latest converge, merge a final PR that advances
+`currentStableVersion` and `currentStableCommit`, closes or disables the consumed
+stable-promotion authorization, and updates human-facing stable guidance. If the
+already-published candidate Docs content needs stable wording, record the final
+PR's exact merged commit, then merge another reviewed PR that sets
+`docsRevisionPublicationReady: true`, binds `docsRevisionVersion` to the lowest
+unused identity such as `${VERSION}+docs.1`, and binds `docsRevisionCommit` to
+that recorded source. Tag that source only after authorization, never move
+`docs/${VERSION}`, and disable the consumed revision authority afterward.
+
+### 9. Reconcile public truth independently
 
 After publication, verify all of the following without relying only on workflow badges:
 
 - all component tags peel to `SHA` and all Releases are public, non-draft, and have the expected prerelease state;
 - Framework and Admin resolve through the public Go proxy with exact origin hashes and stable sums, and Admin requires the matching Framework version;
 - `@mss-boot-io/admin-web` resolves from npmjs with the exact version, `gitHead`, provenance, and immutable integrity recorded by the release; GitHub Packages has the same version, integrity, and dist-tag, and both downloads are byte-identical;
+- npmjs `latest` resolves to the promoted version first; the Root GitHub Release
+  becomes Latest only afterward, and no `next`, `candidate`, or `release-*`
+  dist-tag was introduced;
 - root and frontend images expose `linux/amd64` and `linux/arm64`, expected digests, and exact version/revision labels;
 - frontend checksum, portable archive members, file modes, and embedded `release.json` match version and commit;
 - root contains six platform ZIPs plus `SHA256SUMS`; checksums, portable members, and every embedded build identity match version and commit;
 - root also contains six `mss-tools-${VERSION}-*` archives, `SHA256SUMS.tools-${VERSION}`, `install-mss.sh`, and `install-mss.ps1`; each tool archive has only `BUILD-INFO`, `LICENSE`, `mss`, and `mss-mcp` (with Windows suffixes), and no raw `admin` or internal `mss-pr` asset;
 - install the public tool bundle into an empty temporary directory, verify version/commit/timestamp, and create and validate a Thin Host without cloning the Foundation; separately verify both public command packages still compile with `go install`, while keeping release-provenance creation and upgrade confined to the checksummed bundle;
-- Docs-only publication exposes the expected application, version, and full commit at `/release.json`; its portable archive, build identity, checksum manifest, GitHub Release, protected deployment, and visible routes match the Docs tag commit;
+- candidate Docs publication exposes the expected application, version, and
+  exact Root commit at `/release.json`; any later stable Docs revision exposes
+  its own revision identity and merged-main commit without moving the candidate
+  Docs tag;
 - fresh-install and upgrade migrations, API registry synchronization, menu API binding, authorization negative cases, and rollback evidence are attached where required;
 - the local checkout still matches fetched `origin/main`, the tracked worktree is clean, unrelated local services are untouched, and the original GitHub actor is active.
 
@@ -242,9 +352,14 @@ Write one sanitized reconciliation comment to the evidence issue with run URLs, 
 - Stop before the first tag when a checkpoint, exact-SHA evidence, policy, portability, workflow-governance, or source check fails. Repair through a PR, merge, and freeze the new commit.
 - Stop before the next component when publication fails. Inspect whether any public mutation occurred before deciding between an exact-stage rerun and a new patch version.
 - If a Root tag or Release is already public and either the Root image candidate
-  or npm publication requires a source or access-contract repair, freeze the
-  partial train and prepare the next unused patch through a PR. Do not complete
-  the old version by adding a token or moving an immutable ref.
+  or candidate Docs publication requires a source repair, freeze the partial
+  train and prepare the next unused patch through a PR. If stable npm promotion
+  fails without publishing and no source or policy changes are required, repair
+  only the external Trusted Publisher identity under explicit authorization and
+  rerun from the exact Root tag after reconstructing the ledger. Never add a
+  token or move an immutable ref.
+- Never move npm `latest` or GitHub Latest during candidate publication. Never
+  use an auxiliary dist-tag as a holding area or run `npm dist-tag` manually.
 - Never delete, move, overwrite, or reuse a public tag, Release, package, image, or checksum.
 - Never release from a topic branch, detached commit, local-only fix, dirty worktree, or commit absent from current `origin/main`.
 - Never weaken a test, bypass an environment policy, forge evidence, or invent a

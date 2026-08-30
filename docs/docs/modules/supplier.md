@@ -19,10 +19,12 @@ This checked-in page documents the Foundation reference projection. Its
 `admin/modules/**` and `web/antd-v6/**` paths are contributor evidence, not a
 downstream application layout. v1.3.5 and v1.3.6 remain immutable-partial
 trains and must not be used as complete Thin Host baselines. The current stable
-version remains v1.3.2. v1.3.7 is the selected release candidate, remains
-unpublished, and is not adoptable; the commands below are source-only
-Foundation validation. The future complete v1.3.7 distribution
-generates business ownership under `internal/modules/**` and
+version is the exact value recorded by the reviewed release policy (v1.3.2 at
+this source commit). v1.3.7 is the selected release train; candidate surfaces
+may become public in stages, but
+it is not adoptable until stable aliases and final policy/Docs reconciliation
+complete. The commands below are source-only Foundation validation. The complete
+v1.3.7 distribution generates business ownership under `internal/modules/**` and
 `web/src/business/**`; its generated repository owns the adopter module page
 and validation contract.
 :::

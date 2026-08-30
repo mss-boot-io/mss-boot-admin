@@ -4,10 +4,9 @@
 
 ## v1.3.7 候选组件状态
 
-v1.3.7 已选为完整 package-first 候选，但
-`github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7` 尚未公开。候选 preview
-可以从精确仓库 workspace 资格验证它；正式 Admin 发布随后必须用 `GOWORK=off` 解析
-同一公共 Framework。
+v1.3.7 已选为完整 package-first 候选，但尚未稳定、不可采用。Framework 候选面可能在
+分阶段发布期间公开，具体状态以远端台账为准。候选 preview 可以从精确仓库 workspace
+资格验证它；正式 Admin 发布必须用 `GOWORK=off` 解析同一公共 Framework。
 
 v1.3.5 与 v1.3.6 都是不可变部分发布。v1.3.6 Framework 组件已公开并绑定
 `b1fe47a3a83209574e09d53526b122dd2cbc5277`，但协调列车缺少 Root 镜像、官方 npmjs

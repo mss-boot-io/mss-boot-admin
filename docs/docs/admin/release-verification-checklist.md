@@ -11,9 +11,9 @@ keywords: [admin release checklist smoke regression]
 ## 使用方式
 
 :::warning
-v1.3.5 已永久停止为不可变部分发布，缺少 Root 工具、官方 npmjs、Docs 和完整 Thin Host
-路径。本清单不能把 v1.3.5 变成可安装或可升级版本，也不能授权补发其缺失制品。当前稳定
-资料见 [v1.3.2 稳定记录](/releases/archive/v1-3-2)。
+v1.3.5 与 v1.3.6 都已永久停止为不可变部分发布；本清单不能授权补发其缺失制品。
+v1.3.7 是尚未完成公共对账的候选，本清单也不能单独把它变成可安装或可升级版本。
+当前稳定与回退资料仍以 [v1.3.2 稳定记录](/releases/archive/v1-3-2) 为准。
 :::
 
 本清单区分未来完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
@@ -82,4 +82,6 @@ v1.3.5 已永久停止为不可变部分发布，缺少 Root 工具、官方 npm
 
 - [集成测试指南](/admin/integration-test-guide)
 - [v1.3.5 不可变部分发布记录](/releases/v1-3-5)
+- [v1.3.6 不可变部分发布记录](/releases/v1-3-6)
+- [v1.3.7 发布候选说明](/releases/v1-3-7)
 - [当前采用状态](/getting-started)
