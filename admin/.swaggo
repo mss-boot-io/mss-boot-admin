@@ -1,0 +1,3 @@
+// Swagger 2.0 has no union type. Treat untagged RawMessage values as opaque
+// JSON; fields that are contractually JSON objects use field-level overrides.
+replace encoding/json.RawMessage github.com/mss-boot-io/mss-boot-admin/admin/presentation.swaggerAnyJSONValue

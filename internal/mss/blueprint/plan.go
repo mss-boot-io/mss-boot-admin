@@ -148,7 +148,7 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	files, manifest, err := buildDesired(ctx, root, blueprint, options.Application, options.FrontendRegistryURL)
+	files, manifest, err := buildDesired(ctx, root, blueprint, options.Application, options.FrontendRegistryURL, true)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -172,10 +172,10 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 
 // BuildDesired renders all tracked foundation files in memory without touching the destination.
 func BuildDesired(ctx context.Context, root string, blueprint *Document, application Application) (map[string]desiredFile, Manifest, error) {
-	return buildDesired(ctx, root, blueprint, application, "")
+	return buildDesired(ctx, root, blueprint, application, "", true)
 }
 
-func buildDesired(ctx context.Context, root string, blueprint *Document, application Application, frontendRegistryURL string) (map[string]desiredFile, Manifest, error) {
+func buildDesired(ctx context.Context, root string, blueprint *Document, application Application, frontendRegistryURL string, requirePresentationParity bool) (map[string]desiredFile, Manifest, error) {
 	application = normalizeApplication(application)
 	if err := ValidateApplication(application); err != nil {
 		return nil, Manifest{}, err
@@ -183,6 +183,11 @@ func buildDesired(ctx context.Context, root string, blueprint *Document, applica
 	source, err := loadCommittedFoundation(ctx, root, blueprint)
 	if err != nil {
 		return nil, Manifest{}, err
+	}
+	if requirePresentationParity {
+		if err := validateNewApplicationPresentationSource(source.Presentation); err != nil {
+			return nil, Manifest{}, err
+		}
 	}
 	blueprint = source.Blueprint
 	selected := make([]selectedCommittedFile, 0, len(source.Entries))
@@ -237,7 +242,7 @@ func buildDesired(ctx context.Context, root string, blueprint *Document, applica
 	if err != nil {
 		return nil, Manifest{}, err
 	}
-	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, application, frontendPackage)
+	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, source.Presentation, application, frontendPackage)
 }
 
 func buildDesiredFromSource(
@@ -245,6 +250,7 @@ func buildDesiredFromSource(
 	blueprintSHA string,
 	foundationIdentity FoundationIdentity,
 	sourceFiles []blueprintSourceFile,
+	presentation presentationSnapshot,
 	application Application,
 	frontendPackage frontendPackageResolution,
 ) (map[string]desiredFile, Manifest, error) {
@@ -288,6 +294,16 @@ func buildDesiredFromSource(
 			renderedProject.Spec.Backend.Module != application.Module {
 			return nil, Manifest{}, errors.New("self-validate rendered .mss/project.yaml: application identity changed during rendering")
 		}
+	}
+	if presentation.APIVersion != "" {
+		if _, exists := files[presentationSnapshotPath]; exists {
+			return nil, Manifest{}, fmt.Errorf("application template collides with generated Admin presentation snapshot %s", presentationSnapshotPath)
+		}
+		data, err := renderPresentationSnapshot(presentation)
+		if err != nil {
+			return nil, Manifest{}, fmt.Errorf("render Admin presentation upgrade snapshot: %w", err)
+		}
+		files[presentationSnapshotPath] = desiredFile{Data: data, Mode: 0o644}
 	}
 	baseline := make(map[string]ManifestFile, len(files))
 	for relative, file := range files {

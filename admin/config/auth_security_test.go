@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mss-boot-io/mss-boot-admin/admin/pkg/browsersecurity"
 	"gopkg.in/yaml.v3"
 )
 
@@ -75,6 +76,11 @@ func TestE2EOverlayProducesAValidBrowserSessionProfile(t *testing.T) {
 		cfg.CORS.AllowHeaders,
 	); err != nil {
 		t.Fatalf("validate E2E browser origins: %v", err)
+	}
+	for _, origin := range []string{"http://127.0.0.1:18001", "http://localhost:18001"} {
+		if !browsersecurity.IsTrustedOrigin(origin, cfg.Application.Origin, cfg.CORS.AllowOrigins) {
+			t.Errorf("E2E browser origin %q is not trusted", origin)
+		}
 	}
 }
 

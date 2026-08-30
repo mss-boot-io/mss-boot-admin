@@ -147,6 +147,11 @@ type Condition struct {
 	Not      *Condition       `json:"not,omitempty"`
 }
 
+// swaggerAnyJSONValue is a documentation-only alias used by admin/.swaggo.
+// An empty Swagger 2.0 schema accurately keeps condition values opaque because
+// the runtime contract accepts either a JSON scalar or an array of scalars.
+type swaggerAnyJSONValue = any
+
 type CapabilityDefinition struct {
 	PageKey             string                 `json:"pageKey"`
 	DefinitionVersion   string                 `json:"definitionVersion"`

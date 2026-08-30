@@ -1046,11 +1046,15 @@ jobs:
             echo
             echo 'The additive migration creates `mss_boot_presentation_profiles` and `mss_boot_presentation_revisions` without deleting existing business rows. Run `admin migrate` first, run one `admin server -a` API-registry synchronization, and only then start the long-running `admin server` process.'
             echo
+            echo 'Important upgrade stop: databases upgraded with Admin v1.3.3 through v1.3.6 may already record permission migration `20260824121000` from its former overwrite-capable implementation. When that predecessor exists without the independent fail-closed attestation, forward guard `20260830193000` intentionally fails closed and leaves its version pending; this is expected protection, not a migration to bypass.'
+            echo
+            echo 'Before upgrading an affected database, stop writers and take a restorable pre-upgrade backup. Follow `docs/adr/2026-08-24-admin-presentation-publication-workflow.md` under “Forward permission-collision guard” to compare and restore `mss_boot_menus` metadata and related `mss_boot_casbin_rule` policies, or make an explicit ownership decision after reviewing the complete canonical inventory. Do not insert the attestation merely because current values look canonical. Record it only after the documented recovery review, then rerun `admin migrate`.'
+            echo
             echo 'Initial administrator secrets are accepted only through the documented hidden prompt or one-use `MSS_ADMIN_INITIAL_PASSWORD` environment injection. The removed `--password` and `-p` migration flags are rejected.'
             echo
             echo '## Compatibility'
             echo
-            echo 'Framework, Admin, Admin Web, Root tools, and images must use this exact coordinated version. The presentation tables and permission metadata are additive; production capability registration remains empty, so existing business pages continue to use compiled defaults after upgrade.'
+            echo 'Framework, Admin, Admin Web, Root tools, and images must use this exact coordinated version. The presentation tables and permission metadata are additive; the fourteen Foundation built-in management page capabilities use an exact startup allowlist and fail safely to compiled defaults for missing, invalid, drifted, unavailable, disabled, or recovery-bypassed profiles.'
             echo
             echo '## Security'
             echo
@@ -1058,7 +1062,7 @@ jobs:
             echo
             echo '## Rollback'
             echo
-            echo 'For a normal binary rollback, enable `presentation.recoveryMode`, verify compiled defaults, and redeploy only the matching v1.3.2 Admin, frontend, configuration, and lock. Keep the live forward-compatible database schema and data; do not down-migrate or delete additive presentation tables, immutable revisions, permission history, audit evidence, or business writes.'
+            echo 'For a normal binary rollback, enable `presentation.recoveryMode`, verify compiled defaults, and redeploy one previously qualified coordinated Admin Distribution with its matching Framework, Admin, frontend, configuration, and lock. Keep the live forward-compatible database schema and data; do not down-migrate or delete additive presentation tables, immutable revisions, permission history, audit evidence, or business writes.'
             echo
             echo 'A full database-backup restore is disaster recovery only and discards every write after the backup time. Before restoring, export and preserve post-backup audit and business data outside the target database whenever the current storage remains readable.'
             echo

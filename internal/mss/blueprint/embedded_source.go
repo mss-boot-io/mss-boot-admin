@@ -19,6 +19,7 @@ type embeddedFoundation struct {
 	BlueprintSHA string
 	Identity     FoundationIdentity
 	Files        []blueprintSourceFile
+	Presentation presentationSnapshot
 }
 
 // GenerateEmbedded plans or writes a Thin Host from the immutable source in a
@@ -37,6 +38,18 @@ func GenerateEmbedded(ctx context.Context, workingDirectory string, options Opti
 	if err != nil {
 		return Plan{}, err
 	}
+	return generateEmbeddedFromSource(ctx, base, options, source)
+}
+
+func generateEmbeddedFromSource(
+	ctx context.Context,
+	base string,
+	options Options,
+	source embeddedFoundation,
+) (Plan, error) {
+	if err := validateNewApplicationPresentationSource(source.Presentation); err != nil {
+		return Plan{}, err
+	}
 	frontendPackage, err := resolveFrontendPackageForSource(ctx, options.FrontendRegistryURL, source.Blueprint, source.Files)
 	if err != nil {
 		return Plan{}, err
@@ -50,6 +63,7 @@ func GenerateEmbedded(ctx context.Context, workingDirectory string, options Opti
 		source.BlueprintSHA,
 		source.Identity,
 		source.Files,
+		source.Presentation,
 		options.Application,
 		frontendPackage,
 	)
@@ -142,6 +156,16 @@ func loadEmbeddedFoundation(requestedName string) (embeddedFoundation, error) {
 	if err != nil {
 		return embeddedFoundation{}, fmt.Errorf("read embedded application source: %w", err)
 	}
+	presentation, err := loadPresentationSourceSnapshot(func(path string) ([]byte, bool, error) {
+		data, err := fs.ReadFile(source, path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false, nil
+		}
+		return data, err == nil, err
+	})
+	if err != nil {
+		return embeddedFoundation{}, fmt.Errorf("read embedded Admin presentation source: %w", err)
+	}
 	return embeddedFoundation{
 		Blueprint:    blueprint,
 		BlueprintSHA: digest(blueprintData),
@@ -153,7 +177,8 @@ func loadEmbeddedFoundation(requestedName string) (embeddedFoundation, error) {
 			Channel:    "stable",
 			Source:     ".mss/release-policy.yaml",
 		},
-		Files: files,
+		Files:        files,
+		Presentation: presentation,
 	}, nil
 }
 

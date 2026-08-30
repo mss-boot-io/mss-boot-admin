@@ -23,6 +23,7 @@ type committedFoundation struct {
 	BlueprintSHA string
 	Identity     FoundationIdentity
 	Entries      []committedFile
+	Presentation presentationSnapshot
 }
 
 type committedFile struct {
@@ -162,6 +163,20 @@ func loadCommittedFoundation(ctx context.Context, root string, requested *Docume
 		Channel:    channel,
 		Source:     ".mss/release-policy.yaml",
 	}
+	presentation, err := loadPresentationSourceSnapshot(func(relative string) ([]byte, bool, error) {
+		entry, exists := byPath[relative]
+		if !exists {
+			return nil, false, nil
+		}
+		if entry.Type != "blob" || entry.GitMode == "120000" {
+			return nil, false, fmt.Errorf("committed Admin presentation source is not a regular blob: %s", relative)
+		}
+		data, err := readCommittedBlob(ctx, root, entry)
+		return data, err == nil, err
+	})
+	if err != nil {
+		return committedFoundation{}, err
+	}
 	if err := verifyFoundationHead(ctx, root, commit); err != nil {
 		return committedFoundation{}, err
 	}
@@ -170,6 +185,7 @@ func loadCommittedFoundation(ctx context.Context, root string, requested *Docume
 		BlueprintSHA: digest(blueprintData),
 		Identity:     identity,
 		Entries:      entries,
+		Presentation: presentation,
 	}, nil
 }
 

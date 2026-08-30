@@ -79,10 +79,28 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if written.DryRun || !written.Success {
 		t.Fatalf("embedded write plan = %#v", written)
 	}
-	for _, relative := range []string{".git/HEAD", ".mss/project.yaml", ".mss/lock.yaml", ".mss/blueprint-manifest.json", "go.mod", "web/package.json"} {
+	for _, relative := range []string{".git/HEAD", ".mss/project.yaml", ".mss/lock.yaml", ".mss/blueprint-manifest.json", presentationSnapshotPath, "go.mod", "web/package.json"} {
 		if info, err := os.Stat(filepath.Join(destination, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
 			t.Fatalf("generated %s = info:%v err:%v", relative, info, err)
 		}
+	}
+	presentationData, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(presentationSnapshotPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentationSnapshot, err := decodePresentationSnapshot(presentationData)
+	if err != nil {
+		t.Fatalf("decode generated presentation upgrade snapshot: %v", err)
+	}
+	if len(presentationSnapshot.Pages) != 14 || !presentationSnapshot.BackendFrontendInventoriesMatch {
+		t.Fatalf("generated presentation upgrade snapshot = %#v", presentationSnapshot)
+	}
+	generatedSnapshot, err := ReadSnapshot(destination, "")
+	if err != nil {
+		t.Fatalf("read generated Blueprint snapshot: %v", err)
+	}
+	if generatedSnapshot.Lock.Spec.Contracts["adminPresentationSnapshot"] != "v1alpha1" {
+		t.Fatalf("generated lock omits Admin presentation snapshot contract: %#v", generatedSnapshot.Lock.Spec.Contracts)
 	}
 	dockerfile, err := os.ReadFile(filepath.Join(destination, "Dockerfile"))
 	if err != nil {
@@ -209,6 +227,30 @@ func TestGenerateEmbeddedRejectsIncompleteBuildProvenance(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "official release-built mss") {
 		t.Fatalf("GenerateEmbedded(incomplete provenance) error = %v", err)
+	}
+}
+
+func TestGenerateEmbeddedFailsClosedOnPresentationIdentityDrift(t *testing.T) {
+	setEmbeddedReleaseBuild(t)
+	source, err := loadEmbeddedFoundation("")
+	if err != nil {
+		t.Fatalf("load embedded Foundation: %v", err)
+	}
+	source.Presentation.BackendFrontendInventoriesMatch = false
+	destination := filepath.Join(t.TempDir(), "embedded-presentation-drift")
+	_, err = generateEmbeddedFromSource(context.Background(), t.TempDir(), Options{
+		Destination: destination,
+		Application: Application{
+			Name:       "embedded-presentation-drift",
+			Module:     "github.com/acme/embedded-presentation-drift",
+			Repository: "acme/embedded-presentation-drift",
+		},
+	}, source)
+	if err == nil || !strings.Contains(err.Error(), "refusing to generate a new application from a one-sided Distribution source") {
+		t.Fatalf("embedded generation identity drift error = %v", err)
+	}
+	if _, statErr := os.Stat(destination); !os.IsNotExist(statErr) {
+		t.Fatalf("failed-closed embedded generation created destination: %v", statErr)
 	}
 }
 
