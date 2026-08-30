@@ -10,6 +10,7 @@ on:
       - 'admin/go.sum'
       - 'mss-boot/**/*.go'
       - 'tools/verification/check_presentation_openapi.py'
+      - 'tools/verification/test_check_presentation_openapi.py'
       - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
@@ -44,6 +45,9 @@ jobs:
 
       - name: Install pinned Swagger generator
         run: go install github.com/swaggo/swag/cmd/swag@v1.16.6
+
+      - name: Test presentation OpenAPI verifier
+        run: python3 -m unittest tools.verification.test_check_presentation_openapi
 
       - name: Generate Admin API documentation
         working-directory: admin

@@ -15,15 +15,15 @@ type PresentationProfileIdentity struct {
 
 type PresentationProfileCreateRequest struct {
 	PresentationProfileIdentity
-	Document json.RawMessage `json:"document" binding:"required"`
+	Document json.RawMessage `json:"document" binding:"required" swaggertype:"object"`
 }
 
 type PresentationDraftReplaceRequest struct {
-	Document json.RawMessage `json:"document" binding:"required"`
+	Document json.RawMessage `json:"document" binding:"required" swaggertype:"object"`
 }
 
 type PresentationValidationRequest struct {
-	Document json.RawMessage `json:"document" binding:"required"`
+	Document json.RawMessage `json:"document" binding:"required" swaggertype:"object"`
 }
 
 type PresentationRollbackRequest struct {
@@ -73,7 +73,7 @@ type PresentationProfileResource struct {
 }
 
 type PresentationDraftResource struct {
-	Document       json.RawMessage      `json:"document"`
+	Document       json.RawMessage      `json:"document" swaggertype:"object"`
 	Digest         string               `json:"digest"`
 	DefinitionHash string               `json:"definitionHash"`
 	Valid          bool                 `json:"valid"`
@@ -94,7 +94,7 @@ type PresentationRevisionSummary struct {
 type PresentationRevisionResource struct {
 	PresentationRevisionSummary
 	ProfileID string          `json:"profileID"`
-	Document  json.RawMessage `json:"document"`
+	Document  json.RawMessage `json:"document" swaggertype:"object"`
 }
 
 type PresentationRevisionListResponse struct {
@@ -107,7 +107,7 @@ type PresentationRevisionListResponse struct {
 type PresentationValidationResponse struct {
 	StructurallyValid bool                 `json:"structurallyValid"`
 	SemanticallyValid bool                 `json:"semanticallyValid"`
-	CanonicalDocument json.RawMessage      `json:"canonicalDocument,omitempty"`
+	CanonicalDocument json.RawMessage      `json:"canonicalDocument,omitempty" swaggertype:"object"`
 	Digest            string               `json:"digest,omitempty"`
 	CurrentDefinition string               `json:"currentDefinition,omitempty"`
 	Issues            []presentation.Issue `json:"issues"`
@@ -146,9 +146,9 @@ type PresentationAdoptionResource struct {
 }
 
 type EffectivePresentationLayers struct {
-	Application json.RawMessage `json:"application,omitempty"`
-	Role        json.RawMessage `json:"role,omitempty"`
-	User        json.RawMessage `json:"user,omitempty"`
+	Application json.RawMessage `json:"application,omitempty" swaggertype:"object"`
+	Role        json.RawMessage `json:"role,omitempty" swaggertype:"object"`
+	User        json.RawMessage `json:"user,omitempty" swaggertype:"object"`
 }
 
 type EffectivePresentationDiagnostic struct {

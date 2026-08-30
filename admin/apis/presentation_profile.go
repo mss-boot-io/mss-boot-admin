@@ -151,6 +151,7 @@ func (api *PresentationProfileAPI) Validate(ctx *gin.Context) {
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles [get]
 // @Security Bearer
 func (api *PresentationProfileAPI) List(ctx *gin.Context) {
@@ -173,10 +174,12 @@ func (api *PresentationProfileAPI) List(ctx *gin.Context) {
 // @Produce application/json
 // @Param id path string true "profile id"
 // @Success 200 {object} dto.PresentationProfileResource
+// @Header 200 {string} ETag "strong profile ETag"
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id} [get]
 // @Security Bearer
 func (api *PresentationProfileAPI) Get(ctx *gin.Context) {
@@ -202,12 +205,15 @@ func (api *PresentationProfileAPI) Get(ctx *gin.Context) {
 // @Param If-None-Match header string true "must be *"
 // @Param data body dto.PresentationProfileCreateRequest true "profile identity and presentation document"
 // @Success 201 {object} dto.PresentationProfileResource
+// @Header 201 {string} ETag "strong profile ETag"
+// @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 409 {object} response.Response
-// @Failure 412 {object} response.Response
 // @Failure 413 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 428 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles [post]
 // @Security Bearer
 func (api *PresentationProfileAPI) CreateDraft(ctx *gin.Context) {
@@ -249,13 +255,18 @@ func (api *PresentationProfileAPI) CreateDraft(ctx *gin.Context) {
 // @Param If-Match header string true "strong profile ETag"
 // @Param data body dto.PresentationDraftReplaceRequest true "replacement presentation document"
 // @Success 200 {object} dto.PresentationProfileResource
+// @Header 200 {string} ETag "strong profile ETag"
+// @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
-// @Failure 409 {object} dto.PresentationConflictResponse
-// @Failure 412 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 412 {object} dto.PresentationConflictResponse
+// @Header 412 {string} ETag "current strong profile ETag"
 // @Failure 413 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 428 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id}/draft [put]
 // @Security Bearer
 func (api *PresentationProfileAPI) ReplaceDraft(ctx *gin.Context) {
@@ -294,14 +305,19 @@ func (api *PresentationProfileAPI) ReplaceDraft(ctx *gin.Context) {
 // @Produce application/json
 // @Param id path string true "profile id"
 // @Param If-Match header string true "strong profile ETag"
-// @Param Idempotency-Key header string false "idempotent transition key"
+// @Param Idempotency-Key header string true "idempotent transition key"
 // @Success 200 {object} dto.PresentationTransitionResponse
+// @Header 200 {string} ETag "strong profile ETag"
+// @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
-// @Failure 409 {object} dto.PresentationConflictResponse
-// @Failure 412 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 412 {object} dto.PresentationConflictResponse
+// @Header 412 {string} ETag "current strong profile ETag"
 // @Failure 422 {object} response.Response
+// @Failure 428 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id}/publish [post]
 // @Security Bearer
 func (api *PresentationProfileAPI) Publish(ctx *gin.Context) {
@@ -339,15 +355,21 @@ func (api *PresentationProfileAPI) Publish(ctx *gin.Context) {
 // @Produce application/json
 // @Param id path string true "profile id"
 // @Param If-Match header string true "strong profile ETag"
-// @Param Idempotency-Key header string false "idempotent transition key"
+// @Param Idempotency-Key header string true "idempotent transition key"
 // @Param data body dto.PresentationRollbackRequest true "historical revision"
 // @Success 200 {object} dto.PresentationTransitionResponse
+// @Header 200 {string} ETag "strong profile ETag"
+// @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
-// @Failure 409 {object} dto.PresentationConflictResponse
-// @Failure 412 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 412 {object} dto.PresentationConflictResponse
+// @Header 412 {string} ETag "current strong profile ETag"
+// @Failure 413 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 428 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id}/rollback [post]
 // @Security Bearer
 func (api *PresentationProfileAPI) Rollback(ctx *gin.Context) {
@@ -398,6 +420,7 @@ func (api *PresentationProfileAPI) Rollback(ctx *gin.Context) {
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id}/revisions [get]
 // @Security Bearer
 func (api *PresentationProfileAPI) ListRevisions(ctx *gin.Context) {
@@ -429,6 +452,7 @@ func (api *PresentationProfileAPI) ListRevisions(ctx *gin.Context) {
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation-profiles/{id}/revisions/{revision} [get]
 // @Security Bearer
 func (api *PresentationProfileAPI) GetRevision(ctx *gin.Context) {
@@ -460,6 +484,7 @@ func (api *PresentationProfileAPI) GetRevision(ctx *gin.Context) {
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 422 {object} response.Response
+// @Failure 503 {object} response.Response
 // @Router /admin/api/presentation/effective/{pageKey} [get]
 // @Security Bearer
 func (api *PresentationProfileAPI) Effective(ctx *gin.Context) {

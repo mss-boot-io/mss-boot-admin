@@ -13,59 +13,170 @@ check_presentation_openapi = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check_presentation_openapi)
 
 
+def _swagger_parameter(expected: dict) -> dict:
+    parameter = {
+        "name": expected["name"],
+        "in": expected["in"],
+        "required": expected["required"],
+    }
+    if expected["type"] is not None:
+        parameter["type"] = expected["type"]
+    if expected["$ref"] is not None:
+        parameter["schema"] = {"$ref": expected["$ref"]}
+    return parameter
+
+
+def _definition_name(reference: str) -> str:
+    return reference.removeprefix("#/definitions/")
+
+
 def valid_document() -> dict:
     paths: dict = {}
-    for (path, method), status in check_presentation_openapi.EXPECTED_OPERATIONS.items():
+    definitions: dict = {}
+    for (path, method), expected in check_presentation_openapi.EXPECTED_OPERATIONS.items():
+        responses = {
+            expected["success_status"]: {
+                "description": "success",
+                "schema": {"$ref": expected["success_ref"]},
+            }
+        }
+        definitions[_definition_name(expected["success_ref"])] = {
+            "type": "object",
+            "properties": {},
+        }
+        for status, reference in expected["responses"].items():
+            responses[status] = {
+                "description": "failure",
+                "schema": {"$ref": reference},
+            }
+            definitions[_definition_name(reference)] = {
+                "type": "object",
+                "properties": {},
+            }
+        for status in expected["etag_statuses"]:
+            responses[status]["headers"] = {
+                "ETag": {"description": "strong profile ETag", "type": "string"}
+            }
+        parameters = [_swagger_parameter(item) for item in expected["parameters"]]
+        for item in expected["parameters"]:
+            if item["$ref"] is not None:
+                definitions[_definition_name(item["$ref"])] = {
+                    "type": "object",
+                    "properties": {},
+                }
         paths.setdefault(path, {})[method] = {
             "tags": ["presentation"],
             "security": [{"Bearer": []}],
-            "responses": {status: {"schema": {"$ref": "#/definitions/example"}}},
+            "parameters": parameters,
+            "responses": responses,
         }
-    return {"swagger": "2.0", "paths": paths}
+    for definition_name, properties in (
+        check_presentation_openapi.RAW_JSON_OBJECT_PROPERTIES.items()
+    ):
+        definition = definitions.setdefault(
+            definition_name, {"type": "object", "properties": {}}
+        )
+        definition["properties"].update(
+            {property_name: {"type": "object"} for property_name in properties}
+        )
+    return {
+        "swagger": "2.0",
+        "securityDefinitions": {
+            "Bearer": {
+                "type": "apiKey",
+                "name": "Authorization",
+                "in": "header",
+            }
+        },
+        "paths": paths,
+        "definitions": definitions,
+    }
 
 
 class PresentationOpenAPIContractTest(unittest.TestCase):
     def test_accepts_the_complete_typed_authenticated_contract(self) -> None:
         self.assertEqual(check_presentation_openapi.collect_errors(valid_document()), [])
 
-    def test_rejects_missing_operation(self) -> None:
+    def test_rejects_missing_and_unexpected_operations(self) -> None:
         document = valid_document()
         del document["paths"]["/admin/api/presentation-capabilities"]["get"]
+        document["paths"]["/admin/api/presentation-extra"] = {
+            "get": {
+                "tags": ["presentation"],
+                "security": [{"Bearer": []}],
+                "parameters": [],
+                "responses": {},
+            }
+        }
         errors = check_presentation_openapi.collect_errors(document)
         self.assertIn(
             "missing presentation operation: GET /admin/api/presentation-capabilities",
             errors,
         )
+        self.assertIn(
+            "unexpected presentation operation: GET /admin/api/presentation-extra",
+            errors,
+        )
 
-    def test_rejects_untagged_and_unexpected_operations(self) -> None:
-        document = valid_document()
-        document["paths"]["/admin/api/presentation-capabilities"]["get"]["tags"] = []
-        document["paths"]["/admin/api/presentation-extra"] = {
-            "get": {
-                "tags": ["presentation"],
-                "security": [{"Bearer": []}],
-                "responses": {"200": {"schema": {"type": "object"}}},
-            }
-        }
-        errors = check_presentation_openapi.collect_errors(document)
-        self.assertTrue(any("missing presentation operation" in error for error in errors))
-        self.assertTrue(any("unexpected presentation operation" in error for error in errors))
-
-    def test_rejects_missing_security_and_untyped_success(self) -> None:
+    def test_rejects_missing_global_security_parameters_and_typed_success(self) -> None:
         document = deepcopy(valid_document())
+        del document["securityDefinitions"]
         operation = document["paths"]["/admin/api/presentation-profiles"]["post"]
-        operation["security"] = []
-        operation["responses"]["201"] = {"description": "created"}
+        operation["security"] = [{"Bearer": ["bogus"]}]
+        operation["parameters"] = []
+        operation["responses"]["201"]["schema"] = {}
         errors = check_presentation_openapi.collect_errors(document)
         self.assertIn(
-            "presentation operation lacks Bearer security: "
-            "POST /admin/api/presentation-profiles",
+            "global Bearer apiKey security definition is missing or malformed", errors
+        )
+        self.assertIn(
+            "POST /admin/api/presentation-profiles must require exact Bearer security",
+            errors,
+        )
+        self.assertTrue(
+            any("missing parameter" in error and "If-None-Match" in error for error in errors)
+        )
+        self.assertTrue(
+            any("response 201" in error and "wrong schema" in error for error in errors)
+        )
+
+    def test_rejects_optional_idempotency_key_and_wrong_conflict_schema(self) -> None:
+        document = deepcopy(valid_document())
+        operation = document["paths"][
+            "/admin/api/presentation-profiles/{id}/publish"
+        ]["post"]
+        idempotency_key = next(
+            parameter
+            for parameter in operation["parameters"]
+            if parameter["name"] == "Idempotency-Key"
+        )
+        idempotency_key["required"] = False
+        operation["responses"]["412"]["schema"]["$ref"] = (
+            check_presentation_openapi.GENERIC_RESPONSE_REF
+        )
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertTrue(
+            any("Idempotency-Key" in error and "required flag" in error for error in errors)
+        )
+        self.assertTrue(
+            any("response 412" in error and "wrong schema" in error for error in errors)
+        )
+
+    def test_rejects_byte_array_json_and_missing_precondition_response(self) -> None:
+        document = deepcopy(valid_document())
+        document["definitions"]["dto.PresentationProfileCreateRequest"]["properties"][
+            "document"
+        ] = {"type": "array", "items": {"type": "integer"}}
+        del document["paths"]["/admin/api/presentation-profiles"]["post"]["responses"][
+            "428"
+        ]
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "dto.PresentationProfileCreateRequest.document must be documented as a JSON object",
             errors,
         )
         self.assertIn(
-            "presentation operation lacks typed 201 response: "
-            "POST /admin/api/presentation-profiles",
-            errors,
+            "missing response 428 on POST /admin/api/presentation-profiles", errors
         )
 
 
