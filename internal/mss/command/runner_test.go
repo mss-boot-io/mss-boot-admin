@@ -14,6 +14,89 @@ import (
 	"time"
 )
 
+type processReferenceForTest struct {
+	PID      int
+	Identity string
+}
+
+func captureProcessReferenceForTest(pid int) processReferenceForTest {
+	reference := processReferenceForTest{PID: pid}
+	if runtime.GOOS != "linux" {
+		return reference
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return reference
+	}
+	state, startTime, ok := linuxProcessStateAndStartTimeForTest(data)
+	if !ok || processStateExitedForTest(state) {
+		return reference
+	}
+	reference.Identity = startTime
+	return reference
+}
+
+func formatProcessReferenceForTest(reference processReferenceForTest) string {
+	return fmt.Sprintf("%d:%s", reference.PID, reference.Identity)
+}
+
+func parseProcessReferenceForTest(value string) (processReferenceForTest, error) {
+	pidValue, identity, _ := strings.Cut(value, ":")
+	pid, err := strconv.Atoi(pidValue)
+	if err != nil || pid <= 0 {
+		return processReferenceForTest{}, fmt.Errorf("invalid process reference %q", value)
+	}
+	return processReferenceForTest{PID: pid, Identity: identity}, nil
+}
+
+func processReferenceExistsForTest(reference processReferenceForTest) bool {
+	if runtime.GOOS != "linux" || reference.Identity == "" {
+		return processExistsForTest(reference.PID)
+	}
+	data, err := os.ReadFile("/proc/" + strconv.Itoa(reference.PID) + "/stat")
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	if err != nil {
+		return processExistsForTest(reference.PID)
+	}
+	state, startTime, ok := linuxProcessStateAndStartTimeForTest(data)
+	if !ok {
+		return processExistsForTest(reference.PID)
+	}
+	return !processStateExitedForTest(state) && startTime == reference.Identity
+}
+
+func linuxProcessStateAndStartTimeForTest(data []byte) (byte, string, bool) {
+	value := string(data)
+	closing := strings.LastIndexByte(value, ')')
+	if closing < 0 {
+		return 0, "", false
+	}
+	fields := strings.Fields(value[closing+1:])
+	if len(fields) <= 19 || len(fields[0]) != 1 {
+		return 0, "", false
+	}
+	return fields[0][0], fields[19], true
+}
+
+func processStateExitedForTest(state byte) bool {
+	return state == 'Z' || state == 'X' || state == 'x'
+}
+
+func waitForProcessExitForTest(exists func() bool, timeout, pollInterval time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !exists() {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(pollInterval)
+	}
+}
+
 func TestMergeEnvironmentUnsetsInheritedValuesBeforeOverrides(t *testing.T) {
 	base := []string{
 		"PATH=/base/bin",
@@ -140,17 +223,33 @@ func TestRunTimeoutTerminatesSecretBearingProcessTree(t *testing.T) {
 		t.Fatalf("helper process identities = %q, want parent and grandchild", data)
 	}
 	for _, field := range fields {
-		pid, err := strconv.Atoi(field)
-		if err != nil || pid <= 0 {
+		reference, err := parseProcessReferenceForTest(field)
+		if err != nil {
 			t.Fatalf("invalid helper process identity %q", field)
 		}
-		deadline := time.Now().Add(5 * time.Second)
-		for processExistsForTest(pid) && time.Now().Before(deadline) {
-			time.Sleep(25 * time.Millisecond)
+		if !waitForProcessExitForTest(
+			func() bool { return processReferenceExistsForTest(reference) },
+			5*time.Second,
+			25*time.Millisecond,
+		) {
+			t.Fatalf("timed command left process %d running", reference.PID)
 		}
-		if processExistsForTest(pid) {
-			t.Fatalf("timed command left process %d running", pid)
-		}
+	}
+}
+
+func TestWaitForProcessExitStopsAfterFirstMissingSample(t *testing.T) {
+	samples := []bool{false, true}
+	calls := 0
+	exited := waitForProcessExitForTest(func() bool {
+		value := samples[calls]
+		calls++
+		return value
+	}, time.Second, time.Millisecond)
+	if !exited {
+		t.Fatal("wait reported a live process after observing it missing")
+	}
+	if calls != 1 {
+		t.Fatalf("existence probe called %d times, want 1", calls)
 	}
 }
 
@@ -208,9 +307,11 @@ func TestCommandHelperProcess(t *testing.T) {
 		if pidFile == "" {
 			os.Exit(16)
 		}
+		parentReference := captureProcessReferenceForTest(os.Getpid())
+		childReference := captureProcessReferenceForTest(child.Process.Pid)
 		if err := os.WriteFile(
 			pidFile,
-			[]byte(fmt.Sprintf("%d\n%d\n", os.Getpid(), child.Process.Pid)),
+			[]byte(formatProcessReferenceForTest(parentReference)+"\n"+formatProcessReferenceForTest(childReference)+"\n"),
 			0o600,
 		); err != nil {
 			_, _ = os.Stderr.WriteString("write process identities: " + err.Error())

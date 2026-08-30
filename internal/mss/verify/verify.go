@@ -1263,7 +1263,40 @@ func foundationCompatibilitySensitive(path string) bool {
 }
 
 func frontendQualificationSensitive(path string) bool {
-	return path == "tools/verification/run-frontend-e2e.sh"
+	for _, exact := range []string{
+		"admin/config/application-e2e.yml",
+		"admin/router/security_contract.go",
+		"web/antd-v6/package.json",
+		"web/antd-v6/playwright.config.ts",
+		"web/antd-v6/pnpm-lock.yaml",
+		"web/antd-v6/scripts/start-e2e-backend.sh",
+		"web/antd-v6/src/generated/core-presentation-registry.generated.ts",
+		"tools/verification/run-frontend-e2e.sh",
+	} {
+		if path == exact {
+			return true
+		}
+	}
+	if strings.HasPrefix(path, "admin/cmd/migrate/migration/system/") &&
+		strings.Contains(strings.TrimPrefix(path, "admin/cmd/migrate/migration/system/"), "presentation") {
+		return true
+	}
+	for _, prefix := range []string{
+		".mss/core-pages/",
+		"admin/apis/presentation_profile",
+		"admin/config/presentation",
+		"admin/dto/presentation_profile",
+		"admin/models/presentation_profile",
+		"admin/presentation/",
+		"admin/service/presentation_profile",
+		"web/antd-v6/e2e/",
+		"web/antd-v6/src/shared/presentation/",
+	} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isFrontend(path string) bool {

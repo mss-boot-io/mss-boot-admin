@@ -209,24 +209,9 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )
         self.assertNotIn("push", triggers)
 
-    def test_agent_ci_runs_this_governance_suite(self):
+    def test_agent_ci_is_manual_and_runs_this_governance_suite(self):
         agent_workflow = self.workflows["agent-native-ci.yml"]
-        self.assertNotIn("pull_request", agent_workflow["on"])
-        paths = agent_workflow["on"]["push"]["paths"]
-        self.assertIn(".github/workflows/**", paths)
-        self.assertIn("tools/ci/**", paths)
-        for current_document in (
-            "admin/README.md",
-            "mss-boot/README.md",
-            "mss-boot/README.Zh-cn.md",
-            "web/antd-v6/README.md",
-        ):
-            self.assertIn(current_document, paths)
-        self.assertNotIn("docs/docs/agent/**", paths)
-        self.assertNotIn(
-            "docs/docs/architecture/agent-native-foundation.zh-CN.md",
-            paths,
-        )
+        self.assertEqual(set(agent_workflow["on"]), {"workflow_dispatch"})
 
         steps = agent_workflow["jobs"]["contracts-and-go"]["steps"]
         governance = next(
@@ -323,10 +308,30 @@ class WorkflowGovernanceTest(unittest.TestCase):
             step = next(item for item in test_steps if item.get("name") == step_name)
             self.assertEqual(step["if"], "github.event_name != 'pull_request'")
 
-    def test_broad_component_matrices_are_post_merge_or_manual_not_pr_gates(self):
+    def test_extended_agent_and_frontend_matrices_are_manual_only(self):
+        expected_jobs = {
+            "agent-native-ci.yml": {
+                "contracts-and-go",
+                "cross-platform-agent-tools",
+            },
+            "frontend-v6-ci.yml": {
+                "generated-contract",
+                "dependency-contract",
+                "quality",
+                "package-contract",
+                "compile",
+                "browser",
+                "build",
+            },
+        }
+        for workflow_name, required_jobs in expected_jobs.items():
+            with self.subTest(workflow=workflow_name):
+                workflow = self.workflows[workflow_name]
+                self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
+                self.assertEqual(set(workflow["jobs"]), required_jobs)
+
+    def test_other_broad_component_matrices_are_post_merge_or_manual_not_pr_gates(self):
         for workflow_name in (
-            "agent-native-ci.yml",
-            "frontend-v6-ci.yml",
             "admin-distribution-compatibility.yml",
             "container.yml",
             "docs.yml",
@@ -487,14 +492,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
                 self.assertIn("contains(fromJSON(matrix.scopes)", condition)
                 self.assertNotIn("!contains", condition)
 
-    def test_component_owned_workflows_do_not_watch_other_owned_roots(self):
-        frontend = self.workflows["frontend-v6-ci.yml"]
-        self.assertNotIn("pull_request", frontend["on"])
-        paths = frontend["on"]["push"]["paths"]
-        self.assertNotIn("admin/**", paths)
-        self.assertNotIn("admin/modules/**/module.yaml", paths)
-        self.assertNotIn("mss-boot/**", paths)
-
+    def test_mirror_does_not_watch_documentation_owned_roots(self):
         mirror = self.workflows["mirror.yml"]
         self.assertIn("docs/**", mirror["on"]["push"]["paths-ignore"])
 

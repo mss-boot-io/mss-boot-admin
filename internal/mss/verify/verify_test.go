@@ -382,11 +382,43 @@ func TestLocalQualificationScriptSensitivity(t *testing.T) {
 	if foundationCompatibilitySensitive("tools/compatibility/test-admin-external-consumer.sh") {
 		t.Fatal("Admin consumer unexpectedly selected next-Foundation qualification")
 	}
-	if !frontendQualificationSensitive("tools/verification/run-frontend-e2e.sh") {
-		t.Fatal("frontend E2E wrapper did not select frontend qualification")
+	for _, path := range []string{
+		".mss/core-pages/user-list.yaml",
+		"admin/cmd/migrate/migration/system/20260824120000_presentation_profiles.go",
+		"admin/cmd/migrate/migration/system/future_presentation_contract.go",
+		"admin/router/security_contract.go",
+		"tools/verification/run-frontend-e2e.sh",
+		"web/antd-v6/package.json",
+		"web/antd-v6/playwright.config.ts",
+		"web/antd-v6/pnpm-lock.yaml",
+		"web/antd-v6/scripts/start-e2e-backend.sh",
+		"web/antd-v6/src/generated/core-presentation-registry.generated.ts",
+		"web/antd-v6/e2e/presentation.spec.ts",
+		"web/antd-v6/e2e/support/session.ts",
+		"web/antd-v6/src/shared/presentation/runtime.ts",
+		"web/antd-v6/src/shared/presentation/table.test.ts",
+		"admin/config/application-e2e.yml",
+		"admin/config/presentation.go",
+		"admin/apis/presentation_profile.go",
+		"admin/dto/presentation_profile.go",
+		"admin/models/presentation_profile.go",
+		"admin/presentation/validation.go",
+		"admin/service/presentation_profile.go",
+	} {
+		if !frontendQualificationSensitive(path) {
+			t.Errorf("frontend browser qualification did not select %q", path)
+		}
 	}
-	if frontendQualificationSensitive("tools/verification/other.sh") {
-		t.Fatal("unrelated verification helper unexpectedly selected frontend qualification")
+	for _, path := range []string{
+		"admin/cmd/migrate/migration/system/20260801120000_users.go",
+		"tools/verification/other.sh",
+		"web/antd-v6/src/shared/api/client.ts",
+		"admin/service/user.go",
+		"docs/docs/admin/presentation.md",
+	} {
+		if frontendQualificationSensitive(path) {
+			t.Errorf("unrelated path unexpectedly selected frontend qualification: %q", path)
+		}
 	}
 }
 

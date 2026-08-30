@@ -1,6 +1,18 @@
+import { isAbsolute, resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const webServers = [];
+const qualificationRunID = process.env.MSS_V6_E2E_RUN_ID ?? 'default';
+if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(qualificationRunID)) {
+  throw new Error('MSS_V6_E2E_RUN_ID must be a lowercase identifier');
+}
+const configuredEvidenceRoot = process.env.MSS_V6_E2E_EVIDENCE_ROOT;
+if (configuredEvidenceRoot && !isAbsolute(configuredEvidenceRoot)) {
+  throw new Error('MSS_V6_E2E_EVIDENCE_ROOT must be an absolute path');
+}
+const evidenceDirectory = configuredEvidenceRoot
+  ? resolve(configuredEvidenceRoot, qualificationRunID)
+  : undefined;
 const qualificationBaseURL = process.env.MSS_V6_BASE_URL ?? 'http://127.0.0.1:18001';
 const qualificationBackendOrigin = process.env.MSS_V6_BACKEND_ORIGIN ?? 'http://127.0.0.1:18080';
 const inheritedEnvironment = Object.fromEntries(
@@ -57,13 +69,27 @@ if (!process.env.MSS_V6_EXTERNAL_SERVER) {
 
 export default defineConfig({
   testDir: './e2e',
+  ...(evidenceDirectory ? { outputDir: resolve(evidenceDirectory, 'test-results') } : {}),
   fullyParallel: false,
   // The qualification backend intentionally uses one isolated SQLite file.
   // Serial workers keep browser projects deterministic while still exercising
   // the same HTTP and session boundaries as a deployed database.
   workers: 1,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI
+    ? [
+        ['list'],
+        [
+          'html',
+          {
+            open: 'never',
+            ...(evidenceDirectory
+              ? { outputFolder: resolve(evidenceDirectory, 'playwright-report') }
+              : {}),
+          },
+        ],
+      ]
+    : 'list',
   use: {
     baseURL: qualificationBaseURL,
     locale: 'en-US',

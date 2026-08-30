@@ -7,8 +7,8 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
+	"testing"
 )
 
 func processExistsForTest(pid int) bool {
@@ -25,11 +25,24 @@ func processExistsForTest(pid int) bool {
 			return false
 		}
 		if readErr == nil {
-			closing := strings.LastIndexByte(string(data), ')')
-			if closing >= 0 && len(data) > closing+2 && data[closing+2] == 'Z' {
+			state, _, ok := linuxProcessStateAndStartTimeForTest(data)
+			if ok && processStateExitedForTest(state) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func TestLinuxProcessExitStates(t *testing.T) {
+	for _, state := range []byte{'Z', 'X', 'x'} {
+		if !processStateExitedForTest(state) {
+			t.Errorf("state %q should be treated as exited", state)
+		}
+	}
+	for _, state := range []byte{'R', 'S', 'D', 'T', 'I'} {
+		if processStateExitedForTest(state) {
+			t.Errorf("state %q should be treated as live", state)
+		}
+	}
 }

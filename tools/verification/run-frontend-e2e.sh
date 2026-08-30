@@ -30,7 +30,7 @@ trap 'exit 143' TERM
 
 umask 077
 export MSS_E2E_PASSWORD="MssE2E-A1-$(openssl rand -hex 24)"
-export PLAYWRIGHT_HTML_OUTPUT_DIR="${evidence_root}/playwright-report"
+export MSS_V6_E2E_EVIDENCE_ROOT="${evidence_root}"
 
 cd "${repository_root}/web/antd-v6"
 corepack pnpm@10.34.5 exec playwright install chromium
@@ -76,4 +76,4 @@ export MSS_E2E_BACKEND_API_URL="${MSS_V6_BACKEND_ORIGIN}/admin/api"
 export MSS_E2E_DOMAIN="127.0.0.1:${web_port}"
 printf '%s\n' \
   "frontend E2E origins: backend=${MSS_V6_BACKEND_ORIGIN} frontend=${MSS_V6_BASE_URL}"
-corepack pnpm@10.34.5 exec playwright test --output="${evidence_root}/test-results"
+corepack pnpm@10.34.5 run test:e2e
