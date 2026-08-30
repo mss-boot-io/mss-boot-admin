@@ -79,10 +79,28 @@ func TestGenerateEmbeddedWorksOutsideGitAndIsIdempotent(t *testing.T) {
 	if written.DryRun || !written.Success {
 		t.Fatalf("embedded write plan = %#v", written)
 	}
-	for _, relative := range []string{".git/HEAD", ".mss/project.yaml", ".mss/lock.yaml", ".mss/blueprint-manifest.json", "go.mod", "web/package.json"} {
+	for _, relative := range []string{".git/HEAD", ".mss/project.yaml", ".mss/lock.yaml", ".mss/blueprint-manifest.json", presentationSnapshotPath, "go.mod", "web/package.json"} {
 		if info, err := os.Stat(filepath.Join(destination, filepath.FromSlash(relative))); err != nil || !info.Mode().IsRegular() {
 			t.Fatalf("generated %s = info:%v err:%v", relative, info, err)
 		}
+	}
+	presentationData, err := os.ReadFile(filepath.Join(destination, filepath.FromSlash(presentationSnapshotPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentationSnapshot, err := decodePresentationSnapshot(presentationData)
+	if err != nil {
+		t.Fatalf("decode generated presentation upgrade snapshot: %v", err)
+	}
+	if len(presentationSnapshot.Pages) != 14 || !presentationSnapshot.BackendFrontendInventoriesMatch {
+		t.Fatalf("generated presentation upgrade snapshot = %#v", presentationSnapshot)
+	}
+	generatedSnapshot, err := ReadSnapshot(destination, "")
+	if err != nil {
+		t.Fatalf("read generated Blueprint snapshot: %v", err)
+	}
+	if generatedSnapshot.Lock.Spec.Contracts["adminPresentationSnapshot"] != "v1alpha1" {
+		t.Fatalf("generated lock omits Admin presentation snapshot contract: %#v", generatedSnapshot.Lock.Spec.Contracts)
 	}
 	dockerfile, err := os.ReadFile(filepath.Join(destination, "Dockerfile"))
 	if err != nil {

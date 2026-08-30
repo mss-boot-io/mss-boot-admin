@@ -237,7 +237,7 @@ func buildDesired(ctx context.Context, root string, blueprint *Document, applica
 	if err != nil {
 		return nil, Manifest{}, err
 	}
-	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, application, frontendPackage)
+	return buildDesiredFromSource(blueprint, source.BlueprintSHA, source.Identity, resolved, source.Presentation, application, frontendPackage)
 }
 
 func buildDesiredFromSource(
@@ -245,6 +245,7 @@ func buildDesiredFromSource(
 	blueprintSHA string,
 	foundationIdentity FoundationIdentity,
 	sourceFiles []blueprintSourceFile,
+	presentation presentationSnapshot,
 	application Application,
 	frontendPackage frontendPackageResolution,
 ) (map[string]desiredFile, Manifest, error) {
@@ -288,6 +289,16 @@ func buildDesiredFromSource(
 			renderedProject.Spec.Backend.Module != application.Module {
 			return nil, Manifest{}, errors.New("self-validate rendered .mss/project.yaml: application identity changed during rendering")
 		}
+	}
+	if presentation.APIVersion != "" {
+		if _, exists := files[presentationSnapshotPath]; exists {
+			return nil, Manifest{}, fmt.Errorf("application template collides with generated Admin presentation snapshot %s", presentationSnapshotPath)
+		}
+		data, err := renderPresentationSnapshot(presentation)
+		if err != nil {
+			return nil, Manifest{}, fmt.Errorf("render Admin presentation upgrade snapshot: %w", err)
+		}
+		files[presentationSnapshotPath] = desiredFile{Data: data, Mode: 0o644}
 	}
 	baseline := make(map[string]ManifestFile, len(files))
 	for relative, file := range files {

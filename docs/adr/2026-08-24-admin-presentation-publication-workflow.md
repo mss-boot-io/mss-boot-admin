@@ -147,9 +147,52 @@ The migration is forward-only. It creates aggregate and immutable revision table
 constraints, and independent permission metadata without changing existing configuration or business
 rows. Fresh, repeated, and upgrade-path tests cover the supported database contract.
 
-P1 is shipped behind absence of production capability registrations. The governance workflow can be
-qualified without altering any business page. P2 may register a generated Supplier definition behind its
-own feature contract and browser evidence.
+#### Forward permission-collision guard
+
+Databases upgraded with Admin v1.3.3 through v1.3.6 that recorded permission migration
+`20260824121000` before forward guard `20260830193000` are potentially affected by the former
+overwrite-capable permission upsert. Exact canonical values after that run do not prove that a
+downstream-owned menu, component, or API node was not overwritten. Timestamp proximity is also not
+accepted as evidence because supported databases may store timestamps with only second precision.
+
+The fail-closed implementation of `20260824121000` writes the independent ledger attestation
+`attestation:presentation-profile-permissions:20260824121000:fail-closed-v1` in the same transaction as
+the predecessor version. The forward guard records its own version only when both records are present
+and every managed menu, component, and API identity is unique, active, not soft-deleted, correctly typed,
+correctly parented, and an exact match for the compiled metadata. It never creates, updates, revives,
+reparents, or deletes permission nodes or Casbin policies.
+
+An older database with the predecessor version but without that attestation stops before the guard
+version is recorded. Recovery is an explicit operator decision:
+
+1. Stop writers and take a restorable database backup.
+2. Compare the affected `mss_boot_menus` rows and related `mss_boot_casbin_rule` role policies with a
+   pre-upgrade backup. Restore downstream metadata and policies where available. If no pre-upgrade
+   evidence exists, the original metadata cannot be inferred; an owner must explicitly accept the
+   compiled canonical inventory and review every related role grant.
+3. Verify that the complete compiled inventory has exactly one active, non-deleted node per path and
+   method, with no duplicate or cross-type occupant and with the documented parent graph.
+4. In the same controlled maintenance window, record the attestation only after that review:
+
+   ```sql
+   INSERT INTO mss_boot_migration (version, apply_time)
+   VALUES (
+     'attestation:presentation-profile-permissions:20260824121000:fail-closed-v1',
+     CURRENT_TIMESTAMP
+   );
+   ```
+
+5. Rerun migrations. Any remaining metadata, state, duplicate, or cross-type mismatch continues to fail
+   closed and leaves `20260830193000` pending.
+
+Do not insert the attestation merely because the current values look canonical; doing so without the
+backup comparison or explicit ownership decision discards the only signal that an older binary may have
+overwritten downstream metadata.
+
+The current Foundation runtime activates an exact allowlist of 14 built-in page capabilities. Supplier is
+an external extension example, is not part of that built-in inventory, and must not be counted or adopted
+as a Foundation page capability. Changes to the allowlist require their own compiled registration,
+authorization, runtime-consumption, upgrade, and browser evidence.
 
 Emergency rollback first enables startup recovery mode, making every effective read resolve to compiled
 defaults. The application and frontend can then return to the preceding qualified pair while P1 tables and

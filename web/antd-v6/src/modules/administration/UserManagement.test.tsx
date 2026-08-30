@@ -2,11 +2,24 @@ import {
   ADMIN_PRESENTATION_API_VERSION,
   ADMIN_PRESENTATION_KIND,
 } from '@mss-admin-core/shared/presentation/contract';
-import { resolveEffectivePagePresentation } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  type PresentationRegistryEntry,
+  resolveEffectivePagePresentation,
+} from '@mss-admin-core/shared/presentation/runtime';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import DepartmentManagement from './DepartmentManagement';
+import MenuManagement from './MenuManagement';
+import PostManagement from './PostManagement';
+import RoleManagement from './RoleManagement';
+import {
+  departmentPresentationRegistryEntry,
+  menuPresentationRegistryEntry,
+  postPresentationRegistryEntry,
+  rolePresentationRegistryEntry,
+} from './tablePresentation';
 import UserManagement from './UserManagement';
 import { userPresentationRegistryEntry } from './userPresentation';
 
@@ -22,21 +35,30 @@ vi.mock('./AdministrationTable', () => ({
   },
 }));
 
-vi.mock('./query', () => ({
-  useAdministrationPage: () => ({
+vi.mock('./query', () => {
+  const emptyData: unknown[] = [];
+  const emptyList = () => ({
     data: { data: [], total: 0, current: 1, pageSize: 20 },
     error: null,
     isError: false,
     isFetching: false,
     isPending: false,
-  }),
-  useAdministrationCatalog: () => ({
-    data: [],
+  });
+  const emptyCatalog = () => ({
+    data: emptyData,
     error: null,
     isError: false,
     isPending: false,
-  }),
-}));
+  });
+  return {
+    useAdministrationAPICatalog: emptyCatalog,
+    useAdministrationCatalog: emptyCatalog,
+    useAdministrationPage: emptyList,
+    useMenuAPIBindings: () => ({ ...emptyCatalog(), data: undefined }),
+    useMenuTree: emptyCatalog,
+    useRoleAuthorization: () => ({ ...emptyCatalog(), data: undefined }),
+  };
+});
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();
@@ -120,6 +142,61 @@ function activeRuntime() {
               collapsedByDefault: true,
               fields: [
                 { field: 'name', label: { 'en-US': 'Display name' } },
+                { field: 'status', hidden: true },
+              ],
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function activeAdministrationRuntime(
+  entry: PresentationRegistryEntry,
+  hiddenField: string,
+  label: string,
+) {
+  const definitionHash = entry.definitionHash;
+  const pageKey = entry.definition.pageKey;
+  return resolveEffectivePagePresentation({
+    entry,
+    locale: 'en-US',
+    user: rootUser,
+    settled: true,
+    response: {
+      pageKey,
+      definitionHash,
+      adoption: {
+        mode: 'active',
+        state: 'active',
+        resolveLayers: true,
+        applyLayers: true,
+      },
+      diagnostics: [],
+      layers: {
+        application: {
+          apiVersion: ADMIN_PRESENTATION_API_VERSION,
+          kind: ADMIN_PRESENTATION_KIND,
+          metadata: {
+            name: `${pageKey}-active-test`,
+            pageKey,
+            definitionHash,
+            scope: { kind: 'application' },
+          },
+          spec: {
+            list: {
+              columns: [
+                { field: hiddenField, hidden: true },
+                { field: 'status', order: 5, label: { 'en-US': label } },
+              ],
+              density: 'compact',
+              pageSize: 50,
+            },
+            search: {
+              collapsedByDefault: true,
+              fields: [
+                { field: 'name', label: { 'en-US': `${label} query` } },
                 { field: 'status', hidden: true },
               ],
             },
@@ -332,4 +409,113 @@ describe('user management presentation consumption', () => {
       screen.getByRole('button', { name: 'user.passwordReset.action' }).hasAttribute('disabled'),
     ).toBe(false);
   });
+});
+
+describe('remaining administration page presentation consumption', () => {
+  const cases: Array<{
+    createAction: string;
+    entry: PresentationRegistryEntry;
+    hiddenField: string;
+    label: string;
+    pageKey: string;
+    renderView: (runtime: ReturnType<typeof activeAdministrationRuntime>) => ReactNode;
+  }> = [
+    {
+      createAction: 'role.create.action',
+      entry: rolePresentationRegistryEntry,
+      hiddenField: 'remark',
+      label: 'Configured role state',
+      pageKey: 'role.list',
+      renderView: (runtime) => (
+        <RoleManagement
+          canAuthorize={false}
+          canCreate={false}
+          canDelete={false}
+          canEdit={false}
+          presentationRuntime={runtime}
+        />
+      ),
+    },
+    {
+      createAction: 'menu.create.action',
+      entry: menuPresentationRegistryEntry,
+      hiddenField: 'path',
+      label: 'Configured menu state',
+      pageKey: 'menu.list',
+      renderView: (runtime) => (
+        <MenuManagement
+          canBindAPI={false}
+          canCreate={false}
+          canDelete={false}
+          canEdit={false}
+          presentationRuntime={runtime}
+        />
+      ),
+    },
+    {
+      createAction: 'department.create.action',
+      entry: departmentPresentationRegistryEntry,
+      hiddenField: 'contact',
+      label: 'Configured department state',
+      pageKey: 'department.list',
+      renderView: (runtime) => (
+        <DepartmentManagement
+          canCreate={false}
+          canDelete={false}
+          canEdit={false}
+          presentationRuntime={runtime}
+        />
+      ),
+    },
+    {
+      createAction: 'post.create.action',
+      entry: postPresentationRegistryEntry,
+      hiddenField: 'code',
+      label: 'Configured post state',
+      pageKey: 'post.list',
+      renderView: (runtime) => (
+        <PostManagement
+          canCreate={false}
+          canDelete={false}
+          canEdit={false}
+          presentationRuntime={runtime}
+        />
+      ),
+    },
+  ];
+
+  afterEach(() => {
+    cleanup();
+    tableRuntime.props = undefined;
+  });
+
+  it.each(cases)(
+    '$pageKey applies its active model in the real management component without adding writes',
+    ({ createAction, entry, hiddenField, label, renderView }) => {
+      render(<App>{renderView(activeAdministrationRuntime(entry, hiddenField, label))}</App>);
+
+      const props = tableRuntime.props as {
+        columns: Record<string, unknown>[];
+        density: string;
+        nameSearch: { field: string; label: string };
+        params: { pageSize: number };
+        resetPageSize: number;
+        searchCollapsedByDefault: boolean;
+        statusSearch: unknown;
+      };
+      expect(columnKey(props.columns[0] ?? {})).toBe('status');
+      expect(props.columns[0]?.title).toBe(label);
+      expect(props.columns.map(columnKey)).not.toContain(hiddenField);
+      expect(props.columns.map(columnKey)).toContain('actions');
+      expect(props).toMatchObject({
+        density: 'compact',
+        resetPageSize: 50,
+        searchCollapsedByDefault: true,
+      });
+      expect(props.params.pageSize).toBe(50);
+      expect(props.nameSearch).toMatchObject({ field: 'name', label: `${label} query` });
+      expect(props.statusSearch).toBeNull();
+      expect(screen.queryByRole('button', { name: new RegExp(createAction) })).toBeNull();
+    },
+  );
 });

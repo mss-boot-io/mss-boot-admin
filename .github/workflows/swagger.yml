@@ -9,6 +9,7 @@ on:
       - 'admin/go.mod'
       - 'admin/go.sum'
       - 'mss-boot/**/*.go'
+      - 'tools/verification/check_presentation_openapi.py'
       - '.github/workflows/swagger.yml'
   workflow_dispatch:
 
@@ -50,6 +51,7 @@ jobs:
           go generate ./...
           test -s docs/swagger.json
           test -s docs/swagger.yaml
+          python3 ../tools/verification/check_presentation_openapi.py docs/swagger.json
           rm -f docs/docs.go
 
       - name: Setup Pages

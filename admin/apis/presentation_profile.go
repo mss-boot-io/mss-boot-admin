@@ -88,6 +88,16 @@ func (api *PresentationProfileAPI) Other(router *gin.RouterGroup) {
 	router.GET("/presentation/effective/:pageKey", response.AuthHandler, api.Effective)
 }
 
+// Capabilities returns the immutable runtime presentation capability catalog.
+// @Summary Get runtime presentation capabilities
+// @Description Returns the active page allowlist and the supported presentation schema for this Admin distribution.
+// @Tags presentation
+// @Produce application/json
+// @Success 200 {object} dto.PresentationCapabilityListResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Router /admin/api/presentation-capabilities [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) Capabilities(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-store")
 	response.Make(ctx).OK(dto.PresentationCapabilityListResponse{
@@ -98,6 +108,20 @@ func (api *PresentationProfileAPI) Capabilities(ctx *gin.Context) {
 	})
 }
 
+// Validate checks a presentation document without persisting it.
+// @Summary Validate a presentation document
+// @Description Performs structural and semantic validation against the current capability catalog without changing runtime state.
+// @Tags presentation
+// @Accept application/json
+// @Produce application/json
+// @Param data body dto.PresentationValidationRequest true "presentation document"
+// @Success 200 {object} dto.PresentationValidationResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/validate [post]
+// @Security Bearer
 func (api *PresentationProfileAPI) Validate(ctx *gin.Context) {
 	request := &dto.PresentationValidationRequest{}
 	if !bindPresentationJSON(ctx, request) {
@@ -115,6 +139,20 @@ func (api *PresentationProfileAPI) Validate(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
+// List returns presentation profiles visible to the current principal.
+// @Summary List presentation profiles
+// @Tags presentation
+// @Produce application/json
+// @Param page query int false "page number" minimum(1)
+// @Param pageSize query int false "page size" minimum(1) maximum(100)
+// @Param scope query string false "application, role, or user"
+// @Param pageKey query string false "registered page key"
+// @Success 200 {object} dto.PresentationProfileListResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) List(ctx *gin.Context) {
 	request, ok := presentationListRequest(ctx)
 	if !ok {
@@ -129,6 +167,18 @@ func (api *PresentationProfileAPI) List(ctx *gin.Context) {
 	response.Make(ctx).OK(result)
 }
 
+// Get returns one presentation profile with its draft and published metadata.
+// @Summary Get a presentation profile
+// @Tags presentation
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Success 200 {object} dto.PresentationProfileResource
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id} [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) Get(ctx *gin.Context) {
 	profileID, ok := presentationPathID(ctx)
 	if !ok {
@@ -143,6 +193,23 @@ func (api *PresentationProfileAPI) Get(ctx *gin.Context) {
 	response.Make(ctx).OK(result)
 }
 
+// CreateDraft creates an unpublished presentation profile.
+// @Summary Create a presentation draft
+// @Description Creates a new profile only when If-None-Match is exactly *.
+// @Tags presentation
+// @Accept application/json
+// @Produce application/json
+// @Param If-None-Match header string true "must be *"
+// @Param data body dto.PresentationProfileCreateRequest true "profile identity and presentation document"
+// @Success 201 {object} dto.PresentationProfileResource
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 412 {object} response.Response
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles [post]
+// @Security Bearer
 func (api *PresentationProfileAPI) CreateDraft(ctx *gin.Context) {
 	if err := parsePresentationIfNoneMatch(ctx); err != nil {
 		writePresentationPreconditionError(ctx, err)
@@ -173,6 +240,24 @@ func (api *PresentationProfileAPI) CreateDraft(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, result)
 }
 
+// ReplaceDraft replaces a draft under optimistic concurrency control.
+// @Summary Replace a presentation draft
+// @Tags presentation
+// @Accept application/json
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Param If-Match header string true "strong profile ETag"
+// @Param data body dto.PresentationDraftReplaceRequest true "replacement presentation document"
+// @Success 200 {object} dto.PresentationProfileResource
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} dto.PresentationConflictResponse
+// @Failure 412 {object} response.Response
+// @Failure 413 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id}/draft [put]
+// @Security Bearer
 func (api *PresentationProfileAPI) ReplaceDraft(ctx *gin.Context) {
 	profileID, expectedVersion, ok := presentationMutationPrecondition(ctx)
 	if !ok {
@@ -203,6 +288,22 @@ func (api *PresentationProfileAPI) ReplaceDraft(ctx *gin.Context) {
 	response.Make(ctx).OK(result)
 }
 
+// Publish atomically promotes the current valid draft to a runtime revision.
+// @Summary Publish a presentation profile
+// @Tags presentation
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Param If-Match header string true "strong profile ETag"
+// @Param Idempotency-Key header string false "idempotent transition key"
+// @Success 200 {object} dto.PresentationTransitionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} dto.PresentationConflictResponse
+// @Failure 412 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id}/publish [post]
+// @Security Bearer
 func (api *PresentationProfileAPI) Publish(ctx *gin.Context) {
 	profileID, expectedVersion, ok := presentationMutationPrecondition(ctx)
 	if !ok {
@@ -231,6 +332,24 @@ func (api *PresentationProfileAPI) Publish(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
+// Rollback republishes a historical revision as the newest runtime revision.
+// @Summary Roll back a presentation profile
+// @Tags presentation
+// @Accept application/json
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Param If-Match header string true "strong profile ETag"
+// @Param Idempotency-Key header string false "idempotent transition key"
+// @Param data body dto.PresentationRollbackRequest true "historical revision"
+// @Success 200 {object} dto.PresentationTransitionResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} dto.PresentationConflictResponse
+// @Failure 412 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id}/rollback [post]
+// @Security Bearer
 func (api *PresentationProfileAPI) Rollback(ctx *gin.Context) {
 	profileID, expectedVersion, ok := presentationMutationPrecondition(ctx)
 	if !ok {
@@ -267,6 +386,20 @@ func (api *PresentationProfileAPI) Rollback(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
+// ListRevisions returns the immutable publication history for one profile.
+// @Summary List presentation revisions
+// @Tags presentation
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Param page query int false "page number" minimum(1)
+// @Param pageSize query int false "page size" minimum(1) maximum(100)
+// @Success 200 {object} dto.PresentationRevisionListResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id}/revisions [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) ListRevisions(ctx *gin.Context) {
 	profileID, ok := presentationPathID(ctx)
 	if !ok {
@@ -285,6 +418,19 @@ func (api *PresentationProfileAPI) ListRevisions(ctx *gin.Context) {
 	response.Make(ctx).OK(result)
 }
 
+// GetRevision returns one immutable historical presentation document.
+// @Summary Get a presentation revision
+// @Tags presentation
+// @Produce application/json
+// @Param id path string true "profile id"
+// @Param revision path int true "positive revision number"
+// @Success 200 {object} dto.PresentationRevisionResource
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation-profiles/{id}/revisions/{revision} [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) GetRevision(ctx *gin.Context) {
 	profileID, ok := presentationPathID(ctx)
 	if !ok {
@@ -304,6 +450,18 @@ func (api *PresentationProfileAPI) GetRevision(ctx *gin.Context) {
 	response.Make(ctx).OK(result)
 }
 
+// Effective resolves application, role, and user presentation layers for the current principal.
+// @Summary Get effective runtime presentation
+// @Description Returns a safe fallback document with diagnostics when a published layer cannot be applied.
+// @Tags presentation
+// @Produce application/json
+// @Param pageKey path string true "registered page key"
+// @Success 200 {object} dto.EffectivePresentationResponse
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/api/presentation/effective/{pageKey} [get]
+// @Security Bearer
 func (api *PresentationProfileAPI) Effective(ctx *gin.Context) {
 	verify := middleware.GetVerify(ctx)
 	if verify == nil || strings.TrimSpace(verify.GetUserID()) == "" {

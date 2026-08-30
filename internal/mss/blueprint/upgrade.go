@@ -84,6 +84,7 @@ type UpgradePlan struct {
 	PreservedFiles       []string                   `json:"preservedFiles"`
 	ModulesToRegenerate  []string                   `json:"modulesToRegenerate"`
 	ValidationCommands   []string                   `json:"validationCommands"`
+	PresentationImpact   PresentationUpgradeImpact  `json:"presentationImpact"`
 }
 
 // Upgrade plans or applies a three-way foundation upgrade. User-created files
@@ -128,6 +129,7 @@ func UpgradeEmbedded(ctx context.Context, options UpgradeOptions) (UpgradePlan, 
 		source.BlueprintSHA,
 		source.Identity,
 		source.Files,
+		source.Presentation,
 		prepared.Options.Application,
 		frontendPackage,
 	)
@@ -376,10 +378,22 @@ func buildUpgradePlan(
 				change.Detail = "new foundation file collides with an existing downstream file"
 			}
 		}
+		if relative == presentationSnapshotPath && change.Action == ActionPreserve {
+			change.Action = ActionConflict
+			change.Detail = "generated Admin presentation snapshot was modified locally"
+		}
 		if change.Action == ActionConflict {
 			plan.Success = false
 		}
 		plan.Changes = append(plan.Changes, change)
+	}
+	presentationImpact, err := buildPresentationUpgradeImpact(applicationRoot, oldManifest, desired)
+	if err != nil {
+		return plan, err
+	}
+	plan.PresentationImpact = presentationImpact
+	if presentationImpact.To.State == presentationSnapshotAvailable && !presentationImpact.To.BackendFrontendInventoriesMatch {
+		plan.Success = false
 	}
 	return plan, nil
 }
@@ -882,6 +896,8 @@ func (p UpgradePlan) Text() string {
 		}
 		builder.WriteByte('\n')
 	}
+	builder.WriteByte('\n')
+	builder.WriteString(presentationImpactText(p.PresentationImpact))
 	return builder.String()
 }
 

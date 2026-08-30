@@ -259,6 +259,99 @@ func TestPresentationEffectiveReadIsExactAuthenticatedSelfService(t *testing.T) 
 	}
 }
 
+func TestPresentationProfilesCannotGrantManagementPageAPIAuthority(t *testing.T) {
+	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
+r = sub, tp, obj, act
+
+[policy_definition]
+p = sub, tp, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.tp == p.tp && keyMatch(r.obj, p.obj) && regexMatch(r.act, p.act)
+`)
+	if err != nil {
+		t.Fatalf("create policy model: %v", err)
+	}
+	enforcer, err := casbin.NewEnforcer(policyModel)
+	if err != nil {
+		t.Fatalf("create policy enforcer: %v", err)
+	}
+	previousEnforcer := gormdb.Enforcer
+	gormdb.Enforcer = enforcer
+	t.Cleanup(func() { gormdb.Enforcer = previousEnforcer })
+
+	pages := []struct {
+		pageKey string
+		path    string
+	}{
+		{pageKey: "user.list", path: "/admin/api/users"},
+		{pageKey: "role.list", path: "/admin/api/roles"},
+		{pageKey: "menu.list", path: "/admin/api/menus"},
+		{pageKey: "department.list", path: "/admin/api/departments"},
+		{pageKey: "post.list", path: "/admin/api/posts"},
+		{pageKey: "task.list", path: "/admin/api/tasks"},
+		{pageKey: "notice.list", path: "/admin/api/notices"},
+		{pageKey: "language.list", path: "/admin/api/languages"},
+		{pageKey: "option.list", path: "/admin/api/options"},
+		{pageKey: "system-config.list", path: "/admin/api/system-configs"},
+		{pageKey: "online-session.list", path: "/admin/api/online-sessions"},
+		{pageKey: "log.login", path: "/admin/api/audit-logs/login"},
+		{pageKey: "log.audit", path: "/admin/api/audit-logs/operation"},
+		{pageKey: "log.runtime", path: "/admin/api/logs"},
+	}
+
+	profileOnlyRole := "presentation-profile-only"
+	for _, policy := range [][2]string{
+		{http.MethodGet, "/admin/api/presentation-capabilities"},
+		{http.MethodGet, "/admin/api/presentation-profiles"},
+		{http.MethodPost, "/admin/api/presentation-profiles"},
+	} {
+		if _, err = enforcer.AddPolicy(profileOnlyRole, "API", policy[1], policy[0]); err != nil {
+			t.Fatalf("add presentation governance policy: %v", err)
+		}
+	}
+	profileOnly := &models.User{UserLogin: models.UserLogin{
+		RoleID: profileOnlyRole,
+		Role:   &models.Role{},
+	}}
+	root := &models.User{UserLogin: models.UserLogin{
+		RoleID: "presentation-matrix-root",
+		Role:   &models.Role{Root: true},
+	}}
+
+	for _, page := range pages {
+		t.Run(page.pageKey, func(t *testing.T) {
+			request := func(method string) *gin.Context {
+				return newAuthorizationTestContext(method, page.path)
+			}
+			if authorizeRequest(profileOnly, request(http.MethodGet)) {
+				t.Fatalf("presentation governance authority granted %s business-data access", page.pageKey)
+			}
+			if !authorizeRequest(root, request(http.MethodGet)) {
+				t.Fatalf("root was denied %s business-data access", page.pageKey)
+			}
+
+			roleID := "presentation-matrix-" + page.pageKey
+			if _, addErr := enforcer.AddPolicy(roleID, "API", page.path, http.MethodGet); addErr != nil {
+				t.Fatalf("add %s business policy: %v", page.pageKey, addErr)
+			}
+			principal := &models.User{UserLogin: models.UserLogin{
+				RoleID: roleID,
+				Role:   &models.Role{},
+			}}
+			if !authorizeRequest(principal, request(http.MethodGet)) {
+				t.Fatalf("exact %s business policy was denied", page.pageKey)
+			}
+			if authorizeRequest(principal, request(http.MethodPost)) {
+				t.Fatalf("read-only %s business policy granted mutation authority", page.pageKey)
+			}
+		})
+	}
+}
+
 func TestAuthorizeCurrentPolicyRequestReconcilesOnlyCasbinRequests(t *testing.T) {
 	policyModel, err := casbinmodel.NewModelFromString(`[request_definition]
 r = sub, tp, obj, act
