@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -11,6 +12,59 @@ from typing import Any
 
 GENERIC_RESPONSE_REF = "#/definitions/response.Response"
 CONFLICT_RESPONSE_REF = "#/definitions/dto.PresentationConflictResponse"
+
+# SHA-256 over each reachable definition after removing prose-only fields
+# (description, title, example, XML and external docs). The readable contracts
+# below explain critical fields; these digests close the complete recursive
+# model graph so nested deletions, type changes and wrong-but-existing refs fail.
+EXPECTED_DEFINITION_SHAPE_HASHES = {
+    "dto.EffectivePresentationDiagnostic": "5af062215cc1bc7493dab98263b9973c003db95cdd7cf75e7631a1cd894b6e47",
+    "dto.EffectivePresentationLayers": "83905e1668c3b72cfa39f7a239bf06f1425fbce06bd64ac7736e8e547431a710",
+    "dto.EffectivePresentationResponse": "9beac5b1b9a13ea37be0291677259fcbc58a0df8f9613e6472c5b1c83c16f060",
+    "dto.PresentationAdoptionResource": "499004e5b7fd11e15ce127a01627e2f277e45199fb1de52fa06d39d8e38c9b43",
+    "dto.PresentationCapabilityListResponse": "0c1cdd78a267462e4202645acd4d960604ea5eb67abea222b57ca6680af8a357",
+    "dto.PresentationConflictResource": "1553b45b90739950d8ddd32ae2f29849c941f984e08ccded41637b2f87699c62",
+    "dto.PresentationConflictResponse": "d1b4e389939e902967578da55f15f4668ce242690941caead3ff0698cef0e8f5",
+    "dto.PresentationConflictResponseData": "4b4c1efd6fdb9488cc458a8d1aec65af4f97f45efe04055685bb5c4273ebb529",
+    "dto.PresentationDraftReplaceRequest": "72de25a72365dfa4817410fad762a4b48a332adf21c6f68bcc1a9da4db464bed",
+    "dto.PresentationDraftResource": "dfabb0f6018df431dc3136aadcf182cbf29864397a49210a5fba339cc27a2e65",
+    "dto.PresentationProfileCreateRequest": "aa5e6a5f05f8ef81877a90eb06783fffa554a424517bd170a45b13ccc51c95c7",
+    "dto.PresentationProfileListResponse": "a1f1ee48d069868a004ca668a6533b072a319ed6a4e2a5005b0d755d3bba5162",
+    "dto.PresentationProfileResource": "a423b0b775ad1a8aac55b8630a6ed0920c141f96b3c1fca91acc02cd04e1d45c",
+    "dto.PresentationProfileSummary": "cad4dc04a86168994a5e104299e3a304ab06a8a4b3184b1aa02bbf52ebe82550",
+    "dto.PresentationRevisionListResponse": "144a308c7201920f3b561047f954cdeefcac58f2324f6c373bd302929f669777",
+    "dto.PresentationRevisionResource": "6462d1c2f2df5f1fc868e3a722020728ce8a2b97aeabcbeefc826f8cb9e72ed7",
+    "dto.PresentationRevisionSummary": "d61c60c5ae8ea23a19167157b2d34abe99f771a58518350345d94720cded175a",
+    "dto.PresentationRollbackRequest": "417b0b5c98f6718e1a8a42ac2a9b7be9642616546a50ea093c86fa6660b2d7ad",
+    "dto.PresentationTransitionResponse": "e75c5a9d40aa30e66c914b7bad206cd3f47ee52ac358194c4e600ec2198fc5a0",
+    "dto.PresentationValidationRequest": "72de25a72365dfa4817410fad762a4b48a332adf21c6f68bcc1a9da4db464bed",
+    "dto.PresentationValidationResponse": "a0df71258d892d8ea74862c7e69f625d6cb850bd12131fe31e607953b108eb05",
+    "presentation.ActionPlacement": "778d0678b5ac9fedcb6fed524b9901eff64c544fa2c918a812931570cc268099",
+    "presentation.AdoptionMode": "308ed9bca92ea1b08a74cec6fc8d338d8bf9812f3a86f2892370fab1e9c361ee",
+    "presentation.AdoptionState": "22d1ebdeac4849fb0d70db20fbc77e58dd877091fac7a1003eeab3cb373cc7b1",
+    "presentation.CapabilityAction": "ec4555789c2be1e174f1e68b2a8f5e25540e2d897a77cb33873bcf0f58181b8f",
+    "presentation.CapabilityComponent": "e36382ec6abef464816fd2d62cfb88a3995907a5e91763b95fe4cbed24380252",
+    "presentation.CapabilityDataSource": "d093ae16ca84331224a24a8c9179dc85abef9548bcdd554a7742fd64281fbea7",
+    "presentation.CapabilityDefinition": "57f861abffc0b2c986b07c9283cc73e206e469ee28191f14f32b423c8702c12d",
+    "presentation.CapabilityEnumValue": "3ec1ba2c60ade2417a4a06ee4e37c80ed488d5c49b96b2f4e201aedf7990db03",
+    "presentation.CapabilityField": "eabd4b19ed7a8d879b6943aa67af6ce1b4ede4c1d16863ef9d8be4cf9e80d49f",
+    "presentation.CapabilityFieldValidation": "9662a0733b305a78fc17c149ab9172ba3f7890b065dc38a089e53d7702f0ed2b",
+    "presentation.CapabilitySurfaceComponents": "4902d0c43199e82a1b9a848d9da859ab7ed59c0f5c752f7f1d399c2ad91829bb",
+    "presentation.CompleteAction": "5aac0d6ed43b84edbc91a547e6b686a77a041fd3af92996294a60e26ce8cf075",
+    "presentation.CompleteDetailPresentation": "d4d91bfcf82ea935c4c02259b561c481603adc17b96d8f16a7190177828d7a7a",
+    "presentation.CompleteField": "8726f3df15391ae8af9c9030a40940ff378fddad19c71817a6d1813ade134f4a",
+    "presentation.CompleteFormPresentation": "d4d91bfcf82ea935c4c02259b561c481603adc17b96d8f16a7190177828d7a7a",
+    "presentation.CompleteListPresentation": "c06440ec351a02cfa88bf710efd3b67c9ca6dc8ed76213a730ce01f4e2c07830",
+    "presentation.CompletePresentation": "c749d4e25cc44acfdc5f0296f8c93235a3e0c600db5f84c7e2a482e04d1caaff",
+    "presentation.CompleteSearchPresentation": "119b36f5a5c8a6f4c9dc2c4b3a4a0ca87a520704783c7518f78729e3eac8e7f1",
+    "presentation.Condition": "954026c3228466eb5a26ce3d8d4e74c15e2c6d1dadc8ac3f4a1aeae49ad98f82",
+    "presentation.Issue": "3094ba53d4a5284fa9dfef96cb94d109158772ac9660815b1cf510431be79944",
+    "presentation.LocalizedText": "d323ec4f3dfe6cc129454fea9d7e96bd001564c754afadc529c0f162271bdd9b",
+    "presentation.ScopeKind": "114de431e4868b29ad03c7b99159a34a57551bc827c2dce01829c1b2eec64feb",
+    "presentation.Sort": "9192e6d5e2f07c3d9ab8836807eed9a6b7d864960f0974fcb858c3afcf192f11",
+    "presentation.Surface": "e0f43603469e69b09d2a72dde633f3b87c4654648295bea4038a91a0a902f85f",
+    "response.Response": "9174c6c7442e5d28242baf93dcfc1554f7e652837550595504e833f4668953f2",
+}
 
 
 def _parameter(
@@ -391,7 +445,7 @@ DEFINITION_PROPERTY_CONTRACTS: dict[str, dict[str, dict[str, Any]]] = {
         "document": _type_schema("object"),
     },
     "dto.PresentationRollbackRequest": {
-        "revision": _type_schema("integer"),
+        "revision": {"type": "integer", "minimum": 1},
     },
     "dto.EffectivePresentationLayers": {
         "application": _type_schema("object"),
@@ -432,6 +486,50 @@ def _collect_reference_names(value: Any) -> set[str]:
         for child in value:
             names.update(_collect_reference_names(child))
     return names
+
+
+DEFINITION_PROSE_KEYS = {
+    "description",
+    "title",
+    "example",
+    "xml",
+    "externalDocs",
+}
+
+
+def _definition_shape(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _definition_shape(child)
+            for key, child in sorted(value.items())
+            if key not in DEFINITION_PROSE_KEYS
+        }
+    if isinstance(value, list):
+        return [_definition_shape(child) for child in value]
+    return value
+
+
+def definition_shape_hash(definition: dict[str, Any]) -> str:
+    payload = json.dumps(
+        _definition_shape(definition),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def definition_shape_hashes(
+    document: dict[str, Any], names: set[str]
+) -> dict[str, str]:
+    definitions = document.get("definitions")
+    if not isinstance(definitions, dict):
+        return {}
+    return {
+        name: definition_shape_hash(definition)
+        for name in sorted(names)
+        if isinstance((definition := definitions.get(name)), dict)
+    }
 
 
 def _schema_contains(actual: Any, expected: Any) -> bool:
@@ -634,6 +732,24 @@ def collect_errors(document: dict[str, Any]) -> list[str]:
         for nested_name in _collect_reference_names(definition):
             if nested_name not in checked_definitions:
                 pending_definitions.append(nested_name)
+
+    expected_definition_names = set(EXPECTED_DEFINITION_SHAPE_HASHES)
+    for name in sorted(expected_definition_names - checked_definitions):
+        errors.append(f"expected presentation definition is not reachable: {name}")
+    for name in sorted(checked_definitions - expected_definition_names):
+        errors.append(f"unexpected presentation definition is reachable: {name}")
+    actual_definition_hashes = definition_shape_hashes(
+        document, expected_definition_names
+    )
+    for name in sorted(expected_definition_names):
+        if name not in actual_definition_hashes:
+            errors.append(f"expected presentation definition is missing: {name}")
+            continue
+        if (
+            actual_definition_hashes[name]
+            != EXPECTED_DEFINITION_SHAPE_HASHES[name]
+        ):
+            errors.append(f"presentation definition shape drift: {name}")
 
     for definition_name, property_contracts in DEFINITION_PROPERTY_CONTRACTS.items():
         definition = definitions.get(definition_name)

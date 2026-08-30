@@ -27,7 +27,7 @@ type PresentationValidationRequest struct {
 }
 
 type PresentationRollbackRequest struct {
-	Revision int64 `json:"revision" binding:"required"`
+	Revision int64 `json:"revision" binding:"required" minimum:"1"`
 }
 
 type PresentationProfileListRequest struct {

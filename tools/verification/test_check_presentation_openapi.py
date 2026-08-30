@@ -4,6 +4,7 @@ import importlib.util
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).with_name("check_presentation_openapi.py")
@@ -126,7 +127,47 @@ def valid_document() -> dict:
     }
 
 
+def _reachable_definition_names(document: dict) -> set[str]:
+    names: set[str] = set()
+    for path, method in check_presentation_openapi.EXPECTED_OPERATIONS:
+        path_item = document["paths"].get(path)
+        operation = path_item.get(method) if isinstance(path_item, dict) else None
+        if isinstance(operation, dict):
+            names.update(check_presentation_openapi._collect_reference_names(operation))
+    definitions = document["definitions"]
+    pending = list(names)
+    checked: set[str] = set()
+    while pending:
+        name = pending.pop()
+        if name in checked:
+            continue
+        checked.add(name)
+        definition = definitions.get(name)
+        if isinstance(definition, dict):
+            pending.extend(
+                nested
+                for nested in check_presentation_openapi._collect_reference_names(
+                    definition
+                )
+                if nested not in checked
+            )
+    return checked
+
+
 class PresentationOpenAPIContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        baseline = valid_document()
+        expected_hashes = check_presentation_openapi.definition_shape_hashes(
+            baseline, _reachable_definition_names(baseline)
+        )
+        hash_patch = patch.object(
+            check_presentation_openapi,
+            "EXPECTED_DEFINITION_SHAPE_HASHES",
+            expected_hashes,
+        )
+        hash_patch.start()
+        self.addCleanup(hash_patch.stop)
+
     def test_accepts_the_complete_typed_authenticated_contract(self) -> None:
         self.assertEqual(check_presentation_openapi.collect_errors(valid_document()), [])
 
@@ -271,6 +312,32 @@ class PresentationOpenAPIContractTest(unittest.TestCase):
         errors = check_presentation_openapi.collect_errors(document)
         self.assertIn(
             "presentation.Condition.value must be documented as opaque JSON", errors
+        )
+
+    def test_rejects_recursive_definition_shape_drift(self) -> None:
+        document = deepcopy(valid_document())
+        document["definitions"]["dto.PresentationProfileSummary"]["properties"][
+            "unexpected"
+        ] = {"type": "string"}
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "presentation definition shape drift: dto.PresentationProfileSummary",
+            errors,
+        )
+
+    def test_rejects_rollback_revision_without_minimum(self) -> None:
+        document = deepcopy(valid_document())
+        del document["definitions"]["dto.PresentationRollbackRequest"]["properties"][
+            "revision"
+        ]["minimum"]
+        errors = check_presentation_openapi.collect_errors(document)
+        self.assertIn(
+            "dto.PresentationRollbackRequest.revision has wrong or missing schema",
+            errors,
+        )
+        self.assertIn(
+            "presentation definition shape drift: dto.PresentationRollbackRequest",
+            errors,
         )
 
 
