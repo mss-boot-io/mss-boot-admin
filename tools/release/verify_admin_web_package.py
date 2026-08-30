@@ -91,6 +91,12 @@ BANNED_SUFFIXES = (
     ".p12",
     ".pfx",
 )
+FOUNDATION_GENERATED_MEMBERS = {
+    "package/src/generated/core-presentation-registry.generated.ts",
+}
+REFERENCE_APP_BUSINESS_MEMBERS = {
+    "package/src/shared/presentation/supplier.prototype.ts",
+}
 
 
 class PackageError(ValueError):
@@ -294,10 +300,13 @@ def inspect_package(
                 raise PackageError(f"tarball contains a banned local or generated path: {name!r}")
             if any(part.startswith(".umi") for part in lowered_parts):
                 raise PackageError(f"tarball contains Umi build state: {name!r}")
-            if lowered_name.startswith("package/src/generated/") or lowered_name.startswith(
-                "package/src/pages/generated/"
-            ):
+            if (
+                lowered_name.startswith("package/src/generated/")
+                or lowered_name.startswith("package/src/pages/generated/")
+            ) and name not in FOUNDATION_GENERATED_MEMBERS:
                 raise PackageError(f"tarball contains reference-app generated code: {name!r}")
+            if name in REFERENCE_APP_BUSINESS_MEMBERS:
+                raise PackageError(f"tarball contains a reference-app business fixture: {name!r}")
             if re.search(r"(?:^|/)[^/]+\.(?:test|spec)\.[^/]+$", lowered_name):
                 raise PackageError(f"tarball contains a repository-only test: {name!r}")
             if "tests" in lowered_parts and lowered_name != "package/tests/setup.ts":

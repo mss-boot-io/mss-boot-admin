@@ -1,13 +1,13 @@
 # ADR: Complete Admin page presentation design
 
-- Status: Accepted design; implementation and exact-Head acceptance are in progress on the current development branch
+- Status: Superseded by `docs/adr/2026-08-30-all-management-page-presentation-coverage.md`
 - Date: 2026-08-28
 - Owners: Admin platform, backend, frontend, security, agent infrastructure, release engineering
 - Complete design contract: `.mss/features/admin-presentation-complete-design.yaml`
 - P0 decision: `docs/adr/2026-08-24-governed-admin-presentation-configuration.md`
 - P1 decision: `docs/adr/2026-08-24-admin-presentation-publication-workflow.md`
 - Portable profile schema: `.mss/schemas/admin-page-presentation.schema.json`
-- First production reference: `.mss/modules/example-supplier.yaml`
+- External AdminModule compatibility reference: `.mss/modules/example-supplier.yaml`
 - Second, separately reviewed Foundation core-page pilot: `.mss/core-pages/user-list.yaml`
 
 ## Context
@@ -26,7 +26,7 @@ audit, a current-principal effective-layer endpoint, startup recovery mode, and 
 governance console. P1 intentionally leaves the production capability registry empty. No business page
 currently consumes an effective presentation layer.
 
-After the generated Supplier path was authorized, the maintainer explicitly requested user management as
+After the external generated Supplier path was authorized, the maintainer explicitly requested user management as
 a second configurable page. This ADR records `user.list` as one separately reviewed Foundation Core Page
 Presentation pilot. It does not make arbitrary handwritten core pages configurable, does not claim that
 the current implementation or browser acceptance has passed, and does not turn user management into a
@@ -488,9 +488,10 @@ managed snapshot and three-way upgrade engine. Business-owned custom files remai
 frontend projections move as one coordinated Admin Distribution version; mixed identities are not
 supported.
 
-## Supplier production reference
+## Supplier external extension reference
 
-Supplier is the first and only initial active reference.
+Supplier is an external AdminModule and Thin Host compatibility reference. It is not a Foundation built-in,
+does not enter the Foundation core registry or `activePages`, and is not part of built-in completion or rollout.
 
 The current handwritten `supplier.prototype.ts` proves P0 resolver behavior but is not a production-equivalent
 default and is not production source. P2A replaces it as the definition source with a version `2` declaration
@@ -502,13 +503,14 @@ read-only ID/timestamps, and export before create in the toolbar. The keyword fi
 `supplier.list`; current APIs, permissions, route, query behavior, CRUD, export, validation, locales,
 responsive rules, and page states remain compiled.
 
-Qualification order is mandatory:
+An explicitly composed external host may qualify Supplier independently in this order:
 
 1. **Disabled parity:** generated capability is registered and visible, but Supplier renders current
    compiled defaults.
 2. **Shadow parity:** published application/role/user documents resolve, diagnostics are recorded, and
    Supplier still renders defaults.
-3. **Active allowlist:** only `supplier.list` applies profiles.
+3. **Host-owned active allowlist:** that external host may explicitly activate `supplier.list` without
+   changing the Foundation built-in allowlist.
 4. **Failure matrix:** no profile, invalid draft, stale publication, unknown references, store outage,
    request timeout, permission denial, and recovery mode all produce expected defaults or forbidden state.
 5. **Behavior matrix:** list, search, pagination, sort, create/edit form, detail, actions, export,
@@ -517,9 +519,9 @@ Qualification order is mandatory:
 7. **Thin Host matrix:** external generation, build, run, upgrade, idempotency, and custom-file
    preservation with matching Go and TypeScript hashes.
 
-Supplier remains the only allowlisted page until exact-Head tests, built-in browser evidence, external
-Thin Host qualification, and maintainer approval pass. The independently authorized `user.list` pilot is
-the next isolated adoption; it does not inherit Supplier evidence.
+This external qualification never counts as built-in browser evidence and cannot authorize a Foundation
+page. The successor ADR owns the exact fourteen Foundation built-in page keys and their independent
+disabled, shadow, active, and browser-acceptance lifecycle.
 
 ## User management Foundation Core Page pilot
 
@@ -581,8 +583,8 @@ coherent pushed checkpoints:
 | D0 | This complete design only. | Remote commit verified; FeatureSpec valid; docs build; maintainer approval. |
 | P2A | AdminModule schema, semantic validation, normalized manifest, hash vectors, Go/TS generation. | Schema/generator/golden/parity/two-run tests. |
 | P2B | Backend module staging, immutable registry injection, adoption configuration, effective diagnostics. | Focused backend, migration/config, authorization, outage, recovery tests. |
-| P2C | Static frontend registry, shared hook/resolver/renderer, generated Supplier adapter, disabled and shadow modes. | Lint, typecheck, unit/integration, compiled-default parity. |
-| P2D | Supplier active allowlist and full production qualification. | Built-in browser, direct API permissions, drift/outage/recovery, Thin Host. |
+| P2C | Static frontend registry, shared hook/resolver/renderer, and external generated Supplier adapter compatibility. | Lint, typecheck, unit/integration, compiled-default parity. |
+| P2D | Historical external Supplier host qualification; non-gating for Foundation built-in completion. | Direct API permissions, drift/outage/recovery, and Thin Host evidence owned by the external host. |
 | P3 | Lossless visual editor integrated with P1 governance. | AST round-trip, editor workflow, conflict, publish/history/rollback browser evidence. |
 | P4 | First the separately reviewed generated `user.list` Foundation core-page pilot, then additional generated business pages one by one. | Core-source generation/parity and exclusion tests; exact status-filter proof; isolated disabled/shadow/active browser evidence; separate evidence for every later page. |
 

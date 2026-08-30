@@ -104,7 +104,14 @@ class AdminWebPackageTest(unittest.TestCase):
     def test_accepts_explicit_complete_portable_package(self):
         with tempfile.TemporaryDirectory() as directory:
             tarball = Path(directory) / "mss-boot-io-admin-web-1.3.0.tgz"
-            write_tarball(tarball)
+            write_tarball(
+                tarball,
+                extra={
+                    "package/src/generated/core-presentation-registry.generated.ts": (
+                        b"export const corePresentationRegistry = {} as const;\n"
+                    ),
+                },
+            )
             evidence = self.inspect(tarball)
 
         self.assertEqual(evidence["package"]["name"], PACKAGE.PACKAGE_NAME)
@@ -125,6 +132,10 @@ class AdminWebPackageTest(unittest.TestCase):
         self.assertRegex(evidence["artifact"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(evidence["artifact"]["integrity"].startswith("sha512-"))
         self.assertIn("package/package/preset.js", evidence["artifact"]["members"])
+        self.assertIn(
+            "package/src/generated/core-presentation-registry.generated.ts",
+            evidence["artifact"]["members"],
+        )
         self.assertIn("package/tests/setup.ts", evidence["artifact"]["members"])
         self.assertIn("package/LICENSE", evidence["artifact"]["members"])
 
@@ -238,6 +249,16 @@ class AdminWebPackageTest(unittest.TestCase):
                 False,
                 {"package/src/generated/routes.ts": b""},
                 "reference-app generated code",
+            ),
+            (
+                False,
+                {"package/src/generated/modules/supplier/SupplierPage.tsx": b""},
+                "reference-app generated code",
+            ),
+            (
+                False,
+                {"package/src/shared/presentation/supplier.prototype.ts": b""},
+                "reference-app business fixture",
             ),
             (
                 False,
