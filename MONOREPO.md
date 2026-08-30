@@ -46,14 +46,18 @@ Run one non-publishing Root preview for v1.3.7 on the exact merged-main commit.
 The reusable container call must receive `release_preview: true`, and the
 preview must contain the verified Root image artifact. The npm Trusted
 Publisher must match `npm-release.yml` plus `npm-auto`; no npm token is used.
-After it succeeds, publish the Framework, Admin, and Admin Web
-tags in order. One Root tag then starts the Root release, backend image, and
-official npm publication independently and in parallel. Formal tag workflows
-reuse the exact preview and do not repeat its expensive qualification or accept a
-promotion, readiness run ID, second publish dispatch, or manual environment
-approval. Docs follows later from its own tag and later merged-main documentation
-commit without reissuing runtime components. A failure after any public v1.3.7
-identity requires another unused version rather than a late artifact.
+After it succeeds, publish the Framework, Admin, and Admin Web tags in order.
+The first Framework workflow performs one cheap exact-preview lookup before the
+first irreversible Release; Admin then checks the exact public Framework without
+repeating that lookup. Frontend, Root, and Container directly consume staged
+preview artifacts, while official npm consumes the exact Frontend Release
+tarball. One Root tag starts the Root release, backend image, and official npm
+publication independently and in parallel. Formal tag workflows do not repeat
+its expensive qualification or accept a promotion, readiness run ID, second
+publish dispatch, or manual environment approval. Docs follows later from its own tag and
+later merged-main documentation commit without reissuing runtime components. A
+failure after any public v1.3.7 identity requires another unused version rather
+than a late artifact.
 
 ## Workflow location
 

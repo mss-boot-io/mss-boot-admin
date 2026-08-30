@@ -85,16 +85,6 @@ jobs:
             --tag "web/antd-v6/${RELEASE_VERSION}" \
             --intent publish
 
-      - name: Require successful exact preview
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bash tools/release/resolve_successful_preview.sh \
-            --repository "${GITHUB_REPOSITORY}" \
-            --commit "${RELEASE_COMMIT}" \
-            --version "${RELEASE_VERSION}" \
-            --actor lwnmengjing
-
       - name: Require the exact frontend release
         env:
           GH_TOKEN: ${{ github.token }}

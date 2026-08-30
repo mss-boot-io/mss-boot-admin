@@ -889,10 +889,11 @@ spec:
         embedded release source. A local --foundation path is an explicit Foundation-contributor
         override, never a consumer prerequisite. Plan remains read-only, apply is confirmed and
         conflict-free, business-owned paths are preserved, and the baseline pair is committed last.
-        The exact-clean-commit `mss verify --all` gate owns the standalone next-Foundation
-        generation and upgrade rehearsal, CLI/MCP/doctor identity parity, deterministic conflict,
-        empty second upgrade, and eval evidence; the retired Foundation compatibility workflow is
-        not a separate release authority.
+        The local `mss verify --all` gate owns the standalone next-Foundation generation and
+        upgrade rehearsal, CLI/MCP/doctor identity parity, deterministic conflict, empty second
+        upgrade, and eval evidence. Release qualification binds that same suite to one exact clean
+        commit with `mss verify --all --release-evidence --expect-commit <sha>`; the retired
+        Foundation compatibility workflow is not a separate release authority.
 
     - id: foundation.versioned-release
       displayName: Versioned Foundation Release Governance
@@ -961,11 +962,14 @@ spec:
         b1fe47a3a83209574e09d53526b122dd2cbc5277, but its Root image and official npm workflows
         failed and Docs was never created. It is an immutable partial train and must not be continued;
         npm recovery uses the exact Trusted Publisher binding and never restores NPM_TOKEN. The
-        reviewed active v1.3.7 version must be built from one exact clean merged-main commit. Its
-        complete `mss verify --all` result must be externally recorded against the full commit and
-        tracked-clean state before the candidate-only artifact preview. Formal Framework, Admin, frontend, and Root
-        tags created by lwnmengjing then publish automatically; the Root tag also starts the image
-        and official npm workflows, while Docs follows later from its independent tag. Reconcile
-        public Go, npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair
-        requires a follow-up PR and a new merged-main commit; no workflow may mutate an already-public
-        Release or reuse historical evidence.
+        reviewed active v1.3.7 version must be built from one exact clean merged-main commit. Pull
+        requests keep only fast required contexts; the complete local `mss verify --all
+        --release-evidence --expect-commit <sha>` result is externally recorded against the full
+        commit and tracked-clean state. The Root candidate workflow then stages exact immutable
+        artifacts instead of replaying broad quality suites. Formal Framework, Admin, frontend, and
+        Root tags created by lwnmengjing publish automatically; the Admin release uniquely resolves
+        the exact public Framework with `GOWORK=off`, while the Root tag also starts the image and
+        official npm workflows and Docs follows later from its independent tag. Reconcile public Go,
+        npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair requires a
+        follow-up PR and a new merged-main commit; no workflow may mutate an already-public Release
+        or reuse historical evidence.

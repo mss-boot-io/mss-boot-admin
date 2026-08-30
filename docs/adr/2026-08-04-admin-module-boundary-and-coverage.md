@@ -57,7 +57,7 @@ The root Agent module and `mss-boot` must not import `admin/...`. Admin business
 
 ## Admin compatibility contract
 
-Every Admin or framework pull request validates all of the following:
+Complete local `mss verify --all` qualification validates all of the following before merge; merged-main and manual workflows retain the same work as asynchronous audit rather than a pull-request blocker:
 
 - Admin tests with `GOWORK=off` and the committed module metadata;
 - Admin tests in the repository workspace against the current local framework;
@@ -67,6 +67,8 @@ Every Admin or framework pull request validates all of the following:
 - framework database ownership and lifecycle contracts exercised from an Admin compatibility package;
 - generated Blueprint workspace compilation for root, Admin, and framework modules;
 - Docker build from a freshly generated workspace vendor directory.
+
+The server-side pull-request path is intentionally smaller: Admin/shared changes run one ordinary Admin test, Framework changes run one ordinary independent Framework test, and required guard, vulnerability, and CodeQL contexts remain stable. After Framework publication, the Admin tag workflow uniquely resolves and tests the exact public Framework with `GOWORK=off`.
 
 This is a source-compatibility contract for the currently developed framework. Public HTTP behavior and database schemas are unchanged by the module move.
 

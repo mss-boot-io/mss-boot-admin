@@ -96,6 +96,7 @@ artifacts="$(gh api \
   -f per_page=100)"
 for artifact_name in \
   "release-packages-${version}" \
+  "frontend-v6-dist" \
   "root-image-preview-${version}"; do
   if ! jq -e \
     --arg name "${artifact_name}" \

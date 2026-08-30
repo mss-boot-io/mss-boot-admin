@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,12 +28,16 @@ const (
 	ModeModule  Mode = "module"
 )
 
+var fullLowercaseCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 // Options controls planning, execution, and reporting.
 type Options struct {
-	Mode     Mode
-	BaseRef  string
-	Module   string
-	PlanOnly bool
+	Mode            Mode
+	BaseRef         string
+	Module          string
+	PlanOnly        bool
+	ReleaseEvidence bool
+	ExpectedCommit  string
 }
 
 // Plan describes the exact checks selected for a change.
@@ -47,13 +52,23 @@ type Plan struct {
 
 // Report is the durable verification result consumed by agents and CI.
 type Report struct {
-	Project     string           `json:"project"`
-	Root        string           `json:"root"`
-	GeneratedAt time.Time        `json:"generatedAt"`
-	Plan        Plan             `json:"plan"`
-	PlanOnly    bool             `json:"planOnly"`
-	Success     bool             `json:"success"`
-	Results     []command.Result `json:"results,omitempty"`
+	Project            string           `json:"project"`
+	Root               string           `json:"root"`
+	GeneratedAt        time.Time        `json:"generatedAt"`
+	Plan               Plan             `json:"plan"`
+	PlanOnly           bool             `json:"planOnly"`
+	EvidenceMode       bool             `json:"evidenceMode"`
+	Commit             string           `json:"commit,omitempty"`
+	TrackedCleanBefore *bool            `json:"trackedCleanBefore,omitempty"`
+	TrackedCleanAfter  *bool            `json:"trackedCleanAfter,omitempty"`
+	EvidenceError      string           `json:"evidenceError,omitempty"`
+	Success            bool             `json:"success"`
+	Results            []command.Result `json:"results,omitempty"`
+}
+
+type releaseEvidenceSnapshot struct {
+	Commit       string
+	TrackedClean bool
 }
 
 // PlanChecks computes a deterministic minimum-sufficient validation plan.
@@ -117,6 +132,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(frameworkReleaseQualification(ctx.Root), "full local verification includes Framework race, coverage, vet, tidy, and independent-module checks")
 			add(backendReleaseQualification(ctx.Root), "full local verification includes Admin race, coverage, vet, module metadata, external consumer, and build checks")
 			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
+			add(adminDistributionExternalConsumer(ctx.Root, options.ReleaseEvidence), "full local verification qualifies a real generated Thin Host, packaged Admin Web dependency, permissions, and browser behavior outside the Foundation checkout")
 			add(releaseContractTest(ctx.Root), "full local verification validates release policy and workflow contracts before candidate packaging")
 			if hasFrontendApplication(ctx, "web/antd-v6") {
 				add(frontendQualification(ctx.Root), "full local verification includes dependency policy, lint, unit, release build, delivery, and browser qualification")
@@ -203,6 +219,9 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 
 // Run validates structured contracts, executes the plan, and writes reports.
 func Run(parent context.Context, ctx *project.Context, options Options) (Report, error) {
+	if err := validateReleaseEvidenceOptions(options); err != nil {
+		return Report{}, err
+	}
 	plan, err := PlanChecks(ctx, options)
 	if err != nil {
 		return Report{}, err
@@ -217,6 +236,23 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 		Plan:        plan,
 		PlanOnly:    options.PlanOnly,
 		Success:     true,
+	}
+	if options.ReleaseEvidence {
+		cleanBefore := false
+		cleanAfter := false
+		report.EvidenceMode = true
+		report.Commit = options.ExpectedCommit
+		report.TrackedCleanBefore = &cleanBefore
+		report.TrackedCleanAfter = &cleanAfter
+
+		before, snapshotErr := inspectReleaseEvidence(ctx.Root)
+		if snapshotErr == nil {
+			*report.TrackedCleanBefore = before.TrackedClean
+			snapshotErr = validateReleaseEvidenceSnapshot("before verification", before, options.ExpectedCommit)
+		}
+		if snapshotErr != nil {
+			return writeFailedReleaseEvidence(ctx, report, snapshotErr)
+		}
 	}
 
 	contractResult := validateContracts(ctx.Root, ctx.Project.Spec.RepositoryLayout["modules"])
@@ -252,6 +288,18 @@ func Run(parent context.Context, ctx *project.Context, options Options) (Report,
 				report.Success = false
 				break
 			}
+		}
+	}
+
+	if options.ReleaseEvidence {
+		after, snapshotErr := inspectReleaseEvidence(ctx.Root)
+		if snapshotErr == nil {
+			*report.TrackedCleanAfter = after.TrackedClean
+			snapshotErr = validateReleaseEvidenceSnapshot("after verification", after, options.ExpectedCommit)
+		}
+		if snapshotErr != nil {
+			report.Success = false
+			report.EvidenceError = snapshotErr.Error()
 		}
 	}
 
@@ -302,6 +350,19 @@ func (r Report) Markdown() string {
 		fmt.Fprintf(&builder, "- Module: `%s`\n", r.Plan.Module)
 	}
 	fmt.Fprintf(&builder, "- Plan only: `%t`\n", r.PlanOnly)
+	if r.EvidenceMode {
+		fmt.Fprintf(&builder, "- Evidence mode: `%t`\n", r.EvidenceMode)
+		fmt.Fprintf(&builder, "- Commit: `%s`\n", r.Commit)
+		if r.TrackedCleanBefore != nil {
+			fmt.Fprintf(&builder, "- Tracked clean before: `%t`\n", *r.TrackedCleanBefore)
+		}
+		if r.TrackedCleanAfter != nil {
+			fmt.Fprintf(&builder, "- Tracked clean after: `%t`\n", *r.TrackedCleanAfter)
+		}
+		if r.EvidenceError != "" {
+			fmt.Fprintf(&builder, "- Evidence error: `%s`\n", strings.ReplaceAll(r.EvidenceError, "`", "'"))
+		}
+	}
 	fmt.Fprintf(&builder, "- Success: `%t`\n", r.Success)
 	fmt.Fprintf(&builder, "- Generated at: `%s`\n\n", r.GeneratedAt.Format(time.RFC3339))
 
@@ -350,6 +411,101 @@ func (r Report) Markdown() string {
 		}
 	}
 	return builder.String()
+}
+
+func validateReleaseEvidenceOptions(options Options) error {
+	if !options.ReleaseEvidence {
+		if options.ExpectedCommit != "" {
+			return errors.New("--expect-commit requires --release-evidence")
+		}
+		return nil
+	}
+	if options.Mode != ModeAll {
+		return errors.New("--release-evidence requires --all")
+	}
+	if options.PlanOnly {
+		return errors.New("--release-evidence cannot be combined with --plan")
+	}
+	if !fullLowercaseCommitPattern.MatchString(options.ExpectedCommit) {
+		return errors.New("--release-evidence requires --expect-commit with a full 40-character lowercase commit SHA")
+	}
+	return nil
+}
+
+func inspectReleaseEvidence(root string) (releaseEvidenceSnapshot, error) {
+	headOutput, err := runGit(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("resolve HEAD for release evidence: %w", err)
+	}
+	commit := strings.TrimSpace(string(headOutput))
+	if !fullLowercaseCommitPattern.MatchString(commit) {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("resolved HEAD is not a full lowercase commit SHA: %q", commit)
+	}
+	indexOutput, err := runGit(root, "ls-files", "-v", "-z", "--", ".")
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("inspect tracked index flags for release evidence: %w", err)
+	}
+	hiddenPaths := make([]string, 0)
+	for _, record := range bytes.Split(indexOutput, []byte{0}) {
+		if len(record) < 3 || record[1] != ' ' {
+			continue
+		}
+		tag := record[0]
+		if tag == 'S' || (tag >= 'a' && tag <= 'z') {
+			hiddenPaths = append(hiddenPaths, string(record[2:]))
+		}
+	}
+	if len(hiddenPaths) > 0 {
+		sort.Strings(hiddenPaths)
+		return releaseEvidenceSnapshot{}, fmt.Errorf(
+			"release evidence rejects assume-unchanged or skip-worktree index flags: %s",
+			strings.Join(hiddenPaths, ", "),
+		)
+	}
+	statusOutput, err := runGit(
+		root,
+		"status",
+		"--porcelain=v1",
+		"--untracked-files=no",
+		"--",
+		".",
+	)
+	if err != nil {
+		return releaseEvidenceSnapshot{}, fmt.Errorf("inspect tracked worktree for release evidence: %w", err)
+	}
+	return releaseEvidenceSnapshot{
+		Commit:       commit,
+		TrackedClean: len(statusOutput) == 0,
+	}, nil
+}
+
+func validateReleaseEvidenceSnapshot(stage string, snapshot releaseEvidenceSnapshot, expectedCommit string) error {
+	if snapshot.Commit != expectedCommit {
+		return fmt.Errorf("release evidence %s HEAD is %s, expected %s", stage, snapshot.Commit, expectedCommit)
+	}
+	if !snapshot.TrackedClean {
+		return fmt.Errorf("release evidence %s tracked worktree is dirty", stage)
+	}
+	return nil
+}
+
+func writeFailedReleaseEvidence(ctx *project.Context, report Report, cause error) (Report, error) {
+	report.Success = false
+	problems := []string{cause.Error()}
+	after, afterErr := inspectReleaseEvidence(ctx.Root)
+	if afterErr != nil {
+		problems = append(problems, afterErr.Error())
+	} else {
+		*report.TrackedCleanAfter = after.TrackedClean
+		if validationErr := validateReleaseEvidenceSnapshot("after verification", after, report.Commit); validationErr != nil {
+			problems = append(problems, validationErr.Error())
+		}
+	}
+	report.EvidenceError = strings.Join(problems, "; ")
+	if writeErr := WriteReports(ctx, report); writeErr != nil {
+		return report, fmt.Errorf("%s; write failed release evidence report: %w", report.EvidenceError, writeErr)
+	}
+	return report, errors.New(report.EvidenceError)
 }
 
 func validateContracts(root string, moduleDirectories ...string) command.Result {
@@ -741,6 +897,30 @@ func presentationThinHostContract(root string) command.Spec {
 		Args:        []string{"bash", "tools/compatibility/test-presentation-thin-host-contract.sh"},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     30 * time.Minute,
+	}
+}
+
+func adminDistributionExternalConsumer(root string, persistEvidence bool) command.Spec {
+	environment := map[string]string{
+		"CI":           "true",
+		"GOWORK":       filepath.Join(root, "go.work"),
+		"NODE_OPTIONS": "--max-old-space-size=4096",
+	}
+	if persistEvidence {
+		environment["MSS_PERSIST_EVIDENCE"] = "1"
+	}
+	return command.Spec{
+		ID:          "admin-distribution-external-consumer",
+		Description: "qualify the complete Admin Distribution through one real repository-external Thin Host",
+		Directory:   root,
+		Args: []string{
+			"bash",
+			"tools/compatibility/test-thin-host-external-consumer.sh",
+			"--foundation-root",
+			root,
+		},
+		Environment: environment,
+		Timeout:     90 * time.Minute,
 	}
 }
 
@@ -1153,7 +1333,14 @@ func truncate(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
-	return value[:limit] + "\n... output truncated by mss verify ...\n"
+	marker := "\n... output truncated by mss verify; preserving head and tail ...\n"
+	if limit <= len(marker) {
+		return marker[:limit]
+	}
+	remaining := limit - len(marker)
+	head := (remaining + 1) / 2
+	tail := remaining - head
+	return value[:head] + marker + value[len(value)-tail:]
 }
 
 func writeAtomic(path string, data []byte) error {

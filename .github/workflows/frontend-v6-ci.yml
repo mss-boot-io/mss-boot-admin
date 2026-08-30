@@ -20,32 +20,13 @@ on:
       - '.mss/commands.yaml'
       - '.mss/project.yaml'
       - '.github/workflows/frontend-v6-ci.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'web/antd-v6/**'
-      - '.mss/modules/**'
-      - '.mss/schemas/admin-module.schema.json'
-      - 'go.mod'
-      - 'go.work'
-      - 'cmd/mss/**'
-      - 'internal/mss/app/**'
-      - 'internal/mss/generator/**'
-      - 'internal/mss/spec/**'
-      - 'templates/module/**'
-      - 'tools/release/**'
-      - 'tools/compatibility/test-thin-host-external-consumer.sh'
-      - '.mss/commands.yaml'
-      - '.mss/project.yaml'
-      - '.github/workflows/frontend-v6-ci.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: frontend-v6-ci-${{ github.event.pull_request.number || github.ref }}
+  group: frontend-v6-ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:

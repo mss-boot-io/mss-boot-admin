@@ -111,18 +111,21 @@ Before final review and merge, run the complete local qualification and capture 
 go run ./cmd/mss verify --all
 ```
 
-After merge and source freeze in step 1, run the complete gate again on the exact clean merged-main `SHA`. Require the tracked worktree to be clean both before and after, and require `HEAD` to remain the frozen full commit:
+After merge and source freeze in step 1, run the self-binding complete gate again on the exact clean merged-main `SHA`. The command fails closed unless tracked files are clean before and after and `HEAD` remains the frozen full commit:
 
 ```bash
-test "$(git rev-parse HEAD)" = "${SHA}"
-test -z "$(git status --porcelain=v1 --untracked-files=no)"
-go run ./cmd/mss verify --all
-test -z "$(git status --porcelain=v1 --untracked-files=no)"
-test "$(git rev-parse HEAD)" = "${SHA}"
+go run ./cmd/mss verify --all \
+  --release-evidence \
+  --expect-commit "${SHA}"
+jq -e \
+  --arg commit "${SHA}" \
+  '.success == true and .evidenceMode == true and .commit == $commit and
+   .trackedCleanBefore == true and .trackedCleanAfter == true' \
+  .mss/reports/verify.json >/dev/null
 sha256sum .mss/reports/verify.json
 ```
 
-The release ledger outside the tracked worktree must record the full `SHA`, `trackedClean=true`, the exact command, report digest, and result. The complete verifier owns code quality, dependency policy, contracts, tests, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict output, empty second upgrade, evals, and browser behavior together with the required PR checks. The unique Root candidate preview must not repeat those broad suites. It owns only release policy plus the exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images that later tag workflows publish byte-for-byte. The local report alone never replaces the merged-main, actor, immutable-ref, OIDC, provenance, or public-reconciliation boundaries.
+The release ledger outside the tracked worktree records the report digest and result; the report itself binds the full `SHA` and both tracked-clean observations. In release-evidence mode, the real external Thin Host check also records a persistent system-temporary evidence directory in command output and writes its sanitized `evidence-manifest.json`; retain or hash that directory with the ledger when its detailed reports are needed. The complete verifier owns code quality, dependency policy, contracts, tests, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict output, empty second upgrade, evals, real external Thin Host behavior, and browser behavior. Pull requests retain only lightweight server-side governance, vulnerability, CodeQL, the ordinary Admin test required by branch protection, and an applicable ordinary Framework smoke test; broad component matrices run locally and again after merge as non-blocking audit where configured. The unique Root candidate preview must not repeat those suites. It owns only release policy plus exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images later published byte-for-byte. Even a self-bound local report never replaces merged-main, actor, immutable-ref, public Framework resolution, OIDC, provenance, or public-reconciliation boundaries.
 
 Classify a missing local browser binary or package as workstation setup first. Install it locally when repository and CI contracts are already correct. Change repository setup only when the failure reproduces in the checked-in workflow or a clean supported setup.
 
@@ -154,9 +157,9 @@ done
 
 Immediately before the preview and every tag push, fetch `origin/main` again and require it to remain `SHA`. If `main` advanced, stop before creating an immutable ref and select the new merged-main commit. If the reviewed policy lists the version in `immutableStoppedTrains`, stop: every listed ref is permanently rejected and must never be deleted, moved, recreated, completed, or resumed.
 
-### 4. Run the unique Root candidate preview
+### 4. Run the unique Root artifact-staging preview
 
-The only current preview authority is `release.yml` on `workflow_dispatch`. It accepts only `version`, never publishes, and builds and verifies only the exact archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform images that formal tag workflows later reuse. It does not repeat dependency audits, Go suites, lint, unit tests, Playwright, next-Foundation compatibility, CLI/MCP/doctor parity, conflict/no-op rehearsals, or evals; the external ledger must already bind the successful complete local gate and required PR checks to this same frozen `SHA`.
+The only current artifact-staging preview is `release.yml` on `workflow_dispatch`. It accepts only `version`, never publishes, and builds and verifies only the exact archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform images that formal tag workflows later reuse. It does not repeat dependency audits, Go suites, lint, unit tests, Playwright, next-Foundation compatibility, CLI/MCP/doctor parity, conflict/no-op rehearsals, or evals. The external ledger binds the complete local gate to the frozen `SHA`; lightweight PR checks authorize the preceding merge but are not reinterpreted as exact merged-main evidence.
 
 ```bash
 test "$(gh api user --jq .login)" = "lwnmengjing"
@@ -178,7 +181,7 @@ git tag -a "${FRONTEND_TAG}" "${SHA}" -m "${FRONTEND_TAG}"
 git push origin "refs/tags/${FRONTEND_TAG}"
 ```
 
-The workflows fail before checkout, secrets, or writes unless both actor identities are `lwnmengjing`; each also verifies the exact merged-main source and active release policy. The consolidated controlled-creation ruleset covers Root, component, and Docs tag namespaces with `lwnmengjing` as its only bypass. The immutable ruleset has no bypass. SullivanPrime remains an independent PR reviewer and is not a release-environment reviewer.
+The workflows fail before checkout, secrets, or writes unless both actor identities are `lwnmengjing`; each also verifies the exact merged-main source and active release policy. The first irreversible Framework publication performs one cheap exact-SHA/version artifact-preview lookup so an operator mistake cannot create a partial train before staging. Admin does not repeat that lookup; after the Framework Release exists, it keeps the unique remote dependency boundary by resolving the exact public Framework through `proxy.golang.org` with `GOWORK=off` and testing the compile-time composition before publishing. The consolidated controlled-creation ruleset covers Root, component, and Docs tag namespaces with `lwnmengjing` as its only bypass. The immutable ruleset has no bypass. SullivanPrime remains an independent PR reviewer and is not a release-environment reviewer.
 
 ### 6. Verify remote governance without adding an approval pause
 
@@ -212,7 +215,7 @@ git tag -a "${ROOT_TAG}" "${SHA}" -m "${ROOT_TAG}"
 git push origin "refs/tags/${ROOT_TAG}"
 ```
 
-That one push naturally starts `release.yml`, `container.yml`, and `npm-release.yml` in parallel. Each re-verifies the exact merged-main tag, active policy, and successful exact preview, then performs only its necessary publication and public-identity reconciliation. Root immediately checks the already-completed component tags and Releases, downloads the exact preview archive, and publishes it. The image workflow publishes the cache-qualified multi-platform image. The npm workflow immediately requires the already-completed frontend Release, verifies its GitHub Packages version-specific mirror and byte identity, and publishes those bytes through npm Trusted Publishing. Root, image, and npm never wait on one another, and none waits for Docs. Root and official npm publication are serialized across versions and never move a `latest` pointer backward.
+That one push naturally starts `release.yml`, `container.yml`, and `npm-release.yml` in parallel. Root and the image workflow re-verify the exact merged-main tag, active policy, and successful exact preview before publishing the staged bytes. The npm workflow does not repeat the preview lookup: it requires the already-completed exact frontend Release, verifies its GitHub Packages version-specific mirror and byte identity, and publishes those same bytes through npm Trusted Publishing. Root, image, and npm never wait on one another, and none waits for Docs. Root and official npm publication are serialized across versions and never move a `latest` pointer backward.
 
 Never dispatch a second publish run or approve a release environment after the tag. A retry is an ordinary workflow rerun by `lwnmengjing`; immutable identity checks refuse conflicting public state.
 

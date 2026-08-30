@@ -653,7 +653,9 @@ class ReleasePolicyTest(unittest.TestCase):
                 content = (
                     REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
                 ).read_text(encoding="utf-8")
-                self.assertGreaterEqual(content.count("'tools/release/**'"), 2)
+                workflow = yaml.load(content, Loader=yaml.BaseLoader)
+                self.assertNotIn("pull_request", workflow["on"])
+                self.assertIn("tools/release/**", workflow["on"]["push"]["paths"])
 
     def test_docs_release_is_component_scoped_and_merged_main_only(self):
         content = (

@@ -34,6 +34,12 @@ class ResolveSuccessfulPreviewTest(unittest.TestCase):
                             },
                             {
                                 "id": 901,
+                                "name": "frontend-v6-dist",
+                                "expired": False,
+                                "size_in_bytes": 6144,
+                            },
+                            {
+                                "id": 902,
                                 "name": "root-image-preview-v9.8.7",
                                 "expired": False,
                                 "size_in_bytes": 8192,
@@ -162,31 +168,73 @@ esac
             "size_in_bytes": 4096,
         }
         valid_image = {
-            "id": 901,
+            "id": 902,
             "name": "root-image-preview-v9.8.7",
             "expired": False,
             "size_in_bytes": 8192,
+        }
+        valid_frontend = {
+            "id": 901,
+            "name": "frontend-v6-dist",
+            "expired": False,
+            "size_in_bytes": 6144,
         }
         cases = {
             "missing": [],
             "wrong package name": [
                 {**valid_packages, "name": "release-packages-v9.8.6"},
+                valid_frontend,
                 valid_image,
             ],
-            "expired package": [{**valid_packages, "expired": True}, valid_image],
-            "empty package": [{**valid_packages, "size_in_bytes": 0}, valid_image],
+            "expired package": [
+                {**valid_packages, "expired": True},
+                valid_frontend,
+                valid_image,
+            ],
+            "empty package": [
+                {**valid_packages, "size_in_bytes": 0},
+                valid_frontend,
+                valid_image,
+            ],
             "duplicate package": [
                 valid_packages,
-                {**valid_packages, "id": 902},
+                {**valid_packages, "id": 903},
+                valid_frontend,
                 valid_image,
             ],
-            "missing image": [valid_packages],
-            "expired image": [valid_packages, {**valid_image, "expired": True}],
-            "empty image": [valid_packages, {**valid_image, "size_in_bytes": 0}],
+            "missing frontend": [valid_packages, valid_image],
+            "expired frontend": [
+                valid_packages,
+                {**valid_frontend, "expired": True},
+                valid_image,
+            ],
+            "empty frontend": [
+                valid_packages,
+                {**valid_frontend, "size_in_bytes": 0},
+                valid_image,
+            ],
+            "duplicate frontend": [
+                valid_packages,
+                valid_frontend,
+                {**valid_frontend, "id": 903},
+                valid_image,
+            ],
+            "missing image": [valid_packages, valid_frontend],
+            "expired image": [
+                valid_packages,
+                valid_frontend,
+                {**valid_image, "expired": True},
+            ],
+            "empty image": [
+                valid_packages,
+                valid_frontend,
+                {**valid_image, "size_in_bytes": 0},
+            ],
             "duplicate image": [
                 valid_packages,
+                valid_frontend,
                 valid_image,
-                {**valid_image, "id": 902},
+                {**valid_image, "id": 903},
             ],
         }
         for name, artifacts in cases.items():

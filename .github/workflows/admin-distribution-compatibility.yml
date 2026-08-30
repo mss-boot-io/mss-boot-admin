@@ -19,18 +19,13 @@ on:
       - 'go.sum'
       - 'go.work'
       - 'go.work.sum'
-  pull_request:
-    branches:
-      - main
-    # Keep this event unfiltered so a future required context is never missing.
-    # The shared scope classifier skips the expensive qualification for Docs-only PRs.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: admin-distribution-compatibility-${{ github.event.pull_request.number || github.ref }}
+  group: admin-distribution-compatibility-${{ github.ref }}
   cancel-in-progress: true
 
 env:

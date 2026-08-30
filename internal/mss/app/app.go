@@ -225,6 +225,8 @@ func newVerifyCommand(rootOverride *string) *cobra.Command {
 	var module string
 	var baseRef string
 	var planOnly bool
+	var releaseEvidence bool
+	var expectedCommit string
 	command := &cobra.Command{
 		Use:   "verify",
 		Short: "Plan and execute change-aware repository validation",
@@ -254,11 +256,16 @@ func newVerifyCommand(rootOverride *string) *cobra.Command {
 				return err
 			}
 			report, runErr := verify.Run(cmd.Context(), ctx, verify.Options{
-				Mode:     mode,
-				BaseRef:  baseRef,
-				Module:   module,
-				PlanOnly: planOnly,
+				Mode:            mode,
+				BaseRef:         baseRef,
+				Module:          module,
+				PlanOnly:        planOnly,
+				ReleaseEvidence: releaseEvidence,
+				ExpectedCommit:  expectedCommit,
 			})
+			if runErr != nil && report.GeneratedAt.IsZero() {
+				return runErr
+			}
 			if outputErr := writeVerify(cmd.OutOrStdout(), report, format); outputErr != nil {
 				return outputErr
 			}
@@ -271,6 +278,8 @@ func newVerifyCommand(rootOverride *string) *cobra.Command {
 	command.Flags().StringVar(&module, "module", "", "validate one vertical module")
 	command.Flags().StringVar(&baseRef, "base", "", "Git base ref for changed-file detection")
 	command.Flags().BoolVar(&planOnly, "plan", false, "write reports without executing external checks")
+	command.Flags().BoolVar(&releaseEvidence, "release-evidence", false, "bind complete local verification evidence to one exact clean commit")
+	command.Flags().StringVar(&expectedCommit, "expect-commit", "", "full lowercase commit SHA required by --release-evidence")
 	return command
 }
 

@@ -211,22 +211,22 @@ class WorkflowGovernanceTest(unittest.TestCase):
 
     def test_agent_ci_runs_this_governance_suite(self):
         agent_workflow = self.workflows["agent-native-ci.yml"]
-        for event in ("push", "pull_request"):
-            paths = agent_workflow["on"][event]["paths"]
-            self.assertIn(".github/workflows/**", paths)
-            self.assertIn("tools/ci/**", paths)
-            for current_document in (
-                "admin/README.md",
-                "mss-boot/README.md",
-                "mss-boot/README.Zh-cn.md",
-                "web/antd-v6/README.md",
-            ):
-                self.assertIn(current_document, paths)
-            self.assertNotIn("docs/docs/agent/**", paths)
-            self.assertNotIn(
-                "docs/docs/architecture/agent-native-foundation.zh-CN.md",
-                paths,
-            )
+        self.assertNotIn("pull_request", agent_workflow["on"])
+        paths = agent_workflow["on"]["push"]["paths"]
+        self.assertIn(".github/workflows/**", paths)
+        self.assertIn("tools/ci/**", paths)
+        for current_document in (
+            "admin/README.md",
+            "mss-boot/README.md",
+            "mss-boot/README.Zh-cn.md",
+            "web/antd-v6/README.md",
+        ):
+            self.assertIn(current_document, paths)
+        self.assertNotIn("docs/docs/agent/**", paths)
+        self.assertNotIn(
+            "docs/docs/architecture/agent-native-foundation.zh-CN.md",
+            paths,
+        )
 
         steps = agent_workflow["jobs"]["contracts-and-go"]["steps"]
         governance = next(
@@ -303,6 +303,56 @@ class WorkflowGovernanceTest(unittest.TestCase):
         )["run"]
         for route in ("admin|shared)", "framework)", "docs|web)"):
             self.assertIn(route, aggregate)
+
+        for name in ("race", "static-and-module", "compatibility", "compile"):
+            self.assertIn("github.event_name != 'pull_request'", jobs[name]["if"])
+        test_steps = jobs["test"]["steps"]
+        ordinary = next(
+            step
+            for step in test_steps
+            if step.get("name") == "Test coordinated Admin module"
+        )
+        self.assertEqual(ordinary["if"], "github.event_name == 'pull_request'")
+        self.assertEqual(ordinary["run"], "go test -shuffle=on -count=1 ./...")
+        for step_name in (
+            "Test coverage policy tooling",
+            "Test coordinated Admin module with atomic coverage",
+            "Enforce Admin coverage policy",
+            "Upload Admin coverage profile",
+        ):
+            step = next(item for item in test_steps if item.get("name") == step_name)
+            self.assertEqual(step["if"], "github.event_name != 'pull_request'")
+
+    def test_broad_component_matrices_are_post_merge_or_manual_not_pr_gates(self):
+        for workflow_name in (
+            "agent-native-ci.yml",
+            "frontend-v6-ci.yml",
+            "admin-distribution-compatibility.yml",
+            "container.yml",
+            "docs.yml",
+            "pat-migration-integration.yml",
+            "swagger.yml",
+            "theme-settings-integration.yml",
+            "v0.7-upgrade-integration.yml",
+        ):
+            with self.subTest(workflow=workflow_name):
+                triggers = self.workflows[workflow_name]["on"]
+                self.assertNotIn("pull_request", triggers)
+                self.assertIn("push", triggers)
+                self.assertEqual(triggers["push"]["branches"], ["main"])
+                if workflow_name == "container.yml":
+                    self.assertIn("workflow_call", triggers)
+                else:
+                    self.assertIn("workflow_dispatch", triggers)
+
+        framework = self.workflows["mss-boot-ci.yml"]
+        self.assertIn("pull_request", framework["on"])
+        jobs = framework["jobs"]
+        for name in ("race", "static-and-module"):
+            self.assertIn("github.event_name != 'pull_request'", jobs[name]["if"])
+        aggregate = jobs["required"]["steps"][0]["run"]
+        self.assertIn('if [[ "${EVENT_NAME}" == "pull_request" ]]', aggregate)
+        self.assertIn('test "${RACE_RESULT}" = "skipped"', aggregate)
 
     def test_admin_module_metadata_gate_uses_a_confined_prepublication_replace(self):
         job = self.workflows["ci.yml"]["jobs"]["static-and-module"]
@@ -439,19 +489,18 @@ class WorkflowGovernanceTest(unittest.TestCase):
 
     def test_component_owned_workflows_do_not_watch_other_owned_roots(self):
         frontend = self.workflows["frontend-v6-ci.yml"]
-        for event in ("push", "pull_request"):
-            paths = frontend["on"][event]["paths"]
-            self.assertNotIn("admin/**", paths)
-            self.assertNotIn("admin/modules/**/module.yaml", paths)
-            self.assertNotIn("mss-boot/**", paths)
+        self.assertNotIn("pull_request", frontend["on"])
+        paths = frontend["on"]["push"]["paths"]
+        self.assertNotIn("admin/**", paths)
+        self.assertNotIn("admin/modules/**/module.yaml", paths)
+        self.assertNotIn("mss-boot/**", paths)
 
         mirror = self.workflows["mirror.yml"]
         self.assertIn("docs/**", mirror["on"]["push"]["paths-ignore"])
 
     def test_distribution_compatibility_routes_heavy_external_consumption(self):
         workflow = self.workflows["admin-distribution-compatibility.yml"]
-        self.assertEqual(workflow["on"]["pull_request"]["branches"], ["main"])
-        self.assertNotIn("paths", workflow["on"]["pull_request"])
+        self.assertNotIn("pull_request", workflow["on"])
         push_paths = set(workflow["on"]["push"]["paths"])
         for path in (
             "admin/**",
@@ -512,7 +561,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for required in (
             "STAGE=e2e",
-            "CONFIG_PROVIDER=fs",
+            "CONFIG_PROVIDER=local",
             "MSS_V6_EXTERNAL_BACKEND=1",
             "MSS_V6_EXTERNAL_SERVER=1",
             "e2e/generated/supplier.spec.ts",
@@ -529,8 +578,17 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "fetch --frozen-lockfile",
             "install --offline --frozen-lockfile",
             "expected_pnpm_version='10.34.5'",
-            'actual_pnpm_version="$(pnpm --version)"',
-            "pnpm pack --pack-destination",
+            'pnpm_command=(corepack "pnpm@${expected_pnpm_version}")',
+            'actual_pnpm_version="$("${pnpm_command[@]}" --version)"',
+            "run_pnpm pack --pack-destination",
+            "current.bind(('127.0.0.1', 0))",
+            'backend_origin="http://127.0.0.1:${backend_port}"',
+            'web_origin="http://127.0.0.1:${web_port}"',
+            "run_pnpm exec playwright install chromium",
+            "mss.io/thin-host-local-evidence/v1",
+            "MSS_PERSIST_EVIDENCE",
+            "evidence-manifest.json",
+            "flock -w 600",
             'mss_start_process_group \\\n  backend_pid',
             'mss_start_process_group \\\n  web_pid',
             'mss_stop_process_group "${web_pid}"',
@@ -538,7 +596,10 @@ class WorkflowGovernanceTest(unittest.TestCase):
         ):
             with self.subTest(required=required):
                 self.assertIn(required, thin_host_script)
-        self.assertNotIn("corepack pnpm@10.34.5", thin_host_script)
+        self.assertNotIn("PORT=18001", thin_host_script)
+        self.assertNotIn(
+            "MSS_ADMIN_API_TARGET=http://127.0.0.1:18080", thin_host_script
+        )
         process_group_helper = (
             REPOSITORY_ROOT
             / "tools"
@@ -551,6 +612,21 @@ class WorkflowGovernanceTest(unittest.TestCase):
             thin_host_script.index("fetch --frozen-lockfile"),
             thin_host_script.index("install --offline --frozen-lockfile"),
         )
+        build = thin_host_script.index("run_pnpm run build")
+        lock = thin_host_script.index("port_start_lock_path=", build)
+        allocation = thin_host_script.index("read -r backend_port web_port", lock)
+        backend_ready = thin_host_script.index(
+            '"${backend_origin}/healthz"', allocation
+        )
+        frontend_stable = thin_host_script.index(
+            '"external Thin Host frontend stability check"', backend_ready
+        )
+        unlock = thin_host_script.index("release_port_start_lock", frontend_stable)
+        self.assertLess(build, lock)
+        self.assertLess(lock, allocation)
+        self.assertLess(allocation, backend_ready)
+        self.assertLess(backend_ready, frontend_stable)
+        self.assertLess(frontend_stable, unlock)
         aggregate = jobs["required"]
         self.assertEqual(aggregate["name"], "admin-distribution-compatibility")
         aggregate_script = aggregate["steps"][0]["run"]
@@ -1054,7 +1130,7 @@ exit 66
                             "before any registry write", result.stderr
                         )
 
-    def test_admin_module_tag_is_a_light_preview_backed_publication(self):
+    def test_admin_module_tag_keeps_only_public_dependency_and_publication_boundaries(self):
         workflow = self.workflows["admin-release.yml"]
         self.assertEqual(workflow["on"]["push"]["tags"], ["admin/v*.*.*"])
         release = workflow["jobs"]["release"]
@@ -1068,9 +1144,10 @@ exit 66
                 "Resolve immutable Admin module identity",
                 "Verify merged-main release source",
                 "Enforce coordinated Admin Distribution target",
-                "Require successful exact preview",
                 "Reconcile existing public Admin release",
                 "Require the already-published matching Framework release",
+                "Setup Go for the public Framework boundary",
+                "Resolve and test the exact public Framework",
                 "Prepare component-scoped release notes",
                 "Publish immutable Admin module release",
             ],
@@ -1091,14 +1168,9 @@ exit 66
         )["run"]
         self.assertIn("--component admin", policy)
 
-        preview = next(
-            step
-            for step in steps
-            if step.get("name") == "Require successful exact preview"
-        )["run"]
-        self.assertIn("resolve_successful_preview.sh", preview)
-        self.assertIn('--commit "${GITHUB_SHA}"', preview)
-        self.assertIn('--version "${ADMIN_VERSION}"', preview)
+        self.assertFalse(
+            any(step.get("name") == "Require successful exact preview" for step in steps)
+        )
 
         release_state = next(
             step
@@ -1121,12 +1193,29 @@ exit 66
         self.assertIn(".isDraft == false", framework)
         self.assertIn(".isPrerelease == $prerelease", framework)
 
+        public_framework = next(
+            step
+            for step in steps
+            if step.get("name") == "Resolve and test the exact public Framework"
+        )
+        self.assertEqual(public_framework["working-directory"], "admin")
+        self.assertEqual(public_framework["env"]["GOWORK"], "off")
+        self.assertEqual(public_framework["env"]["GOPROXY"], "https://proxy.golang.org")
+        self.assertEqual(public_framework["env"]["GOFLAGS"], "-mod=readonly")
+        for required in (
+            'go mod download -json "${framework_module}@${ADMIN_VERSION}"',
+            ".Path == $module and .Version == $version",
+            "go test ./app ./business",
+        ):
+            self.assertIn(required, public_framework["run"])
+
         notes = next(
             step
             for step in steps
             if step.get("name") == "Prepare component-scoped release notes"
         )["run"]
-        self.assertIn("successful Root preview", notes)
+        self.assertIn("Broad quality verification was completed locally", notes)
+        self.assertIn("public Framework with GOWORK=off", notes)
         self.assertIn("go get github.com/mss-boot-io/mss-boot-admin/admin@", notes)
         self.assertNotIn("generate-notes", notes)
 
@@ -1148,18 +1237,17 @@ exit 66
         tag_content = (WORKFLOW_DIR / "admin-release.yml").read_text(
             encoding="utf-8"
         )
-        for preview_owned_check in (
-            "Setup Go",
-            "go test",
+        for local_quality_check in (
+            "go test -race",
             "go vet",
             "go build",
             "verify_framework_admin_checksum.py",
             "Probe the tagged Admin module",
             "test-thin-host-external-consumer.sh",
         ):
-            self.assertNotIn(preview_owned_check, tag_content)
+            self.assertNotIn(local_quality_check, tag_content)
 
-    def test_framework_tag_is_a_light_preview_backed_publication(self):
+    def test_framework_tag_keeps_one_cheap_preview_boundary_before_publication(self):
         workflow = self.workflows["framework-release.yml"]
         self.assertEqual(workflow["on"]["push"]["tags"], ["mss-boot/v*.*.*"])
         release = workflow["jobs"]["release"]
@@ -1173,7 +1261,7 @@ exit 66
                 "Resolve framework version",
                 "Verify merged-main release source",
                 "Enforce reviewed public release target",
-                "Require successful exact preview",
+                "Require successful exact artifact preview",
                 "Reconcile existing public component release",
                 "Prepare component-scoped release notes",
                 "Publish framework release",
@@ -1198,11 +1286,12 @@ exit 66
         preview = next(
             step
             for step in steps
-            if step.get("name") == "Require successful exact preview"
+            if step.get("name") == "Require successful exact artifact preview"
         )["run"]
         self.assertIn("resolve_successful_preview.sh", preview)
         self.assertIn('--commit "${GITHUB_SHA}"', preview)
         self.assertIn('--version "${FRAMEWORK_VERSION}"', preview)
+        self.assertIn("--actor lwnmengjing", preview)
 
         release_state = next(
             step
@@ -1220,7 +1309,8 @@ exit 66
             for step in steps
             if step.get("name") == "Prepare component-scoped release notes"
         )["run"]
-        self.assertIn("successful Root preview", notes)
+        self.assertIn("Broad quality verification was completed locally", notes)
+        self.assertIn("first irreversible component", notes)
         self.assertIn("go get github.com/mss-boot-io/mss-boot-admin/mss-boot@", notes)
         self.assertNotIn("generate-notes", notes)
 
@@ -1242,7 +1332,7 @@ exit 66
         tag_content = (WORKFLOW_DIR / "framework-release.yml").read_text(
             encoding="utf-8"
         )
-        for preview_owned_check in (
+        for local_quality_check in (
             "Setup Go",
             "go test",
             "go vet",
@@ -1251,7 +1341,7 @@ exit 66
             "Probe the published module",
             "test-thin-host-external-consumer.sh",
         ):
-            self.assertNotIn(preview_owned_check, tag_content)
+            self.assertNotIn(local_quality_check, tag_content)
 
     def test_root_publication_reuses_preview_and_checks_component_identity_once(self):
         workflow = self.workflows["release.yml"]

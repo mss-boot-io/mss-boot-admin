@@ -25,7 +25,7 @@ spec:
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
     - Requalify the complete package-first tools, Go modules, Admin Web package, images, external Thin Host, presentation configuration, migrations, authorization, and rollback from one new merged-main commit.
-    - Keep behavioral, dependency, contract, and browser qualification in the complete local verifier and required PR checks instead of repeating them during candidate packaging.
+    - Keep behavioral, dependency, contract, and browser qualification in a self-bound complete local verifier, while PR checks retain only lightweight server-side governance, security analysis, ordinary Admin tests, and an ordinary independent Framework test when applicable.
     - Publish formal tags only after one successful non-publishing preview and reconcile every public surface before any stable promotion.
   nonGoals:
     - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
@@ -98,12 +98,13 @@ spec:
       actor: release-operator
       module: release-governance
       rules:
-        - The pull-request Head passes mss verify --all, Codex in-app Browser acceptance, and every required pull-request check before merge; after merge the frozen exact tracked-clean origin/main commit passes mss verify --all again.
-        - An external review or release ledger records the frozen full commit, trackedClean=true, exact verifier command, report digest, and result before preview.
+        - The pull-request Head passes mss verify --all, Codex in-app Browser acceptance, and the lightweight required pull-request checks before merge; broad Agent, Admin, Framework, frontend, Thin Host, container, and multi-database matrices do not block the PR.
+        - After merge, the frozen exact origin/main commit passes mss verify --all --release-evidence --expect-commit with a report that binds the full commit and true trackedCleanBefore/After values.
+        - An external review or release ledger records the self-bound report digest and result before preview.
         - The manual Root workflow accepts only v1.3.7 from main and never publishes.
         - The Root preview builds and verifies only exact publication binaries, archives, packages, SBOMs, checksums, portable delivery, candidate Thin Host composition, and multi-platform images; it does not rerun Go, dependency, lint, unit, or Playwright suites.
         - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
-        - Formal Admin publication resolves the exact public Framework with GOWORK off.
+        - The first irreversible Framework publication performs one cheap exact preview lookup; Admin does not repeat it and still resolves and tests the exact public Framework with GOWORK off through the public Go proxy.
         - The Root tag starts Root assets, Root image, and official npm publication independently from the same preview evidence.
         - Docs is a later independent tag after the package and image ledger reconciles.
     - id: reconcile-complete-v137-ledger
@@ -172,7 +173,7 @@ spec:
       required: true
       evidence:
         - type: report
-          value: Exact-clean merged-main mss verify --all command and report externally bound to the full commit, trackedClean=true, report digest and result; required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
+          value: Self-bound exact-clean merged-main mss verify --all --release-evidence report containing the full commit and true trackedCleanBefore/After values plus its digest; lightweight required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
     - id: v137-public-reconciliation
       requirement: reconcile-complete-v137-ledger
       statement: Every public surface and repository-external consumer probe succeeds before any stable promotion.
@@ -197,7 +198,7 @@ spec:
       mitigation: Freeze one locally and through-PR qualified merged-main commit, finish the artifact preview and live-governance gates, and stop before the first tag on any failure.
   validation:
     changed: mss verify --changed
-    all: mss verify --all
+    all: mss verify --all --release-evidence --expect-commit <full-sha>
     custom:
       - python3 -m unittest discover -s tools/release -p 'test_*.py'
       - python3 tools/docs/check_current_docs.py
@@ -215,8 +216,8 @@ spec:
       Trusted Publisher to npm-release.yml plus npm-auto without creating a
       token. Complete mss verify --all and Browser acceptance on the exact PR
       Head, merge only after required checks pass, then freeze the clean exact
-      origin/main commit and run mss verify --all again. Externally record its full
-      commit, trackedClean=true, exact command, report digest, and result before
+      origin/main commit and run mss verify --all --release-evidence --expect-commit
+      with that full SHA. Externally record the self-bound report digest and result before
       running one non-publishing v1.3.7 Root artifact preview
       and inspect every expected artifact. As lwnmengjing, create annotated Framework, Admin, Admin Web,
       and Root tags in order. Reconcile package, image, and Release surfaces,

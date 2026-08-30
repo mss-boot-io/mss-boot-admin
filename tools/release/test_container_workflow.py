@@ -108,7 +108,7 @@ class ContainerWorkflowTest(unittest.TestCase):
     def test_root_tag_container_run_does_not_share_the_root_release_lock(self):
         self.assertEqual(
             self.workflow["concurrency"]["group"],
-            "container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.event.pull_request.number || github.ref }}",
+            "container-${{ inputs.release_preview == true && format('preview-{0}-{1}', inputs.version, github.sha) || github.ref }}",
         )
         self.assertEqual(
             self.workflow["concurrency"]["cancel-in-progress"],

@@ -15,27 +15,13 @@ on:
       - 'admin/go.sum'
       - 'mss-boot/pkg/config/gormdb/**'
       - '.github/workflows/pat-migration-integration.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'admin/cmd/migrate/migration/system/*user_auth_token_hash*'
-      - 'admin/cmd/migrate/migration/system/*oauth_local_password_disable*'
-      - 'admin/cmd/migrate/migration/system/*oauth_identity_key*'
-      - 'admin/models/user_auth_token.go'
-      - 'admin/models/user.go'
-      - 'admin/models/user_oauth2.go'
-      - 'admin/go.mod'
-      - 'admin/go.sum'
-      - 'mss-boot/pkg/config/gormdb/**'
-      - '.github/workflows/pat-migration-integration.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: credential-migration-integration-${{ github.event.pull_request.number || github.ref }}
+  group: credential-migration-integration-${{ github.ref }}
   cancel-in-progress: true
 
 env:
