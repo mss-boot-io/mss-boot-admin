@@ -1732,9 +1732,12 @@ printf '%s\n' "external Thin Host runtime origins: backend=${backend_origin} fro
 
 runtime_dir="${host_root}/runtime"
 mkdir -p -- "${runtime_dir}/config" "${host_root}/.mss/run/antd-v6-e2e"
+install -m 0600 \
+  "${foundation_root}/admin/config/application.yml" \
+  "${runtime_dir}/config/application.yml"
 python3 - \
   "${foundation_root}/admin/config/application-e2e.yml" \
-  "${runtime_dir}/config/application.yml" \
+  "${runtime_dir}/config/application-e2e.yml" \
   "${backend_port}" \
   "${web_port}" <<'PY'
 import sys

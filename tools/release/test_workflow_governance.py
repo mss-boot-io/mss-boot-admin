@@ -590,6 +590,7 @@ class WorkflowGovernanceTest(unittest.TestCase):
             "evidence-manifest.json",
             "flock -w 600",
             '"${runtime_dir}/config/application.yml"',
+            '"${runtime_dir}/config/application-e2e.yml"',
             'mss_start_process_group \\\n  backend_pid',
             'mss_start_process_group \\\n  web_pid',
             'mss_stop_process_group "${web_pid}"',

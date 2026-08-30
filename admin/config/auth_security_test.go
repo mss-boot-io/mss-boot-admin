@@ -45,13 +45,20 @@ func TestLocalOverlayDefaultsToV6DevelopmentBrowserSession(t *testing.T) {
 	}
 }
 
-func TestE2EConfigIsAStandaloneValidBrowserSessionProfile(t *testing.T) {
-	data, err := FS.ReadFile("application-e2e.yml")
+func TestE2EOverlayProducesAValidBrowserSessionProfile(t *testing.T) {
+	base, err := FS.ReadFile("application.yml")
+	if err != nil {
+		t.Fatalf("read base configuration: %v", err)
+	}
+	overlay, err := FS.ReadFile("application-e2e.yml")
 	if err != nil {
 		t.Fatalf("read E2E configuration: %v", err)
 	}
 	var cfg Config
-	if err = yaml.Unmarshal(data, &cfg); err != nil {
+	if err = yaml.Unmarshal(base, &cfg); err != nil {
+		t.Fatalf("decode base configuration: %v", err)
+	}
+	if err = yaml.Unmarshal(overlay, &cfg); err != nil {
 		t.Fatalf("decode E2E configuration: %v", err)
 	}
 	if cfg.Application.Mode != ModeDev || cfg.Database.Driver != "sqlite" {

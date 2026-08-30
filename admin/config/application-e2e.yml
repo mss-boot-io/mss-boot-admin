@@ -28,12 +28,9 @@ database:
 auth:
   key: 'mss-antd-v6-e2e-non-production-key'
   identityKey: 'mss-antd-v6-e2e-non-production-identity-key'
-  timeout: 12h
-  maxRefresh: 2160h
   browserSession:
     secure: false
     sameSite: lax
-    webSocketTicketTTL: 30s
 task:
   enable: false
 cache:
