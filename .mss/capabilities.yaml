@@ -24,7 +24,9 @@ spec:
       guidance: >-
         Ant Design 6.6.1 and the ProComponents v3 beta remain exact pins. Build and release
         this application through its V6 tag, artifact, image, and rollback history. V6 is the
-        only browser application and backend browser-session contract.
+        only browser application and backend browser-session contract. Local verification is
+        authoritative; the extended Frontend v6 CI matrix is available only by explicit dispatch
+        for hosted-environment diagnostics and is not a routine post-merge gate.
 
     - id: identity.authentication
       displayName: Authentication

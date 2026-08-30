@@ -172,6 +172,30 @@ describe('effective presentation runtime', () => {
     expect(runtime.model.list.pageSize).toBe(50);
   });
 
+  it('merges localized title keys across layers before applying locale fallback', () => {
+    const response = effective('active', {
+      application: profile({ title: { 'en-US': 'Application suppliers' } }),
+      role: profile({ title: { 'zh-CN': '角色供应商' } }, { kind: 'role', subject: 'role-1' }),
+    });
+    const english = resolveEffectivePagePresentation({
+      entry,
+      locale: 'en-US',
+      user: user(),
+      response,
+      settled: true,
+    });
+    const chinese = resolveEffectivePagePresentation({
+      entry,
+      locale: 'zh-CN',
+      user: user(),
+      response,
+      settled: true,
+    });
+
+    expect(english.model.title).toBe('Application suppliers');
+    expect(chinese.model.title).toBe('角色供应商');
+  });
+
   it('fails closed for mismatched identity and intersects action permissions last', () => {
     const mismatched = resolveEffectivePagePresentation({
       entry,

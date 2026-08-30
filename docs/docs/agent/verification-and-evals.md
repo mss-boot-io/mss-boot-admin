@@ -60,7 +60,18 @@ PR、审查记录或仓库外发布台账必须记录完整 commit、`trackedCle
 `trackedCleanAfter: true`、精确命令、
 报告摘要或哈希和退出结果。`.mss/reports/verify.json` 单独存在不构成发布授权；它也不
 替代合并到 `main`、精确 SHA、Tag actor、不可变引用、OIDC、provenance 和公共制品对账。
-PR 服务器端只保留治理、漏洞、CodeQL、普通 Admin 单测以及 Framework 变更的普通独立单测；PR 本地使用 `verify --changed`、聚焦检查和受影响浏览器验收。完整 Agent、Admin、Framework、前端、真实 Thin Host 与文档矩阵只在冻结后的精确 merged-main commit 上执行一次自绑定 `verify --all`。合并到 main 后仍可运行远端重型工作流作为审计，但不再阻塞 PR。候选 preview 只验证同一 merged-main commit 产生的精确发布字节。
+PR 服务器端只保留治理、漏洞、CodeQL、普通 Admin 单测以及 Framework 变更的普通独立单测；PR 本地使用 `verify --changed`、聚焦检查和受影响浏览器验收。完整 Agent、Admin、Framework、前端、真实 Thin Host 与文档矩阵只在冻结后的精确 merged-main commit 上执行一次自绑定 `verify --all`。Agent 和 Frontend 扩展工作流不响应 `push` 或 `pull_request`，仅在需要跨平台或 GitHub 托管环境诊断时明确手动调度；它们不是发布授权，也不会在每次合并后产生重复的不确定性结果。候选 preview 只验证同一 merged-main commit 产生的精确发布字节。
+
+## 手动扩展资格验证
+
+本地证据通过后，如变更涉及 Agent 安装器、跨平台进程管理、前端包交付或浏览器运行环境，可针对需要复核的精确引用手动运行扩展工作流：
+
+```sh
+gh workflow run agent-native-ci.yml --ref <branch-or-tag>
+gh workflow run frontend-v6-ci.yml --ref <branch-or-tag>
+```
+
+手动运行后必须记录该 run 的完整 Head SHA，并确认它与预期提交一致。运行结果用于补充 GitHub 托管环境证据和诊断环境差异。不得用重跑成功掩盖确定性缺陷，也不得以这两个工作流替代 `mss verify --changed`、受影响页面验收或冻结 merged-main 提交上的 release evidence。
 
 ## Evals
 

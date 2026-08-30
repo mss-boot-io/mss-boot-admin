@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
+import { corePresentationRegistry } from '../src/generated/core-presentation-registry.generated';
+import {
+  buildPageRenderModel,
+  type PageCapabilityDefinition,
+  resolvePagePresentation,
+} from '../src/shared/presentation/contract';
+import { parseEffectivePresentationResponse } from '../src/shared/presentation/effective';
 import {
   API_BASE_URL,
   csrfHeaders,
@@ -8,6 +15,47 @@ import {
   readJSON,
   setLocale,
 } from './support/session';
+
+const taskDefinition = corePresentationRegistry['task.list']
+  .definition as unknown as PageCapabilityDefinition;
+const taskDefinitionHash = corePresentationRegistry['task.list'].definitionHash;
+const taskPermissions = new Set([
+  ...taskDefinition.dataSources.flatMap(({ requiredPermissions }) => requiredPermissions),
+  ...taskDefinition.actions.flatMap(({ requiredPermissions }) => requiredPermissions),
+]);
+
+function unwrapData<T>(body: Record<string, unknown>): T {
+  return ('data' in body ? body.data : body) as T;
+}
+
+function taskTitleFromLayers(layers: Parameters<typeof resolvePagePresentation>[1]): {
+  title: string;
+  appliedLayers: number;
+  rejectedLayers: number;
+} {
+  const resolution = resolvePagePresentation(taskDefinition, layers, taskPermissions);
+  return {
+    title: buildPageRenderModel(taskDefinition, resolution, 'en-US').title,
+    appliedLayers: resolution.appliedLayers.length,
+    rejectedLayers: resolution.rejectedLayers.length,
+  };
+}
+
+function effectiveTaskTitle(body: Record<string, unknown>): string {
+  const effective = parseEffectivePresentationResponse(unwrapData<unknown>(body));
+  expect(effective.pageKey).toBe('task.list');
+  expect(effective.definitionHash).toBe(taskDefinitionHash);
+
+  const compiled = taskTitleFromLayers({}).title;
+  if (!effective.adoption.applyLayers) return compiled;
+  try {
+    const resolved = taskTitleFromLayers(effective.layers);
+    if (resolved.rejectedLayers > 0 && resolved.appliedLayers === 0) return compiled;
+    return resolved.title;
+  } catch {
+    return compiled;
+  }
+}
 
 test('@operations bounded operational pages work through the browser contract', async ({
   page,
@@ -32,6 +80,10 @@ test('@operations bounded operational pages work through the browser contract', 
   await login(page);
 
   try {
+    const effectivePresentation = await page.request.get(
+      `${API_BASE_URL}/presentation/effective/task.list`,
+    );
+    const taskPageTitle = effectiveTaskTitle(await readJSON(effectivePresentation));
     const headers = await csrfHeaders(page);
     cleanupHeaders = {
       ...headers,
@@ -92,7 +144,7 @@ test('@operations bounded operational pages work through the browser contract', 
     await page.goto('/task');
     expect((await taskList).ok()).toBe(true);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Task scheduler', exact: true }),
+      page.getByRole('heading', { level: 1, name: taskPageTitle, exact: true }),
     ).toBeVisible();
     await expect(page.getByText(taskName, { exact: true })).toBeVisible();
     await expectNoDocumentOverflow(page);

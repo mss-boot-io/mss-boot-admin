@@ -5,7 +5,20 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 web_dir="$(cd "${script_dir}/.." && pwd)"
 repo_dir="$(realpath "${web_dir}/../..")"
-run_dir="$(realpath -m "${repo_dir}/.mss/run/antd-v6-e2e")"
+run_id="${MSS_V6_E2E_RUN_ID:-default}"
+[[ "${run_id}" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || {
+  echo "MSS_V6_E2E_RUN_ID must be a lowercase identifier" >&2
+  exit 2
+}
+run_root="$(realpath -m "${repo_dir}/.mss/run/antd-v6-e2e")"
+case "${run_root}/" in
+  "${repo_dir}/.mss/run/"*) ;;
+  *)
+    echo "Refusing to use an E2E run root outside the repository" >&2
+    exit 1
+    ;;
+esac
+run_dir="$(realpath -m "${run_root}/${run_id}")"
 backend_port="${MSS_V6_BACKEND_PORT:-18080}"
 web_port="${MSS_V6_WEB_PORT:-18001}"
 [[ "${backend_port}" =~ ^[0-9]+$ && "${web_port}" =~ ^[0-9]+$ ]] || {
@@ -22,7 +35,7 @@ web_port="${MSS_V6_WEB_PORT:-18001}"
 }
 
 case "${run_dir}/" in
-  "${repo_dir}/.mss/run/"*) ;;
+  "${run_root}/"*) ;;
   *)
     echo "Refusing to use an E2E run directory outside the repository" >&2
     exit 1

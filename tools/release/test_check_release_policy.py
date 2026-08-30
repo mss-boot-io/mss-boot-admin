@@ -729,15 +729,23 @@ class ReleasePolicyTest(unittest.TestCase):
             "prepare_portable_frontend.py dist --markdown-root docs", docs_package
         )
 
-    def test_static_ci_runs_when_portability_tooling_changes(self):
-        for workflow_name in ("frontend-v6-ci.yml", "docs.yml"):
-            with self.subTest(workflow=workflow_name):
-                content = (
-                    REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
-                ).read_text(encoding="utf-8")
-                workflow = yaml.load(content, Loader=yaml.BaseLoader)
-                self.assertNotIn("pull_request", workflow["on"])
-                self.assertIn("tools/release/**", workflow["on"]["push"]["paths"])
+    def test_manual_frontend_qualification_and_docs_cover_portability_tooling(self):
+        frontend_content = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "frontend-v6-ci.yml"
+        ).read_text(encoding="utf-8")
+        frontend = yaml.load(frontend_content, Loader=yaml.BaseLoader)
+        self.assertEqual(set(frontend["on"]), {"workflow_dispatch"})
+        compile_steps = frontend["jobs"]["compile"]["steps"]
+        self.assertTrue(
+            any(step.get("run") == "pnpm run build:release" for step in compile_steps)
+        )
+
+        docs_content = (
+            REPOSITORY_ROOT / ".github" / "workflows" / "docs.yml"
+        ).read_text(encoding="utf-8")
+        docs = yaml.load(docs_content, Loader=yaml.BaseLoader)
+        self.assertNotIn("pull_request", docs["on"])
+        self.assertIn("tools/release/**", docs["on"]["push"]["paths"])
 
     def test_docs_release_is_component_scoped_and_merged_main_only(self):
         content = (
@@ -833,8 +841,11 @@ class ReleasePolicyTest(unittest.TestCase):
             'export MSS_V6_BACKEND_ORIGIN="http://127.0.0.1:${backend_port}"',
             'export MSS_V6_BASE_URL="http://127.0.0.1:${web_port}"',
             'export MSS_E2E_BACKEND_API_URL="${MSS_V6_BACKEND_ORIGIN}/admin/api"',
+            'export MSS_V6_E2E_EVIDENCE_ROOT="${evidence_root}"',
+            "corepack pnpm@10.34.5 run test:e2e",
         ):
             self.assertIn(required, runner)
+        self.assertNotIn("exec playwright test", runner)
         self.assertLess(
             runner.index("playwright install chromium"),
             runner.index("read -r backend_port web_port"),
@@ -844,10 +855,26 @@ class ReleasePolicyTest(unittest.TestCase):
             "MSS_V6_WEB_PORT",
             '"${runtime_dir}/config/application.yml"',
             '"${runtime_dir}/config/application-e2e.yml"',
+            "MSS_V6_E2E_RUN_ID",
+            'case "${run_root}/" in',
+            '"${repo_dir}/.mss/run/"*)',
+            'run_dir="$(realpath -m "${run_root}/${run_id}")"',
         ):
             self.assertIn(required, backend)
         self.assertIn('"start:e2e"', package)
         self.assertIn("MSS_V6_E2E=1", package)
+        for required in (
+            'MSS_V6_E2E_RUN_ID=baseline playwright test --grep-invert @presentation',
+            'MSS_V6_E2E_RUN_ID=presentation playwright test --grep @presentation',
+        ):
+            self.assertIn(required, package)
+        for required in (
+            "MSS_V6_E2E_EVIDENCE_ROOT",
+            "MSS_V6_E2E_RUN_ID",
+            "outputDir",
+            "outputFolder",
+        ):
+            self.assertIn(required, playwright)
         self.assertIn(
             "persistentCaching: !browserQualification", package_business_config
         )
@@ -865,6 +892,42 @@ class ReleasePolicyTest(unittest.TestCase):
             self.assertIn("const authorizedMenu = page.waitForResponse", content)
             self.assertIn("{ timeout: 20_000 }", content)
             self.assertIn("toBeVisible({ timeout: 15_000 })", content)
+
+    def test_e2e_backend_rejects_a_symlinked_run_root_outside_the_repository(self):
+        source = (
+            REPOSITORY_ROOT
+            / "web"
+            / "antd-v6"
+            / "scripts"
+            / "start-e2e-backend.sh"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = root / "repository"
+            script = repository / "web" / "antd-v6" / "scripts" / source.name
+            script.parent.mkdir(parents=True)
+            script.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            run_parent = repository / ".mss" / "run"
+            run_parent.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (run_parent / "antd-v6-e2e").symlink_to(
+                outside, target_is_directory=True
+            )
+
+            result = subprocess.run(
+                ["bash", str(script)],
+                cwd=repository,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "Refusing to use an E2E run root outside the repository",
+            result.stderr,
+        )
 
     def test_root_dispatch_is_the_only_preview_and_never_publishes(self):
         workflow_path = REPOSITORY_ROOT / ".github" / "workflows" / "release.yml"
