@@ -216,6 +216,10 @@ func TestToolVersionCheckEnforcesExactAndRangeConstraints(t *testing.T) {
 	if check := toolVersionCheck(context.Background(), "go", true, "1.26.6", "go", "version"); check.Status != StatusFail || !strings.Contains(check.Detail, "requires 1.26.6") {
 		t.Fatalf("old Go version check = %#v", check)
 	}
+	writeDoctorTool(t, tools, "go", "go version go1.27.0 linux/amd64")
+	if check := toolVersionCheck(context.Background(), "go", true, ">=1.26.6", "go", "version"); check.Status != StatusPass {
+		t.Fatalf("newer Go version check = %#v", check)
+	}
 	if check := toolVersionCheck(context.Background(), "node", true, ">=24 <25", "node", "--version"); check.Status != StatusPass {
 		t.Fatalf("Node range check = %#v", check)
 	}
