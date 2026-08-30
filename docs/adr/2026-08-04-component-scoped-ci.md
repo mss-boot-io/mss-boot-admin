@@ -63,7 +63,7 @@ The frontend workflow similarly keeps `Frontend CI / build` as an aggregate over
 - Every pull request keeps stable guard, vulnerability, CodeQL, and `admin-ci` contexts without starting unrelated broad matrices.
 - Admin/shared and Framework pull requests retain one ordinary Go test as a fast server-side smoke check.
 - Agent, frontend, Docs, Swagger, external Thin Host, container, credential migration, theme database, and v0.7 upgrade matrices no longer delay merge.
-- `mss verify --all` is the complete pre-merge quality suite; the release-evidence form binds the same suite to the frozen merged-main commit.
+- Pull requests use `mss verify --changed`, focused checks, and affected browser evidence; the release-evidence form runs the complete suite once and binds it to the frozen merged-main commit.
 - Merged-main and manual workflows remain available as asynchronous audit and diagnostics, but their completion is not a prerequisite for starting artifact staging.
 - Candidate preview and tag workflows retain only source identity, immutable artifact, public dependency, OIDC/provenance, and reconciliation boundaries that cannot be proven solely by local tests.
 

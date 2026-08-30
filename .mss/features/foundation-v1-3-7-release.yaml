@@ -93,13 +93,13 @@ spec:
         - The exact Trusted Publisher identity is recorded and rechecked before the Root tag; a mismatch stops release before any public identity is created.
     - id: reuse-one-v137-preview
       title: Reuse one artifact-only non-publishing preview
-      description: Formal tags publish exact candidate bytes from one locally and through-PR qualified merged-main commit without repeating broad quality suites.
+      description: Formal tags publish exact candidate bytes from one focused-through-PR and fully qualified merged-main commit without repeating broad quality suites.
       priority: must
       actor: release-operator
       module: release-governance
       rules:
-        - The pull-request Head passes mss verify --all, Codex in-app Browser acceptance, and the lightweight required pull-request checks before merge; broad Agent, Admin, Framework, frontend, Thin Host, container, and multi-database matrices do not block the PR.
-        - After merge, the frozen exact origin/main commit passes mss verify --all --release-evidence --expect-commit with a report that binds the full commit and true trackedCleanBefore/After values.
+        - The pull-request Head passes mss verify --changed, focused checks selected by its impact plan, affected Codex in-app Browser acceptance, and the lightweight required pull-request checks before merge; broad Agent, Admin, Framework, frontend, Thin Host, container, and multi-database matrices do not block the PR.
+        - After merge, the frozen exact origin/main commit performs the only complete suite by passing mss verify --all --release-evidence --expect-commit with a report that binds the full commit and true trackedCleanBefore/After values.
         - An external review or release ledger records the self-bound report digest and result before preview.
         - The manual Root workflow accepts only v1.3.7 from main and never publishes.
         - The Root preview builds and verifies only exact publication binaries, archives, packages, SBOMs, checksums, portable delivery, candidate Thin Host composition, and multi-platform images; it does not rerun Go, dependency, lint, unit, or Playwright suites.
@@ -147,7 +147,7 @@ spec:
       requirement: pass-root-image-preview-mode
       statement: Workflow tests and the exact preview prove that reusable invocation uploads the required Root image artifact.
       level: integration
-      phase: feature-freeze
+      phase: checkpoint
       required: true
       evidence:
         - type: command
@@ -158,7 +158,7 @@ spec:
       requirement: use-credentialless-npm-publishing
       statement: Live npm settings and workflow tests prove the exact Trusted Publisher identity and absence of token-based publication.
       level: security
-      phase: feature-freeze
+      phase: checkpoint
       required: true
       evidence:
         - type: report
@@ -167,9 +167,9 @@ spec:
           value: python3 -m unittest tools.release.test_npm_release_workflow
     - id: v137-complete-preview
       requirement: reuse-one-v137-preview
-      statement: Complete local and PR evidence qualifies behavior, while one candidate-only run builds and verifies the exact tools, packages, archives, and images later published from the same merged-main commit.
+      statement: Focused PR evidence and one complete exact-main local pass qualify behavior, while one candidate-only run builds and verifies the exact tools, packages, archives, and images later published from the same merged-main commit.
       level: e2e
-      phase: feature-freeze
+      phase: checkpoint
       required: true
       evidence:
         - type: report
@@ -214,9 +214,10 @@ spec:
     migration: >-
       Merge the recovery through a reviewed pull request. Correct the npm
       Trusted Publisher to npm-release.yml plus npm-auto without creating a
-      token. Complete mss verify --all and Browser acceptance on the exact PR
-      Head, merge only after required checks pass, then freeze the clean exact
-      origin/main commit and run mss verify --all --release-evidence --expect-commit
+      token. Complete mss verify --changed, its selected focused checks, and
+      affected Browser acceptance on the exact PR Head, merge only after required
+      checks pass, then freeze the clean exact origin/main commit and run the only
+      complete suite with mss verify --all --release-evidence --expect-commit
       with that full SHA. Externally record the self-bound report digest and result before
       running one non-publishing v1.3.7 Root artifact preview
       and inspect every expected artifact. As lwnmengjing, create annotated Framework, Admin, Admin Web,

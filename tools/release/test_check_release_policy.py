@@ -347,6 +347,88 @@ class ReleasePolicyTest(unittest.TestCase):
                 self.assertNotIn("RELEASE_READINESS_RUN_ID", content)
                 self.assertNotIn("readiness_run_id", content)
 
+    def test_current_release_contract_uses_one_exact_main_complete_qualification(self):
+        skill = (
+            REPOSITORY_ROOT / ".agents" / "skills" / "mss-release" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        feature = (
+            REPOSITORY_ROOT / ".mss" / "features" / "foundation-v1-3-7-release.yaml"
+        ).read_text(encoding="utf-8")
+        checklist = (
+            REPOSITORY_ROOT
+            / "docs"
+            / "docs"
+            / "admin"
+            / "release-verification-checklist.md"
+        ).read_text(encoding="utf-8")
+        candidate = (
+            REPOSITORY_ROOT / "docs" / "docs" / "releases" / "v1-3-7.md"
+        ).read_text(encoding="utf-8")
+        verification = (
+            REPOSITORY_ROOT
+            / "docs"
+            / "docs"
+            / "agent"
+            / "verification-and-evals.md"
+        ).read_text(encoding="utf-8")
+        agent_contract = (REPOSITORY_ROOT / "AGENTS.md").read_text(
+            encoding="utf-8"
+        )
+
+        documents = {
+            "skill": skill,
+            "feature": feature,
+            "checklist": checklist,
+            "candidate": candidate,
+            "verification": verification,
+        }
+        for name, content in documents.items():
+            with self.subTest(document=name):
+                self.assertIn("verify --changed", content)
+
+        complete_commands = {
+            "skill": "go run ./cmd/mss verify --all \\\n  --release-evidence",
+            "feature": "mss verify --all --release-evidence",
+            "checklist": "mss verify --all --release-evidence",
+            "candidate": "make verify-release-evidence",
+            "verification": "mss verify --all --release-evidence",
+        }
+        for name, command in complete_commands.items():
+            with self.subTest(document=name, complete_command=command):
+                self.assertIn(command, documents[name])
+
+        self.assertEqual(skill.count("go run ./cmd/mss verify --all"), 1)
+        self.assertNotIn("pull-request Head passes mss verify --all", feature)
+        self.assertNotIn("phase: feature-freeze", feature)
+        self.assertNotIn("feature-freeze Admin qualification", agent_contract)
+
+        publication_workflows = (
+            "release.yml",
+            "framework-release.yml",
+            "admin-release.yml",
+            "frontend-v6-release.yml",
+            "container.yml",
+            "npm-release.yml",
+            "docs.yml",
+        )
+        broad_commands = (
+            "mss verify --all",
+            "make verify-all",
+            "make test-all",
+            "go test ./...",
+            "go test -race ./...",
+            "pnpm test:ci",
+            "playwright test",
+            "mss eval run",
+        )
+        for workflow in publication_workflows:
+            content = (
+                REPOSITORY_ROOT / ".github" / "workflows" / workflow
+            ).read_text(encoding="utf-8")
+            for command in broad_commands:
+                with self.subTest(workflow=workflow, command=command):
+                    self.assertNotIn(command, content)
+
     def test_release_workflows_require_pr_merged_main_source_and_exact_tag(self):
         cases = {
             "release.yml": ("release-evidence", True),
