@@ -2,9 +2,9 @@ apiVersion: mss.io/v1alpha1
 kind: AdminPresentationPageInventory
 metadata:
   name: admin-presentation-pages
-  revision: "1"
-  baselineBranch: codex/page-presentation-complete-design
-  baselineCommit: 1b855d0b71e2884d7b743d49edc73f4dcd853787
+  revision: "2"
+  baselineBranch: main
+  baselineCommit: 6de7ef4b9bc5de48d95c6e6fefeaf0035aa8852c
   routeSources:
     - web/antd-v6/package/core-routes.cjs
     - web/antd-v6/config/routes.generated.ts
@@ -162,13 +162,14 @@ spec:
       pageKey: role.list
       routePatterns: [/role, /role/create, /role/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/role-list.yaml
       targetSourcePath: .mss/core-pages/role-list.yaml
       binding: administration.roles
       pageKind: table
       dataClass: authorization
       rootOnly: false
       requiredPermissions: [/role]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -176,8 +177,11 @@ spec:
       protectedCapabilities:
         - Authorization tree, permission paths, root and default-role safeguards, create, edit, delete, and authorize actions remain compiled.
         - Presentation cannot alter role data scope or grant any route or API permission.
+      runtimeConsumer: web/antd-v6/src/pages/Administration/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3
+        frontendHash: sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3
     - id: menu-list
       displayName:
         zh-CN: 菜单管理
@@ -187,13 +191,14 @@ spec:
       pageKey: menu.list
       routePatterns: [/menu, /menu/create, /menu/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/menu-list.yaml
       targetSourcePath: .mss/core-pages/menu-list.yaml
       binding: administration.menus
       pageKind: table
       dataClass: authorization
       rootOnly: false
       requiredPermissions: [/menu]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -201,8 +206,11 @@ spec:
       protectedCapabilities:
         - Menu routes, component paths, permission strings, HTTP methods, API binding, hierarchy mutation, and every write action remain compiled.
         - Profiles may hide or reorder registered list columns but cannot create navigation or authorization facts.
+      runtimeConsumer: web/antd-v6/src/pages/Administration/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273
+        frontendHash: sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273
     - id: department-list
       displayName:
         zh-CN: 部门管理
@@ -212,13 +220,14 @@ spec:
       pageKey: department.list
       routePatterns: [/departments, /departments/create, /departments/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/department-list.yaml
       targetSourcePath: .mss/core-pages/department-list.yaml
       binding: administration.departments
       pageKind: table
       dataClass: business
       rootOnly: false
       requiredPermissions: [/departments]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-2
@@ -226,8 +235,11 @@ spec:
       protectedCapabilities:
         - Parent relations, leader relations, create, edit, delete, routes, and mutation payloads remain compiled.
         - Required fields and root-only write guards cannot be hidden or weakened by a profile.
+      runtimeConsumer: web/antd-v6/src/pages/Administration/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d
+        frontendHash: sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d
     - id: post-list
       displayName:
         zh-CN: 岗位管理
@@ -237,13 +249,14 @@ spec:
       pageKey: post.list
       routePatterns: [/posts, /posts/create, /posts/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/post-list.yaml
       targetSourcePath: .mss/core-pages/post-list.yaml
       binding: administration.posts
       pageKind: table
       dataClass: authorization
       rootOnly: false
       requiredPermissions: [/posts]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-2
@@ -251,8 +264,11 @@ spec:
       protectedCapabilities:
         - Data-scope semantics, create, edit, delete, routes, mutation payloads, and backend authorization remain compiled.
         - Presentation cannot change which records or departments a post may access.
+      runtimeConsumer: web/antd-v6/src/pages/Administration/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2
+        frontendHash: sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2
     - id: task-list
       displayName:
         zh-CN: 任务管理
@@ -262,13 +278,14 @@ spec:
       pageKey: task.list
       routePatterns: [/task, /task/create, /task/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/task-list.yaml
       targetSourcePath: .mss/core-pages/task-list.yaml
       binding: operations.tasks
       pageKind: table
       dataClass: operations
       rootOnly: false
       requiredPermissions: [/task]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -276,8 +293,11 @@ spec:
       protectedCapabilities:
         - Provider, endpoint, body, metadata, Python, scheduler execution, create, edit, run, and delete behavior remain compiled.
         - Sensitive task payloads and executable facts never enter definitions, preview data, diagnostics, or profiles.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255
+        frontendHash: sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255
     - id: notice-list
       displayName:
         zh-CN: 通知中心
@@ -287,13 +307,14 @@ spec:
       pageKey: notice.list
       routePatterns: [/notice]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/notice-list.yaml
       targetSourcePath: .mss/core-pages/notice-list.yaml
       binding: operations.notices
       pageKind: table
       dataClass: operations
       rootOnly: false
       requiredPermissions: [/notice]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -301,8 +322,11 @@ spec:
       protectedCapabilities:
         - Current-user row scope, notice body access, detail loading, mark-read mutation, and notification delivery remain compiled.
         - Profiles cannot select another subject or broaden visible notice records.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32
+        frontendHash: sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32
     - id: language-list
       displayName:
         zh-CN: 语言管理
@@ -312,13 +336,14 @@ spec:
       pageKey: language.list
       routePatterns: [/language, /language/create, /language/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/language-list.yaml
       targetSourcePath: .mss/core-pages/language-list.yaml
       binding: language.languages
       pageKind: table
       dataClass: configuration
       rootOnly: false
       requiredPermissions: [/language]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-2
@@ -326,8 +351,11 @@ spec:
       protectedCapabilities:
         - Locale definitions, create, edit, delete, optimistic conflict handling, routes, and mutation contracts remain compiled.
         - Presentation labels do not create or modify translation resources.
+      runtimeConsumer: web/antd-v6/src/pages/Language/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15
+        frontendHash: sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15
     - id: option-list
       displayName:
         zh-CN: 选项管理
@@ -337,13 +365,14 @@ spec:
       pageKey: option.list
       routePatterns: [/option, /option/create, /option/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/option-list.yaml
       targetSourcePath: .mss/core-pages/option-list.yaml
       binding: option.options
       pageKind: table
       dataClass: configuration
       rootOnly: false
       requiredPermissions: [/option]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-2
@@ -351,8 +380,11 @@ spec:
       protectedCapabilities:
         - Option values, built-in protection, create, edit, delete, version conflicts, routes, and mutation contracts remain compiled.
         - Presentation cannot create option categories or values.
+      runtimeConsumer: web/antd-v6/src/pages/Option/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39
+        frontendHash: sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39
     - id: system-config-list
       displayName:
         zh-CN: 系统配置
@@ -362,13 +394,14 @@ spec:
       pageKey: system-config.list
       routePatterns: [/system-config, /system-config/create, /system-config/:id]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/system-config-list.yaml
       targetSourcePath: .mss/core-pages/system-config-list.yaml
       binding: operations.system-configs
       pageKind: table
       dataClass: configuration
       rootOnly: true
       requiredPermissions: [/system-config]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -376,8 +409,11 @@ spec:
       protectedCapabilities:
         - Configuration content, secret classification, detail, create, edit, delete, import, export, routes, and mutation bodies remain compiled.
         - Only already-redacted non-sensitive list metadata may enter the presentation definition or preview.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d
+        frontendHash: sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d
     - id: online-session-list
       displayName:
         zh-CN: 在线会话
@@ -387,13 +423,14 @@ spec:
       pageKey: online-session.list
       routePatterns: [/security, /security/online-sessions]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/online-session-list.yaml
       targetSourcePath: .mss/core-pages/online-session-list.yaml
       binding: session.online-sessions
       pageKind: table
       dataClass: security
       rootOnly: true
       requiredPermissions: []
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-3
@@ -401,8 +438,11 @@ spec:
       protectedCapabilities:
         - Root-only access, session identifiers, revocation, current-session safeguards, authentication facts, and API contracts remain compiled.
         - Raw tokens and credential material never enter definitions, profiles, preview data, diagnostics, or audit output.
+      runtimeConsumer: web/antd-v6/src/pages/Security/OnlineSessions/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599
+        frontendHash: sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599
     - id: login-log
       displayName:
         zh-CN: 登录日志
@@ -412,13 +452,14 @@ spec:
       pageKey: log.login
       routePatterns: [/log]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/log-login.yaml
       targetSourcePath: .mss/core-pages/log-login.yaml
       binding: operations.login-logs
       pageKind: table
       dataClass: operations
       rootOnly: false
       requiredPermissions: [/log]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-4
@@ -426,8 +467,11 @@ spec:
       protectedCapabilities:
         - Login-log data source, username filter encoding, row scope, redaction, and API contract remain compiled.
         - Presentation cannot expose credential or authentication payloads.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3
+        frontendHash: sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3
     - id: audit-log
       displayName:
         zh-CN: 审计日志
@@ -437,13 +481,14 @@ spec:
       pageKey: log.audit
       routePatterns: [/log]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/log-audit.yaml
       targetSourcePath: .mss/core-pages/log-audit.yaml
       binding: operations.audit-logs
       pageKind: table
       dataClass: operations
       rootOnly: false
       requiredPermissions: [/log]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-4
@@ -451,8 +496,11 @@ spec:
       protectedCapabilities:
         - Audit event types, data source, filter encoding, redaction, retention, row scope, and API contract remain compiled.
         - Request and response bodies, secrets, and unredacted paths never enter presentation data.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672
+        frontendHash: sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672
     - id: runtime-log
       displayName:
         zh-CN: 运行日志
@@ -462,13 +510,14 @@ spec:
       pageKey: log.runtime
       routePatterns: [/log]
       sourceKind: foundation-core
+      sourcePath: .mss/core-pages/log-runtime.yaml
       targetSourcePath: .mss/core-pages/log-runtime.yaml
       binding: operations.runtime-logs
       pageKind: table
       dataClass: operations
       rootOnly: false
       requiredPermissions: [/log]
-      implementationState: planned
+      implementationState: generated
       adoptionState: disabled
       acceptanceState: pending
       rolloutWave: wave-4
@@ -476,8 +525,11 @@ spec:
       protectedCapabilities:
         - Runtime file discovery, level and time-range encoding, truncation, raw expansion, export, redaction, and permissions remain compiled.
         - Profiles cannot select arbitrary files, paths, time ranges, export targets, or raw-log sources.
+      runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
-        state: planned
+        state: matching
+        backendHash: sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525
+        frontendHash: sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525
     - id: workplace
       displayName:
         zh-CN: 工作台

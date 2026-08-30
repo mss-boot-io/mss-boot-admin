@@ -186,6 +186,22 @@ export interface PageCapabilityDefinition {
   defaultPresentation: ResolvedPagePresentation;
 }
 
+/**
+ * Identifies the deliberately limited table-only capability shape used by
+ * compiled core Admin pages. These pages expose list and search presentation
+ * only, so they cannot safely consume runtime visibility conditions.
+ */
+export function isLimitedTablePresentationCapability(
+  capability: PageCapabilityDefinition,
+): boolean {
+  return (
+    capability.actions.length === 0 &&
+    capability.defaultPresentation.form.fields.length === 0 &&
+    capability.defaultPresentation.detail.fields.length === 0 &&
+    capability.defaultPresentation.actions.length === 0
+  );
+}
+
 export interface PagePresentationSpec {
   title?: LocalizedText;
   dataSource?: string;
@@ -665,12 +681,21 @@ function validateFieldCollection(
     validateLocalizedText(field.label, `${fieldPath}.label`, issues);
     validateLocalizedText(field.placeholder, `${fieldPath}.placeholder`, issues);
     validateLocalizedText(field.help, `${fieldPath}.help`, issues);
-    validateCondition(
-      field.visibleWhen,
-      new Set(fieldDefinitions.keys()),
-      `${fieldPath}.visibleWhen`,
-      issues,
-    );
+    if (field.visibleWhen !== undefined && isLimitedTablePresentationCapability(capability)) {
+      addIssue(
+        issues,
+        'unsupported-limited-condition',
+        `${fieldPath}.visibleWhen`,
+        'Limited table capabilities do not support visibility conditions',
+      );
+    } else {
+      validateCondition(
+        field.visibleWhen,
+        new Set(fieldDefinitions.keys()),
+        `${fieldPath}.visibleWhen`,
+        issues,
+      );
+    }
   });
 }
 

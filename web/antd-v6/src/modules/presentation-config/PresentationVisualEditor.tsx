@@ -1,15 +1,16 @@
-import type {
-  LocalizedText,
-  PageActionPresentation,
-  PageCapabilityAction,
-  PageCapabilityDefinition,
-  PageCapabilityField,
-  PageFieldPresentation,
-  PageSort,
-  PresentationActionPlacement,
-  PresentationCondition,
-  PresentationDensity,
-  PresentationSurface,
+import {
+  isLimitedTablePresentationCapability,
+  type LocalizedText,
+  type PageActionPresentation,
+  type PageCapabilityAction,
+  type PageCapabilityDefinition,
+  type PageCapabilityField,
+  type PageFieldPresentation,
+  type PageSort,
+  type PresentationActionPlacement,
+  type PresentationCondition,
+  type PresentationDensity,
+  type PresentationSurface,
 } from '@mss-admin-core/shared/presentation/contract';
 import {
   Alert,
@@ -253,7 +254,9 @@ function FieldEditor({
   const inherited = (property: string) => !hasOwn(patch, property);
   const propertyValue = (property: string) => patch?.[property];
   const label = localizedValue(field.label, intl.locale.startsWith('zh') ? 'zh-CN' : 'en-US');
-  const canUseCondition = surface !== 'list' && !(surface === 'form' && field.required);
+  const limitedCapability = isLimitedTablePresentationCapability(definition);
+  const canUseCondition =
+    !limitedCapability && surface !== 'list' && !(surface === 'form' && field.required);
 
   return (
     <Card
@@ -451,9 +454,11 @@ function FieldEditor({
           </div>
         ) : (
           <Typography.Text type="secondary">
-            {surface === 'list'
-              ? intl.formatMessage({ id: 'presentation.visual.condition.list.disabled' })
-              : intl.formatMessage({ id: 'presentation.visual.condition.required.disabled' })}
+            {limitedCapability
+              ? intl.formatMessage({ id: 'presentation.visual.condition.limited.disabled' })
+              : surface === 'list'
+                ? intl.formatMessage({ id: 'presentation.visual.condition.list.disabled' })
+                : intl.formatMessage({ id: 'presentation.visual.condition.required.disabled' })}
           </Typography.Text>
         )}
         {inheritedLabel(intl.formatMessage, !patch, fallback?.component)}

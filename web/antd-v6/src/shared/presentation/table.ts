@@ -72,12 +72,14 @@ export function resolveTablePresentation<
   const protectedKeys = new Set(input.protectedColumnKeys ?? []);
   const mobileKeys = new Set(input.mobileColumnKeys ?? []);
   const resolvedMobileKeys: string[] = [];
+  const resolvedBusinessKeys: string[] = [];
   const columns: TableColumnsType<TRecord> = [];
   for (const field of input.model.list.columns) {
     if (protectedKeys.has(field.field)) continue;
     const expectedComponent = input.listComponents[field.field];
     const compiled = compiledByKey.get(field.field);
     if (!compiled || !expectedComponent || field.component !== expectedComponent) continue;
+    resolvedBusinessKeys.push(field.field);
     if (mobileKeys.has(field.field)) resolvedMobileKeys.push(field.field);
     columns.push({
       ...compiled,
@@ -91,6 +93,17 @@ export function resolveTablePresentation<
     if (!column) continue;
     columns.push(column);
     if (mobileKeys.has(key)) resolvedMobileKeys.push(key);
+  }
+
+  // Static mobile preferences are compiled for the default presentation. If a
+  // valid runtime profile hides every preferred business column, keep the first
+  // configured visible business column so mobile never degrades to actions only.
+  if (
+    resolvedBusinessKeys.length > 0 &&
+    !resolvedMobileKeys.some((key) => !protectedKeys.has(key))
+  ) {
+    const fallbackKey = resolvedBusinessKeys[0];
+    if (fallbackKey !== undefined) resolvedMobileKeys.unshift(fallbackKey);
   }
 
   type SearchField = Extract<keyof TSearchComponents, string>;

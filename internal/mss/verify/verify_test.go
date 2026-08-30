@@ -137,6 +137,52 @@ func TestFrameworkCheckIsIndependentAndReadOnly(t *testing.T) {
 	}
 }
 
+func TestPresentationThinHostContractUsesRepositoryExternalConsumers(t *testing.T) {
+	root := t.TempDir()
+	spec := presentationThinHostContract(root)
+	if got, want := spec.Directory, root; got != want {
+		t.Fatalf("presentation Thin Host directory = %q, want %q", got, want)
+	}
+	if got, want := spec.Args, []string{"bash", "tools/compatibility/test-presentation-thin-host-contract.sh"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("presentation Thin Host arguments = %q, want %q", got, want)
+	}
+	if spec.Environment["CI"] != "true" {
+		t.Fatalf("presentation Thin Host environment = %#v", spec.Environment)
+	}
+}
+
+func TestPresentationThinHostContractSensitivity(t *testing.T) {
+	for _, path := range []string{
+		".mss/core-pages/user-list.yaml",
+		".mss/modules/example-supplier.yaml",
+		"admin/presentation/core/definitions_generated.go",
+		"admin/modules/supplier/presentation_manifest.generated.json",
+		"cmd/mss/main.go",
+		"internal/mss/generator/core_presentation.go",
+		"internal/mss/spec/admin_presentation_inventory.go",
+		"templates/application/.mss/project.yaml",
+		"templates/module/frontend/page.tsx.tmpl",
+		"tools/compatibility/test-presentation-thin-host-contract.sh",
+		"web/antd-v6/package.json",
+		"web/antd-v6/src/generated/core-presentation-registry.generated.ts",
+		"web/antd-v6/src/modules/operations/tablePresentation.ts",
+		"web/antd-v6/src/shared/presentation/runtime.ts",
+	} {
+		if !presentationThinHostContractSensitive(path) {
+			t.Errorf("presentation Thin Host contract did not select %q", path)
+		}
+	}
+	for _, path := range []string{
+		"docs/docs/release.md",
+		"mss-boot/cache/cache.go",
+		"web/antd-v6/README.md",
+	} {
+		if presentationThinHostContractSensitive(path) {
+			t.Errorf("presentation Thin Host contract unexpectedly selected %q", path)
+		}
+	}
+}
+
 func TestFrontendBuildUsesPortableReleaseProfile(t *testing.T) {
 	root := t.TempDir()
 	spec := frontendBuild(root)

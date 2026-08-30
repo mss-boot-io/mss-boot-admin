@@ -88,6 +88,9 @@ jobs:
         working-directory: web/antd-v6
         run: pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 
+      - name: Qualify the packaged presentation Thin Host contract
+        run: bash tools/compatibility/test-presentation-thin-host-contract.sh
+
       - name: Install Chromium for external-host qualification
         working-directory: web/antd-v6
         run: pnpm exec playwright install --with-deps chromium

@@ -1,7 +1,9 @@
+import { corePresentationRegistry } from '@mss-admin-core/generated/core-presentation-registry.generated';
+import type { PageCapabilityDefinition } from '@mss-admin-core/shared/presentation/contract';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { PresentationCapability } from './contract';
+import type { PresentationCapability, PresentationJSONObject } from './contract';
 import PresentationVisualEditor from './PresentationVisualEditor';
 import { type PresentationDraftAST, parsePresentationDraftAST } from './presentationDraftAst';
 
@@ -132,6 +134,46 @@ const initialDocument = parsePresentationDraftAST(
   }),
 );
 
+function editorCapability(definition: PageCapabilityDefinition): PresentationCapability {
+  return {
+    pageKey: definition.pageKey,
+    definitionVersion: definition.definitionVersion,
+    definitionHash: definition.definitionHash,
+    components: definition.components.map((component) => component.id),
+    fields: definition.fields.map((field) => ({
+      id: field.id,
+      label: { ...field.label },
+      valueType: field.valueType,
+      required: field.required,
+      sortable: field.sortable,
+      filterable: field.filterable,
+      surfaces: [...field.surfaces],
+      components: [...field.components],
+    })),
+    dataSources: definition.dataSources.map((dataSource) => dataSource.id),
+    actions: definition.actions.map((action) => action.id),
+    defaultPresentation: definition.defaultPresentation as unknown as PresentationJSONObject,
+    definition,
+  };
+}
+
+const limitedDefinition = corePresentationRegistry['user.list']
+  .definition as unknown as PageCapabilityDefinition;
+const limitedCapability = editorCapability(limitedDefinition);
+const limitedDocument = parsePresentationDraftAST(
+  JSON.stringify({
+    apiVersion: 'mss.io/v1alpha1',
+    kind: 'AdminPagePresentation',
+    metadata: {
+      name: 'user-application',
+      pageKey: limitedDefinition.pageKey,
+      definitionHash: limitedDefinition.definitionHash,
+      scope: { kind: 'application' },
+    },
+    spec: {},
+  }),
+);
+
 function Harness() {
   const [document, setDocument] = useState<PresentationDraftAST>(initialDocument);
   return (
@@ -143,6 +185,17 @@ function Harness() {
       />
       <output data-testid="document">{JSON.stringify(document)}</output>
     </>
+  );
+}
+
+function LimitedHarness() {
+  const [document, setDocument] = useState<PresentationDraftAST>(limitedDocument);
+  return (
+    <PresentationVisualEditor
+      capability={limitedCapability}
+      document={document}
+      onChange={setDocument}
+    />
   );
 }
 
@@ -188,5 +241,15 @@ describe('presentation visual editor', () => {
     fireEvent.click(screen.getByText('presentation.visual.actions'));
     expect(screen.getByText('presentation.visual.condition.toolbar.disabled')).toBeTruthy();
     expect(screen.getByText('presentation.visual.condition.add')).toBeTruthy();
+  });
+
+  it('does not offer visibility conditions for limited core table capabilities', () => {
+    render(<LimitedHarness />);
+    fireEvent.click(screen.getByText('presentation.visual.search'));
+
+    expect(
+      screen.getAllByText('presentation.visual.condition.limited.disabled').length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText('presentation.visual.condition.add')).toBeNull();
   });
 });

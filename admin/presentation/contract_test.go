@@ -177,6 +177,37 @@ func TestSemanticValidationRejectsDriftUnknownReferencesAndRequiredHide(t *testi
 	})
 }
 
+func TestLimitedTablePresentationRejectsConditionsThatRuntimeCannotEvaluate(t *testing.T) {
+	limited := validCapabilityV2(t)
+	limited.Actions = []CapabilityAction{}
+	limited.DefaultPresentation.Form.Fields = []CompleteField{}
+	limited.DefaultPresentation.Detail.Fields = []CompleteField{}
+	limited.DefaultPresentation.Actions = []CompleteAction{}
+	var err error
+	limited.DefinitionHash, err = ComputeDefinitionHash(&limited)
+	require.NoError(t, err)
+
+	document, issues := ParseDocument([]byte(validProfileJSON(`{
+  "list":{"columns":[{"field":"status","visibleWhen":{"field":"status","operator":"eq","value":"open"}}]},
+  "search":{"fields":[{"field":"status","visibleWhen":{"field":"status","operator":"eq","value":"open"}}]}
+}`)))
+	require.Empty(t, issues)
+	document.Profile.Metadata.DefinitionHash = limited.DefinitionHash
+	issues = ValidateProfile(&limited, document.Profile)
+	require.Equal(t, []string{"unsupported-limited-condition", "unsupported-limited-condition"}, issueCodes(issues))
+	require.Equal(t, "spec.list.columns[0].visibleWhen", issues[0].Path)
+	require.Equal(t, "spec.search.fields[0].visibleWhen", issues[1].Path)
+
+	limited.DefaultPresentation.List.Columns[0].VisibleWhen = (*document.Profile.Spec.List.Columns)[0].VisibleWhen
+	limited.DefinitionHash, err = ComputeDefinitionHash(&limited)
+	require.NoError(t, err)
+	require.Contains(t, issueCodes(ValidateCapability(&limited)), "unsupported-limited-condition")
+
+	full := validCapabilityV2(t)
+	document.Profile.Metadata.DefinitionHash = full.DefinitionHash
+	require.NotContains(t, issueCodes(ValidateProfile(&full, document.Profile)), "unsupported-limited-condition")
+}
+
 func TestDefinitionHashCoversCompatibilityButNotDefaultPresentation(t *testing.T) {
 	capability := validCapability(t)
 	original := capability.DefinitionHash

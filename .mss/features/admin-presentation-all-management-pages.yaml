@@ -4,26 +4,23 @@ metadata:
   name: admin-presentation-all-management-pages
   displayName: Runtime presentation for all classified Admin management pages
   description: >-
-    Extends the completed Supplier and user-list pilots into a closed, machine-classified
-    inventory of every compiled Admin route and a governed runtime-presentation target for every
-    table-oriented management page, while keeping actions, authorization, transport, sensitive
-    subflows, and excluded control planes compiled.
+    Implements a closed, machine-classified inventory of every compiled Admin route and governed
+    runtime presentation for all fifteen approved table-oriented management pages, while keeping
+    actions, authorization, transport, sensitive subflows, and excluded control planes compiled.
   owner: admin-platform
   labels:
     domain: configuration
     scope: presentation
-    phase: successor-design-and-implementation-required
+    phase: implementation-candidate-awaiting-acceptance
 spec:
   problem: >-
-    The current complete-design branch proves the generated Supplier path and one separately
-    reviewed user-list core-page pilot, but it does not satisfy the product goal that every
-    existing table-oriented Admin management page can be adjusted at runtime. Other compiled
-    routes are not yet classified by one machine contract, most core table pages have no
-    Foundation-owned presentation source or matching Go and TypeScript identity, and their page
-    components do not consume the shared runtime. The governance console must also be proven on
-    fresh and upgraded databases before an operator can configure any page. The successor must
-    close those gaps without turning display data into runtime models, dynamic routes,
-    authorization, transport definitions, executable templates, or mutable action handlers.
+    All fifteen approved table pages now have one reviewed source, matching Go and TypeScript
+    identities, and compiled runtime consumers, but those implementation facts are not by
+    themselves product acceptance. The final candidate must close route identity, Thin Host,
+    frontend and backend semantic parity, mobile readability, governance, fallback, and exact-Head
+    built-in Browser gates before activation and merge. Those gates must remain closed without
+    turning display data into runtime models, dynamic routes, authorization, transport definitions,
+    executable templates, or mutable action handlers.
   goals:
     - Classify one hundred percent of compiled core, generated, redirect, layout, and fallback route declarations.
     - Register every in-scope table management page with one stable page key and reviewed machine source.
@@ -41,7 +38,7 @@ spec:
     - Infer capability definitions by inspecting arbitrary React trees or server responses at runtime.
     - Activate every page through a wildcard, implicit default, database row, or governance-console mutation.
     - Treat this specification or a green unit suite as executed exact-Head browser evidence.
-    - Merge, tag, release, publish, or modify an existing public artifact as part of the design contract.
+    - Tag, release, publish, or modify an existing public artifact as part of this feature change.
   actors:
     - id: admin-user
       displayName: Admin management-page user
@@ -113,6 +110,8 @@ spec:
         - Included page keys are supplier.list, user.list, role.list, menu.list, department.list, post.list, task.list, notice.list, language.list, option.list, system-config.list, online-session.list, log.login, log.audit, and log.runtime.
         - Supplier retains full title, list, search, form, detail, action, registered component, layout, sort, pagination, confirmation, and safe-condition presentation.
         - Every other included page exposes only localized title, safe list columns and labels, list order, visibility and width, safe search fields and labels, search order, visibility and initial collapse, table density, and compiled page-size options.
+        - Limited pages reject visibility conditions in the visual editor and in both frontend and backend profile validation because their handwritten list and search consumers have no row-value condition context.
+        - Every valid limited-page column selection preserves at least one visible non-protected business field on mobile, using configured order when the static preferred mobile set has no visible field.
         - Forms, details, actions, mutations, privileged dialogs, secret-bearing fields, credential material, executable task facts, audit payloads, session tokens, and configuration content remain outside every limited capability.
         - Every newly introduced generated business page registers disabled by default and follows the same inventory and acceptance lifecycle.
     - id: preserve-one-machine-source
@@ -338,7 +337,7 @@ spec:
       required: true
       evidence:
         - type: command
-          value: Repository-external Admin Distribution compatibility workflow for the final exact Head.
+          value: bash tools/compatibility/test-presentation-thin-host-contract.sh
     - id: successor-contract-validation
       requirement: classify-every-compiled-route
       statement: The successor FeatureSpec validates, the documentation site builds, and changed-scope then full verification pass without tracked-file drift.

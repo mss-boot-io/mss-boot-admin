@@ -8,6 +8,7 @@ import type { TableColumnsType } from 'antd';
 import { describe, expect, it } from 'vitest';
 
 interface RecordFixture {
+  email: string;
   id: string;
   name: string;
   status: string;
@@ -136,6 +137,34 @@ describe('table presentation adapter', () => {
       pageSize: 50,
       searchCollapsedByDefault: true,
     });
+  });
+
+  it('falls back to the first configured business column when mobile preferences no longer intersect', () => {
+    const emailColumn: TableColumnsType<RecordFixture>[number] = {
+      dataIndex: 'email',
+      title: 'Compiled email',
+    };
+    const result = resolveTablePresentation({
+      compiledColumns: [emailColumn, protectedActionColumn],
+      fallbackPageSize: 20,
+      isPageSize: isFixturePageSize,
+      listComponents: { email: 'text' } as const,
+      mobileColumnKeys: ['name', 'status', 'actions'],
+      model: model({
+        list: {
+          columns: [{ field: 'email', component: 'text', label: 'Email', order: 10 }],
+          density: 'large',
+          pageSize: 20,
+          defaultSort: [],
+        },
+      }),
+      protectedColumnKeys: ['actions'],
+      searchComponents: { name: 'input', status: 'status-filter' } as const,
+    });
+
+    expect(result.columns.map(columnKey)).toEqual(['email', 'actions']);
+    expect(result.columns[1]).toBe(protectedActionColumn);
+    expect(result.mobileColumnKeys).toEqual(['email', 'actions']);
   });
 
   it('fails closed on an unsupported page size and a profile-owned action field', () => {

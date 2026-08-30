@@ -76,6 +76,42 @@ func TestPresentationDraftValidationPublicationAndConflict(t *testing.T) {
 	require.Equal(t, models.PresentationTransitionPublish, published.Revision.Transition)
 }
 
+func TestPresentationPublishRejectsLimitedTableVisibilityConditions(t *testing.T) {
+	capability := servicePresentationCapability(t)
+	capability.Fields[0].Surfaces = []presentation.Surface{presentation.SurfaceList, presentation.SurfaceSearch}
+	capability.Actions = []presentation.CapabilityAction{}
+	capability.DefaultPresentation.Form.Fields = []presentation.CompleteField{}
+	capability.DefaultPresentation.Detail.Fields = []presentation.CompleteField{}
+	capability.DefaultPresentation.Actions = []presentation.CompleteAction{}
+	var err error
+	capability.DefinitionHash, err = presentation.ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.Empty(t, presentation.ValidateCapability(&capability))
+
+	service, _, ctx := newPresentationServiceForCapability(t, capability)
+	raw := presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, func(profile *presentation.Profile) {
+		field := "status"
+		operator := "eq"
+		value := json.RawMessage(`"open"`)
+		profile.Spec.List = &presentation.ListPatch{Columns: &[]presentation.FieldPatch{{
+			Field: field,
+			VisibleWhen: &presentation.Condition{
+				Field: &field, Operator: &operator, Value: &value,
+			},
+		}}}
+	})
+	created, err := service.CreateDraft(ctx, dto.PresentationProfileIdentity{
+		Scope: presentation.ScopeApplication, PageKey: capability.PageKey,
+	}, raw, "author")
+	require.NoError(t, err)
+	require.NotNil(t, created.DraftValid)
+	require.False(t, *created.DraftValid)
+	require.Contains(t, presentationIssueCodes(created.Draft.Issues), "unsupported-limited-condition")
+
+	_, err = service.Publish(ctx, created.ID, created.Version, "publish-limited-condition", "publisher")
+	require.ErrorIs(t, err, ErrPresentationInvalidDocument)
+}
+
 func TestPresentationConcurrentPublicationCommitsExactlyOneRevision(t *testing.T) {
 	service, db, _, capability := newPresentationService(t)
 	identity := dto.PresentationProfileIdentity{Scope: presentation.ScopeApplication, PageKey: capability.PageKey}
@@ -316,6 +352,13 @@ func TestPresentationRoleScopeAcceptsOpaqueServerIdentifier(t *testing.T) {
 
 func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB, *gin.Context, presentation.CapabilityDefinition) {
 	t.Helper()
+	capability := servicePresentationCapability(t)
+	service, db, ctx := newPresentationServiceForCapability(t, capability)
+	return service, db, ctx, capability
+}
+
+func newPresentationServiceForCapability(t *testing.T, capability presentation.CapabilityDefinition) (*PresentationProfileService, *gorm.DB, *gin.Context) {
+	t.Helper()
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "-"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -329,7 +372,6 @@ func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB
 	require.NoError(t, db.AutoMigrate(
 		&models.PresentationProfile{}, &models.PresentationRevision{}, &models.Role{}, &models.User{},
 	))
-	capability := servicePresentationCapability(t)
 	registry := presentation.MustNewRegistry(capability)
 	policy := presentation.MustNewAdoptionPolicy(
 		presentation.AdoptionActive, []string{capability.PageKey}, false, registry,
@@ -338,7 +380,7 @@ func newPresentationService(t *testing.T) (*PresentationProfileService, *gorm.DB
 	require.NoError(t, err)
 	service.Database = db
 	ctx := newPresentationServiceTestContext()
-	return service, db, ctx, capability
+	return service, db, ctx
 }
 
 func newPresentationServiceTestContext() *gin.Context {

@@ -112,6 +112,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
 			add(backendTest(ctx.Root), "full verification includes backend tests")
 			add(backendBuild(ctx.Root), "full verification includes backend build")
+			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
 			if hasFrontendApplication(ctx, "web/antd-v6") {
 				add(frontendLint(ctx.Root), "full verification includes the Ant Design 6 frontend lint and type checks")
 				add(frontendTest(ctx.Root), "full verification includes the Ant Design 6 frontend unit tests")
@@ -138,6 +139,12 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 					}
 				}
 				continue
+			}
+			if presentationThinHostContractSensitive(path) {
+				add(
+					presentationThinHostContract(ctx.Root),
+					path+" affects the packaged core-plus-business presentation Thin Host contract",
+				)
 			}
 			switch {
 			case isAgentInfrastructure(path):
@@ -609,6 +616,17 @@ func frameworkTest(root string) command.Spec {
 	}
 }
 
+func presentationThinHostContract(root string) command.Spec {
+	return command.Spec{
+		ID:          "presentation-thin-host-contract",
+		Description: "qualify the fixed Foundation presentation inventory plus generated business composition through external Go and npm consumers",
+		Directory:   root,
+		Args:        []string{"bash", "tools/compatibility/test-presentation-thin-host-contract.sh"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     30 * time.Minute,
+	}
+}
+
 func backendTest(root string) command.Spec {
 	return command.Spec{
 		ID:          "backend-test",
@@ -852,6 +870,54 @@ func isAgentInfrastructure(path string) bool {
 		strings.HasPrefix(path, "modules/runtime/") ||
 		strings.HasPrefix(path, "modules/all/") ||
 		path == "AGENTS.md"
+}
+
+func presentationThinHostContractSensitive(path string) bool {
+	for _, exact := range []string{
+		".github/workflows/admin-distribution-compatibility.yml",
+		"go.mod",
+		"go.sum",
+		"go.work",
+		"go.work.sum",
+		"admin/go.mod",
+		"admin/go.sum",
+		"tools/compatibility/test-presentation-thin-host-contract.sh",
+		"web/antd-v6/.npmignore",
+		"web/antd-v6/package.json",
+		"web/antd-v6/pnpm-lock.yaml",
+		"web/antd-v6/src/.npmignore",
+	} {
+		if path == exact {
+			return true
+		}
+	}
+	for _, prefix := range []string{
+		".mss/core-pages/",
+		".mss/modules/",
+		"admin/app/",
+		"admin/business/",
+		"admin/modules/",
+		"admin/presentation/",
+		"cmd/mss/",
+		"internal/mss/generator/",
+		"internal/mss/spec/admin_presentation",
+		"internal/mss/spec/core_presentation",
+		"internal/mss/spec/presentation",
+		"templates/application/",
+		"templates/module/",
+		"web/antd-v6/package/",
+		"web/antd-v6/src/generated/core-presentation-registry.generated.ts",
+		"web/antd-v6/src/generated/modules/",
+		"web/antd-v6/src/generated/presentation-registry.generated.ts",
+		"web/antd-v6/src/modules/",
+		"web/antd-v6/src/pages/",
+		"web/antd-v6/src/shared/presentation/",
+	} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func isFrontend(path string) bool {

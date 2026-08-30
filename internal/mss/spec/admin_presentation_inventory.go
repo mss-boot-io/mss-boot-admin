@@ -338,6 +338,31 @@ func validateInventoryPage(location string, page AdminPresentationPageInventoryP
 			add(location + ".facetPolicy must equal " + wantFacetPolicy)
 		}
 		validateDefinitionIdentity(location+".definitionIdentity", page.DefinitionIdentity, add)
+		switch page.ImplementationState {
+		case "generated":
+			if page.SourcePath != page.TargetSourcePath {
+				add(location + ".sourcePath must equal targetSourcePath for generated pages")
+			}
+			if !safeInventoryRepositoryPath(page.RuntimeConsumer) {
+				add(location + ".runtimeConsumer is unsafe or missing for a generated page")
+			}
+			if page.DefinitionIdentity.State != "matching" {
+				add(location + ".definitionIdentity.state must equal matching for a generated page")
+			}
+		case "planned":
+			if page.SourcePath != "" || page.RuntimeConsumer != "" {
+				add(location + " planned pages cannot claim a generated source or runtime consumer")
+			}
+			if page.DefinitionIdentity.State != "planned" {
+				add(location + ".definitionIdentity.state must equal planned for a planned page")
+			}
+		}
+		if page.AdoptionState != "disabled" && page.ImplementationState != "generated" {
+			add(location + " shadow or active adoption requires a generated implementation")
+		}
+		if page.AdoptionState == "active" && page.AcceptanceState != "passed" {
+			add(location + " active adoption requires passed acceptance")
+		}
 		if page.ExclusionReason != "" {
 			add(location + ".exclusionReason is only valid for excluded pages")
 		}

@@ -1,3 +1,4 @@
+import { corePresentationRegistry } from '@mss-admin-core/generated/core-presentation-registry.generated';
 import { supplierPresentationDefinition } from '@mss-admin-core/generated/modules/supplier/presentation.generated';
 import type { CurrentUser } from '@mss-admin-core/shared/auth/types';
 import { describe, expect, it } from 'vitest';
@@ -16,6 +17,12 @@ const definition = supplierPresentationDefinition as PageCapabilityDefinition;
 const entry = {
   definition,
   definitionHash: definition.definitionHash,
+};
+const limitedDefinition = corePresentationRegistry['user.list']
+  .definition as unknown as PageCapabilityDefinition;
+const limitedEntry = {
+  definition: limitedDefinition,
+  definitionHash: limitedDefinition.definitionHash,
 };
 
 function user(root = false): CurrentUser {
@@ -193,6 +200,62 @@ describe('effective presentation runtime', () => {
     expect(mismatched.model.title).toBe('Suppliers');
     expect(secured.model.status).toBe('ready');
     expect(secured.model.actions).toEqual([]);
+  });
+
+  it('fails closed when a published active layer adds a condition to a limited core page', () => {
+    const conditionalProfile: AdminPagePresentationProfile = {
+      apiVersion: ADMIN_PRESENTATION_API_VERSION,
+      kind: ADMIN_PRESENTATION_KIND,
+      metadata: {
+        name: 'user-application',
+        pageKey: limitedDefinition.pageKey,
+        definitionHash: limitedDefinition.definitionHash,
+        scope: { kind: 'application' },
+      },
+      spec: {
+        search: {
+          fields: [
+            {
+              field: 'name',
+              visibleWhen: { field: 'status', operator: 'eq', value: 'enabled' },
+            },
+          ],
+        },
+      },
+    };
+    const response = parseEffectivePresentationResponse({
+      pageKey: limitedDefinition.pageKey,
+      definitionHash: limitedDefinition.definitionHash,
+      adoption: {
+        mode: 'active',
+        state: 'active',
+        resolveLayers: true,
+        applyLayers: true,
+      },
+      layers: { application: conditionalProfile },
+      diagnostics: [],
+    });
+
+    const runtime = resolveEffectivePagePresentation({
+      entry: limitedEntry,
+      locale: 'en-US',
+      user: {
+        id: 'user-1',
+        role: { root: false },
+        permissions: { '/users': true },
+      },
+      response,
+      settled: true,
+    });
+
+    expect(runtime.source).toBe('compiled');
+    expect(
+      runtime.model.search.fields.find((field) => field.field === 'name')?.visibleWhen,
+    ).toBeUndefined();
+    expect(runtime.diagnostics).toContainEqual({
+      code: 'runtime-layer-rejected',
+      layer: 'application',
+    });
   });
 
   it('rejects impossible adoption decisions', () => {

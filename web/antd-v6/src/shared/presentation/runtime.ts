@@ -95,6 +95,7 @@ export function resolveEffectivePagePresentation(input: {
   }
 
   let resolved: PageRenderModel;
+  let allResolvedLayersRejected = false;
   try {
     const resolution = resolvePagePresentation(
       input.entry.definition,
@@ -104,6 +105,8 @@ export function resolveEffectivePagePresentation(input: {
     for (const rejected of resolution.rejectedLayers) {
       diagnostics.push({ code: 'runtime-layer-rejected', layer: rejected.layer });
     }
+    allResolvedLayersRejected =
+      resolution.rejectedLayers.length > 0 && resolution.appliedLayers.length === 0;
     resolved = buildPageRenderModel(input.entry.definition, resolution, input.locale);
   } catch {
     return {
@@ -119,6 +122,15 @@ export function resolveEffectivePagePresentation(input: {
       definition: input.entry.definition,
       model: compiledModel,
       ...(response.adoption.resolveLayers ? { shadowModel: resolved } : {}),
+      source: 'compiled',
+      settled: input.settled,
+      diagnostics,
+    };
+  }
+  if (allResolvedLayersRejected) {
+    return {
+      definition: input.entry.definition,
+      model: compiledModel,
       source: 'compiled',
       settled: input.settled,
       diagnostics,

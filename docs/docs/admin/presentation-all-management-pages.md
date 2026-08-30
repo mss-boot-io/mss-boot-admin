@@ -11,11 +11,10 @@ keywords: [admin presentation runtime all management pages route inventory accep
 # 全部后台管理页面运行时展示配置
 
 :::warning
-状态：后继产品合同已定义，实施和验收尚未完成。本文评估基线是分支
-`codex/page-presentation-complete-design` 的提交
-`1b855d0b71e2884d7b743d49edc73f4dcd853787`。该基线只有 `supplier.list` 与
-`user.list` 两个试点，不能表述为“全部后台管理页面已经支持”。本文中的计划测试和浏览器场景
-只有在最终未变化的远端 Head 上实际执行后才是证据。
+状态：15 个纳入页面均已生成双端定义并接入运行时，当前仍是等待最终验收和激活的实现候选。
+机器清单以 `main` 的 `6de7ef4b9bc5de48d95c6e6fefeaf0035aa8852c` 为开发基线；最终结论必须
+绑定未变化的远端 PR Head。自动化测试、Thin Host 和内置浏览器矩阵全部完成前，不能把
+`acceptanceState=pending` 表述为稳定上线。
 :::
 
 ## 产品目标
@@ -37,7 +36,7 @@ keywords: [admin presentation runtime all management pages route inventory accep
 - `.mss/admin-presentation-page-inventory.yaml`
 - `.mss/schemas/admin-presentation-page-inventory.schema.json`
 
-前置架构和两个试点见[页面展示配置完整设计](/admin/presentation-complete-design)。
+前置架构和最初两个参考实现见[页面展示配置完整设计](/admin/presentation-complete-design)。
 
 ## 产品边界
 
@@ -62,6 +61,9 @@ Supplier 是唯一完整参考，还允许：
 - 已注册动作的显示、顺序、位置、文案和确认文案；
 - 已审查、强类型、有界的可见条件。
 
+受限页面不提供可见条件。治理编辑器、前端合同和后端发布校验会对称拒绝受限页面中的
+`visibleWhen`，避免出现“发布成功但运行时无法执行”的配置。
+
 ### 不能调整
 
 任何页面都不能通过展示配置创建或修改：
@@ -79,23 +81,23 @@ Supplier 是唯一完整参考，还允许：
 
 ### 纳入页面
 
-| 页面 | pageKey | 当前基线 | 目标范围 | 上线波次 |
+| 页面 | pageKey | 实现状态 | 目标范围 | 上线波次 |
 | --- | --- | --- | --- | --- |
 | 供应商 | `supplier.list` | 已生成，待最终验收 | 完整 | Wave 1 |
 | 用户 | `user.list` | 已生成，待最终验收 | 受限 | Wave 1 |
-| 部门 | `department.list` | 未实现 | 受限 | Wave 2 |
-| 岗位 | `post.list` | 未实现 | 受限 | Wave 2 |
-| 语言 | `language.list` | 未实现 | 受限 | Wave 2 |
-| 选项 | `option.list` | 未实现 | 受限 | Wave 2 |
-| 角色 | `role.list` | 未实现 | 受限 | Wave 3 |
-| 菜单 | `menu.list` | 未实现 | 受限 | Wave 3 |
-| 任务 | `task.list` | 未实现 | 受限 | Wave 3 |
-| 通知 | `notice.list` | 未实现 | 受限 | Wave 3 |
-| 系统配置 | `system-config.list` | 未实现 | 仅脱敏列表元数据 | Wave 3 |
-| 在线会话 | `online-session.list` | 未实现 | 受限、仅 root | Wave 3 |
-| 登录日志 | `log.login` | 未实现 | 受限只读 | Wave 4 |
-| 审计日志 | `log.audit` | 未实现 | 受限只读 | Wave 4 |
-| 运行日志 | `log.runtime` | 未实现 | 受限只读 | Wave 4 |
+| 部门 | `department.list` | 已生成，待最终验收 | 受限 | Wave 2 |
+| 岗位 | `post.list` | 已生成，待最终验收 | 受限 | Wave 2 |
+| 语言 | `language.list` | 已生成，待最终验收 | 受限 | Wave 2 |
+| 选项 | `option.list` | 已生成，待最终验收 | 受限 | Wave 2 |
+| 角色 | `role.list` | 已生成，待最终验收 | 受限 | Wave 3 |
+| 菜单 | `menu.list` | 已生成，待最终验收 | 受限 | Wave 3 |
+| 任务 | `task.list` | 已生成，待最终验收 | 受限 | Wave 3 |
+| 通知 | `notice.list` | 已生成，待最终验收 | 受限 | Wave 3 |
+| 系统配置 | `system-config.list` | 已生成，待最终验收 | 仅脱敏列表元数据 | Wave 3 |
+| 在线会话 | `online-session.list` | 已生成，待最终验收 | 受限、仅 root | Wave 3 |
+| 登录日志 | `log.login` | 已生成，待最终验收 | 受限只读 | Wave 4 |
+| 审计日志 | `log.audit` | 已生成，待最终验收 | 受限只读 | Wave 4 |
+| 运行日志 | `log.runtime` | 已生成，待最终验收 | 受限只读 | Wave 4 |
 
 一个路由可以承载多个页面身份。`/log` 当前由一个编译 Tabs 组件承载三个数据集，但三种数据有
 不同字段、过滤和权限，因此必须使用三个独立 `pageKey`，不能把它们混成一份配置。
@@ -459,6 +461,6 @@ Supplier 还要覆盖表单、详情、动作和条件。其他页面必须证�
 
 ## 下一步
 
-先实现页面清单解析与 compiled-route closure 测试。这个步骤的完成标准是：当前 51 个路由声明全部
-匹配，增加一个未分类测试路由会确定性失败。之后按 Wave 1 到 Wave 4 逐页增加单源定义、双端投影、
-runtime 消费和验收，不在页面级证据完成前提前切换 active。
+冻结实现候选后，先通过完整 Thin Host 和自动化门禁，再在内置浏览器按 15 个 pageKey 执行发布、
+硬刷新、回滚、权限、移动端、双语、控制台和失败请求矩阵。只有最终远端 Head 前后一致且全部证据
+通过，才能把各页切换为 `acceptanceState=passed`，以精确 allowlist 激活并经 PR 合并到 `main`。

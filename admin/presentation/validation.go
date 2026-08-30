@@ -411,6 +411,9 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 	if profile.Metadata.DefinitionHash != capability.DefinitionHash {
 		addIssue(&issues, "definition-drift", "metadata.definitionHash", "profile definition hash does not match the current capability")
 	}
+	if capabilityUsesLimitedTablePresentation(capability) {
+		validateLimitedPresentationConditions(&profile.Spec, &issues)
+	}
 	fieldDefinitions := make(map[string]CapabilityField, len(capability.Fields))
 	for _, field := range capability.Fields {
 		fieldDefinitions[field.ID] = field
@@ -455,6 +458,53 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 	}
 	sortIssues(issues)
 	return issues
+}
+
+// capabilityUsesLimitedTablePresentation identifies the bounded Foundation
+// table contract. These capabilities intentionally expose no configurable
+// form, detail, or action surface; their handwritten consumers do not have a
+// row-value context in which list/search conditions could be evaluated.
+func capabilityUsesLimitedTablePresentation(capability *CapabilityDefinition) bool {
+	return len(capability.Actions) == 0 &&
+		len(capability.DefaultPresentation.Form.Fields) == 0 &&
+		len(capability.DefaultPresentation.Detail.Fields) == 0 &&
+		len(capability.DefaultPresentation.Actions) == 0
+}
+
+func validateLimitedPresentationConditions(spec *ProfileSpec, issues *[]Issue) {
+	collections := []struct {
+		path   string
+		fields *[]FieldPatch
+	}{
+		{path: "spec.list.columns", fields: fieldPatches(spec.List, func(patch *ListPatch) *[]FieldPatch { return patch.Columns })},
+		{path: "spec.search.fields", fields: fieldPatches(spec.Search, func(patch *SearchPatch) *[]FieldPatch { return patch.Fields })},
+		{path: "spec.form.fields", fields: fieldPatches(spec.Form, func(patch *FormPatch) *[]FieldPatch { return patch.Fields })},
+		{path: "spec.detail.fields", fields: fieldPatches(spec.Detail, func(patch *DetailPatch) *[]FieldPatch { return patch.Fields })},
+	}
+	for _, collection := range collections {
+		if collection.fields == nil {
+			continue
+		}
+		for index, field := range *collection.fields {
+			if field.VisibleWhen != nil {
+				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("%s[%d].visibleWhen", collection.path, index), "visibility conditions are not supported by limited table pages")
+			}
+		}
+	}
+	if spec.Actions != nil {
+		for index, action := range *spec.Actions {
+			if action.VisibleWhen != nil {
+				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("spec.actions[%d].visibleWhen", index), "visibility conditions are not supported by limited table pages")
+			}
+		}
+	}
+}
+
+func fieldPatches[T any](patch *T, selectFields func(*T) *[]FieldPatch) *[]FieldPatch {
+	if patch == nil {
+		return nil
+	}
+	return selectFields(patch)
 }
 
 func validateSemanticFields(fields []FieldPatch, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, strictSurfaceComponents bool, issues *[]Issue) {
@@ -578,9 +628,36 @@ func ValidateCapability(capability *CapabilityDefinition) []Issue {
 		}
 	}
 	validateCapabilityIDs(capability, &issues)
+	if capabilityUsesLimitedTablePresentation(capability) {
+		validateLimitedCompletePresentationConditions(&capability.DefaultPresentation, &issues)
+	}
 	validateCompletePresentation(capability, &issues)
 	sortIssues(issues)
 	return issues
+}
+
+func validateLimitedCompletePresentationConditions(presentation *CompletePresentation, issues *[]Issue) {
+	collections := []struct {
+		path   string
+		fields []CompleteField
+	}{
+		{path: "defaultPresentation.list.columns", fields: presentation.List.Columns},
+		{path: "defaultPresentation.search.fields", fields: presentation.Search.Fields},
+		{path: "defaultPresentation.form.fields", fields: presentation.Form.Fields},
+		{path: "defaultPresentation.detail.fields", fields: presentation.Detail.Fields},
+	}
+	for _, collection := range collections {
+		for index, field := range collection.fields {
+			if field.VisibleWhen != nil {
+				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("%s[%d].visibleWhen", collection.path, index), "visibility conditions are not supported by limited table pages")
+			}
+		}
+	}
+	for index, action := range presentation.Actions {
+		if action.VisibleWhen != nil {
+			addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("defaultPresentation.actions[%d].visibleWhen", index), "visibility conditions are not supported by limited table pages")
+		}
+	}
 }
 
 func validateCapabilityIDs(capability *CapabilityDefinition, issues *[]Issue) {

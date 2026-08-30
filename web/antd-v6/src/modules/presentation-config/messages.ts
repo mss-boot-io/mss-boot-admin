@@ -147,6 +147,10 @@ const messages = {
     'Required form fields cannot be hidden or conditional.',
     '必填表单字段不能隐藏或设置可见条件。',
   ],
+  'presentation.visual.condition.limited.disabled': [
+    'Limited table capabilities do not support visibility conditions.',
+    '受限表格能力不支持可见条件。',
+  ],
   'presentation.visual.condition.toolbar.disabled': [
     'Version 2 does not allow conditions on toolbar actions.',
     '版本 2 不允许工具栏动作使用条件。',

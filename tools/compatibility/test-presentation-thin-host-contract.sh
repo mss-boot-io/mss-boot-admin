@@ -166,6 +166,43 @@ core_snapshot = json.loads(Path(sys.argv[5]).read_text(encoding="utf-8"))
 core_definitions = Path(sys.argv[6]).read_text(encoding="utf-8")
 core_frontend_registry = Path(sys.argv[7]).read_text(encoding="utf-8")
 
+expected_core_sources = [
+    ".mss/core-pages/department-list.yaml",
+    ".mss/core-pages/language-list.yaml",
+    ".mss/core-pages/log-audit.yaml",
+    ".mss/core-pages/log-login.yaml",
+    ".mss/core-pages/log-runtime.yaml",
+    ".mss/core-pages/menu-list.yaml",
+    ".mss/core-pages/notice-list.yaml",
+    ".mss/core-pages/online-session-list.yaml",
+    ".mss/core-pages/option-list.yaml",
+    ".mss/core-pages/post-list.yaml",
+    ".mss/core-pages/role-list.yaml",
+    ".mss/core-pages/system-config-list.yaml",
+    ".mss/core-pages/task-list.yaml",
+    ".mss/core-pages/user-list.yaml",
+]
+expected_core_entries = [
+    ("department.list", "sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d"),
+    ("language.list", "sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15"),
+    ("log.audit", "sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672"),
+    ("log.login", "sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3"),
+    ("log.runtime", "sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525"),
+    ("menu.list", "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"),
+    ("notice.list", "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"),
+    ("online-session.list", "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"),
+    ("option.list", "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"),
+    ("post.list", "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"),
+    ("role.list", "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"),
+    ("system-config.list", "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"),
+    ("task.list", "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"),
+    ("user.list", "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"),
+]
+expected_business_entry = (
+    "supplier.list",
+    "sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7",
+)
+
 entry = (backend_manifest["pageKey"], backend_manifest["definitionHash"])
 hash_pattern = r"sha256:[0-9a-f]{64}"
 backend_entries = re.findall(rf"// ([a-z0-9][a-z0-9.-]*) ({hash_pattern})$", backend_registry, re.MULTILINE)
@@ -193,50 +230,79 @@ frontend_entries, frontend_inventory = parse_frontend_registry(
     "generatedPresentationInventory",
 )
 
-if backend_entries != [entry]:
-    raise SystemExit(f"backend presentation inventory/hash drift: {backend_entries!r} != {[entry]!r}")
-if frontend_entries != [entry]:
-    raise SystemExit(f"frontend presentation registry/hash drift: {frontend_entries!r} != {[entry]!r}")
-if frontend_inventory != [entry[0]]:
-    raise SystemExit(f"frontend presentation inventory drift: {frontend_inventory!r} != {[entry[0]]!r}")
-if f'generatedPresentationRegistry["{entry[0]}"]' not in generated_page:
+if entry != expected_business_entry:
+    raise SystemExit(f"Supplier manifest identity drift: {entry!r} != {expected_business_entry!r}")
+if backend_entries != [expected_business_entry]:
+    raise SystemExit(
+        f"backend presentation inventory/hash drift: {backend_entries!r} != {[expected_business_entry]!r}"
+    )
+if frontend_entries != [expected_business_entry]:
+    raise SystemExit(
+        f"frontend presentation registry/hash drift: {frontend_entries!r} != {[expected_business_entry]!r}"
+    )
+if frontend_inventory != [expected_business_entry[0]]:
+    raise SystemExit(
+        f"frontend presentation inventory drift: {frontend_inventory!r} != {[expected_business_entry[0]]!r}"
+    )
+if f'generatedPresentationRegistry["{expected_business_entry[0]}"]' not in generated_page:
     raise SystemExit("generated page registry key does not match the generated capability inventory")
 
-if core_snapshot.get("sources") != [".mss/core-pages/user-list.yaml"]:
-    raise SystemExit(f"Foundation core source inventory drift: {core_snapshot.get('sources')!r}")
+if core_snapshot.get("sources") != expected_core_sources:
+    raise SystemExit(
+        f"Foundation core source inventory drift: {core_snapshot.get('sources')!r} != {expected_core_sources!r}"
+    )
 core_manifests = core_snapshot.get("manifests")
-if not isinstance(core_manifests, list) or len(core_manifests) != 1:
-    raise SystemExit(f"Foundation core manifest inventory must contain exactly user.list: {core_manifests!r}")
-core_manifest = core_manifests[0]
-core_entry = (core_manifest.get("pageKey"), core_manifest.get("definitionHash"))
-if core_entry[0] != "user.list" or not re.fullmatch(hash_pattern, str(core_entry[1])):
-    raise SystemExit(f"invalid Foundation user.list identity: {core_entry!r}")
-if core_manifest.get("definitionHash") not in core_definitions or "user.list" not in core_definitions:
-    raise SystemExit("generated Go core definitions do not match the Foundation core manifest identity")
+if not isinstance(core_manifests, list):
+    raise SystemExit(f"Foundation core manifest inventory is not a list: {core_manifests!r}")
+core_manifest_entries = [
+    (manifest.get("pageKey"), manifest.get("definitionHash"))
+    for manifest in core_manifests
+]
+if core_manifest_entries != expected_core_entries:
+    raise SystemExit(
+        f"Foundation core manifest inventory/hash drift: {core_manifest_entries!r} != {expected_core_entries!r}"
+    )
+
+definitions_match = re.search(r'^const definitionsJSON = (".*")$', core_definitions, re.MULTILINE)
+if definitions_match is None:
+    raise SystemExit("generated Go core definitionsJSON constant is missing")
+try:
+    decoded_definitions = json.loads(json.loads(definitions_match.group(1)))
+except json.JSONDecodeError as error:
+    raise SystemExit(f"generated Go core definitionsJSON is invalid: {error}") from error
+go_core_entries = [
+    (definition.get("pageKey"), definition.get("definitionHash"))
+    for definition in decoded_definitions
+]
+if go_core_entries != expected_core_entries:
+    raise SystemExit(
+        f"Foundation generated Go inventory/hash drift: {go_core_entries!r} != {expected_core_entries!r}"
+    )
 
 core_frontend_entries, core_frontend_inventory = parse_frontend_registry(
     core_frontend_registry,
     "corePresentationInventory",
 )
-if core_frontend_entries != [core_entry]:
+if core_frontend_entries != expected_core_entries:
     raise SystemExit(
-        f"Foundation Go-manifest/TypeScript-registry hash drift: {core_frontend_entries!r} != {[core_entry]!r}"
+        f"Foundation TypeScript registry inventory/hash drift: {core_frontend_entries!r} != {expected_core_entries!r}"
     )
-if core_frontend_inventory != [core_entry[0]]:
+expected_core_inventory = [page_key for page_key, _ in expected_core_entries]
+if core_frontend_inventory != expected_core_inventory:
     raise SystemExit(
-        f"Foundation core frontend inventory drift: {core_frontend_inventory!r} != {[core_entry[0]]!r}"
+        f"Foundation core frontend inventory drift: {core_frontend_inventory!r} != {expected_core_inventory!r}"
     )
-if core_entry[1] not in core_frontend_registry:
-    raise SystemExit("Foundation TypeScript core definition omits the generated manifest hash")
 
 core_keys = {page_key for page_key, _ in core_frontend_entries}
 business_keys = {page_key for page_key, _ in frontend_entries}
 if core_keys & business_keys:
     raise SystemExit(f"Thin Host generated business registry copied a Foundation core page: {core_keys & business_keys}")
 combined_inventory = core_frontend_inventory + frontend_inventory
-if combined_inventory != ["user.list", "supplier.list"]:
+expected_combined_inventory = expected_core_inventory + [expected_business_entry[0]]
+if combined_inventory != expected_combined_inventory:
     raise SystemExit(
-        f"composed presentation inventory must be core union host business: {combined_inventory!r}"
+        "composed presentation inventory must be the fixed Foundation core union host Supplier: "
+        f"{combined_inventory!r} != {expected_combined_inventory!r}"
     )
 PY
 
@@ -269,40 +335,104 @@ consumer = Path(sys.argv[2])
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	corepresentation "github.com/mss-boot-io/mss-boot-admin/admin/presentation/core"
 )
 
-func TestFoundationCorePackageMatchesGeneratedManifest(t *testing.T) {
+type coreIdentity struct {
+	PageKey        string `json:"pageKey"`
+	DefinitionHash string `json:"definitionHash"`
+}
+
+var expectedCoreSources = []string{
+	".mss/core-pages/department-list.yaml",
+	".mss/core-pages/language-list.yaml",
+	".mss/core-pages/log-audit.yaml",
+	".mss/core-pages/log-login.yaml",
+	".mss/core-pages/log-runtime.yaml",
+	".mss/core-pages/menu-list.yaml",
+	".mss/core-pages/notice-list.yaml",
+	".mss/core-pages/online-session-list.yaml",
+	".mss/core-pages/option-list.yaml",
+	".mss/core-pages/post-list.yaml",
+	".mss/core-pages/role-list.yaml",
+	".mss/core-pages/system-config-list.yaml",
+	".mss/core-pages/task-list.yaml",
+	".mss/core-pages/user-list.yaml",
+}
+
+var expectedCoreIdentities = []coreIdentity{
+	{PageKey: "department.list", DefinitionHash: "sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d"},
+	{PageKey: "language.list", DefinitionHash: "sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15"},
+	{PageKey: "log.audit", DefinitionHash: "sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672"},
+	{PageKey: "log.login", DefinitionHash: "sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3"},
+	{PageKey: "log.runtime", DefinitionHash: "sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525"},
+	{PageKey: "menu.list", DefinitionHash: "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"},
+	{PageKey: "notice.list", DefinitionHash: "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"},
+	{PageKey: "online-session.list", DefinitionHash: "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"},
+	{PageKey: "option.list", DefinitionHash: "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"},
+	{PageKey: "post.list", DefinitionHash: "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"},
+	{PageKey: "role.list", DefinitionHash: "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"},
+	{PageKey: "system-config.list", DefinitionHash: "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"},
+	{PageKey: "task.list", DefinitionHash: "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"},
+	{PageKey: "user.list", DefinitionHash: "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"},
+}
+
+var expectedBusinessIdentity = coreIdentity{
+	PageKey:        "supplier.list",
+	DefinitionHash: "sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7",
+}
+
+func TestFoundationCorePackageMatchesFixedDistributionContract(t *testing.T) {
 	raw, err := os.ReadFile(os.Getenv("MSS_CORE_PRESENTATION_MANIFEST"))
 	if err != nil {
 		t.Fatalf("read generated core manifest: %v", err)
 	}
 	var snapshot struct {
-		Sources   []string `json:"sources"`
-		Manifests []struct {
-			PageKey        string `json:"pageKey"`
-			DefinitionHash string `json:"definitionHash"`
-		} `json:"manifests"`
+		Sources   []string       `json:"sources"`
+		Manifests []coreIdentity `json:"manifests"`
 	}
 	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		t.Fatalf("decode generated core manifest: %v", err)
 	}
-	if len(snapshot.Sources) != 1 || snapshot.Sources[0] != ".mss/core-pages/user-list.yaml" {
-		t.Fatalf("unexpected core sources: %#v", snapshot.Sources)
+	if !reflect.DeepEqual(snapshot.Sources, expectedCoreSources) {
+		t.Fatalf("core source contract drift: %#v != %#v", snapshot.Sources, expectedCoreSources)
 	}
-	if len(snapshot.Manifests) != 1 {
-		t.Fatalf("unexpected core manifests: %#v", snapshot.Manifests)
+	if !reflect.DeepEqual(snapshot.Manifests, expectedCoreIdentities) {
+		t.Fatalf("core manifest identity drift: %#v != %#v", snapshot.Manifests, expectedCoreIdentities)
 	}
+
 	definitions := corepresentation.Definitions()
-	if len(definitions) != 1 {
-		t.Fatalf("unexpected packaged core definitions: %#v", definitions)
+	packagedIdentities := make([]coreIdentity, 0, len(definitions))
+	for _, definition := range definitions {
+		packagedIdentities = append(packagedIdentities, coreIdentity{
+			PageKey:        definition.PageKey,
+			DefinitionHash: definition.DefinitionHash,
+		})
 	}
-	if definitions[0].PageKey != "user.list" ||
-		definitions[0].PageKey != snapshot.Manifests[0].PageKey ||
-		definitions[0].DefinitionHash != snapshot.Manifests[0].DefinitionHash {
-		t.Fatalf("packaged core identity drift: %#v != %#v", definitions[0], snapshot.Manifests[0])
+	if !reflect.DeepEqual(packagedIdentities, expectedCoreIdentities) {
+		t.Fatalf("packaged Go core identity drift: %#v != %#v", packagedIdentities, expectedCoreIdentities)
+	}
+
+	businessRaw, err := os.ReadFile(os.Getenv("MSS_BUSINESS_PRESENTATION_MANIFEST"))
+	if err != nil {
+		t.Fatalf("read generated business manifest: %v", err)
+	}
+	var businessSnapshot struct {
+		Manifest coreIdentity `json:"manifest"`
+	}
+	if err := json.Unmarshal(businessRaw, &businessSnapshot); err != nil {
+		t.Fatalf("decode generated business manifest: %v", err)
+	}
+	if businessSnapshot.Manifest != expectedBusinessIdentity {
+		t.Fatalf("generated business identity drift: %#v != %#v", businessSnapshot.Manifest, expectedBusinessIdentity)
+	}
+	combinedIdentities := append(append([]coreIdentity{}, packagedIdentities...), businessSnapshot.Manifest)
+	expectedCombinedIdentities := append(append([]coreIdentity{}, expectedCoreIdentities...), expectedBusinessIdentity)
+	if !reflect.DeepEqual(combinedIdentities, expectedCombinedIdentities) {
+		t.Fatalf("external Go core-plus-business composition drift: %#v != %#v", combinedIdentities, expectedCombinedIdentities)
 	}
 }
 ''',
@@ -311,7 +441,9 @@ func TestFoundationCorePackageMatchesGeneratedManifest(t *testing.T) {
 PY
 (
   cd -- "${go_consumer_root}"
-  GOWORK=off MSS_CORE_PRESENTATION_MANIFEST="${foundation_core_manifest}" \
+  GOWORK=off \
+    MSS_CORE_PRESENTATION_MANIFEST="${foundation_core_manifest}" \
+    MSS_BUSINESS_PRESENTATION_MANIFEST="${generated_backend_manifest}" \
     go test -mod=mod ./...
 )
 
@@ -333,6 +465,11 @@ done < <(tar -tzf "${tarball}")
 for required_package_entry in \
   package/src/generated/core-presentation-registry.generated.ts \
   package/src/modules/administration/userPresentation.ts \
+  package/src/modules/administration/tablePresentation.ts \
+  package/src/modules/operations/tablePresentation.ts \
+  package/src/modules/language/tablePresentation.ts \
+  package/src/modules/option/tablePresentation.ts \
+  package/src/modules/session/tablePresentation.ts \
   package/src/modules/administration/UserManagement.tsx; do
   if [[ -z "${npm_tar_inventory["${required_package_entry}"]+present}" ]]; then
     echo "Admin Web tarball omits packaged Foundation core runtime: ${required_package_entry}" >&2
@@ -351,8 +488,7 @@ done
 python3 - \
   "${host_root}/web" \
   "${tarball}" \
-  "${admin_web_root}/package.json" \
-  "${foundation_core_manifest}" <<'PY'
+  "${admin_web_root}/package.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -360,8 +496,6 @@ from pathlib import Path
 web = Path(sys.argv[1])
 tarball = Path(sys.argv[2]).resolve()
 admin_manifest = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
-core_snapshot = json.loads(Path(sys.argv[4]).read_text(encoding="utf-8"))
-core_hash = core_snapshot["manifests"][0]["definitionHash"]
 web.mkdir(parents=True, exist_ok=True)
 dependencies = dict(admin_manifest["dependencies"])
 dependencies["@mss-boot-io/admin-web"] = f"file:{tarball}"
@@ -514,16 +648,103 @@ import {
   corePresentationRegistry,
 } from './node_modules/@mss-boot-io/admin-web/src/generated/core-presentation-registry.generated';
 import {
+  generatedPresentationInventory,
+  generatedPresentationRegistry,
+} from './src/generated/presentation-registry.generated';
+import {
+  departmentPresentationRegistryEntry,
+  menuPresentationRegistryEntry,
+  postPresentationRegistryEntry,
+  rolePresentationRegistryEntry,
+} from './node_modules/@mss-boot-io/admin-web/src/modules/administration/tablePresentation';
+import {
   userPresentationListComponents,
   userPresentationRegistryEntry,
   userPresentationSearchComponents,
 } from './node_modules/@mss-boot-io/admin-web/src/modules/administration/userPresentation';
+import {
+  languagePresentationRegistryEntry,
+} from './node_modules/@mss-boot-io/admin-web/src/modules/language/tablePresentation';
+import {
+  auditLogPresentationRegistryEntry,
+  loginLogPresentationRegistryEntry,
+  noticePresentationRegistryEntry,
+  runtimeLogPresentationRegistryEntry,
+  systemConfigPresentationRegistryEntry,
+  taskPresentationRegistryEntry,
+} from './node_modules/@mss-boot-io/admin-web/src/modules/operations/tablePresentation';
+import {
+  optionPresentationRegistryEntry,
+} from './node_modules/@mss-boot-io/admin-web/src/modules/option/tablePresentation';
+import {
+  onlineSessionPresentationRegistryEntry,
+} from './node_modules/@mss-boot-io/admin-web/src/modules/session/tablePresentation';
+
+const expectedCoreEntries = [
+  ['department.list', 'sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d'],
+  ['language.list', 'sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15'],
+  ['log.audit', 'sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672'],
+  ['log.login', 'sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3'],
+  ['log.runtime', 'sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525'],
+  ['menu.list', 'sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273'],
+  ['notice.list', 'sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32'],
+  ['online-session.list', 'sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599'],
+  ['option.list', 'sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39'],
+  ['post.list', 'sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2'],
+  ['role.list', 'sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3'],
+  ['system-config.list', 'sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d'],
+  ['task.list', 'sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255'],
+  ['user.list', 'sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f'],
+] as const;
+
+const corePresentationConsumers = {
+  'department.list': departmentPresentationRegistryEntry,
+  'language.list': languagePresentationRegistryEntry,
+  'log.audit': auditLogPresentationRegistryEntry,
+  'log.login': loginLogPresentationRegistryEntry,
+  'log.runtime': runtimeLogPresentationRegistryEntry,
+  'menu.list': menuPresentationRegistryEntry,
+  'notice.list': noticePresentationRegistryEntry,
+  'online-session.list': onlineSessionPresentationRegistryEntry,
+  'option.list': optionPresentationRegistryEntry,
+  'post.list': postPresentationRegistryEntry,
+  'role.list': rolePresentationRegistryEntry,
+  'system-config.list': systemConfigPresentationRegistryEntry,
+  'task.list': taskPresentationRegistryEntry,
+  'user.list': userPresentationRegistryEntry,
+} as const;
 
 describe('packaged Foundation core presentation', () => {
-  it('resolves the generated user.list registry and compiled UserManagement adapter', () => {
-    expect(corePresentationInventory).toEqual(['user.list']);
+  it('resolves the fixed 14-page inventory, hashes, and compiled page consumers', () => {
+    const expectedInventory = expectedCoreEntries.map(([pageKey]) => pageKey);
+    expect(corePresentationInventory).toEqual(expectedInventory);
+    expect(Object.keys(corePresentationRegistry)).toEqual(expectedInventory);
+    expect(Object.keys(corePresentationConsumers)).toEqual(expectedInventory);
+
+    for (const [pageKey, definitionHash] of expectedCoreEntries) {
+      const entry = corePresentationRegistry[pageKey];
+      expect(entry.definition.pageKey).toBe(pageKey);
+      expect(entry.definitionHash).toBe(definitionHash);
+      expect(corePresentationConsumers[pageKey]).toBe(entry);
+      expect(entry.definition.actions).toEqual([]);
+      expect(entry.definition.dataSources).toHaveLength(1);
+      expect(entry.definition.dataSources[0]?.id).toBe(pageKey);
+      expect(entry.definition.dataSources[0]?.pageSizeOptions).toEqual([20, 50, 100]);
+      expect(entry.definition.dataSources[0]?.maxPageSize).toBe(100);
+      expect(entry.definition.dataSources[0]?.maxSortFields).toBe(0);
+    }
+
+    expect([...corePresentationInventory, ...generatedPresentationInventory]).toEqual([
+      ...expectedInventory,
+      'supplier.list',
+    ]);
+    expect(generatedPresentationRegistry['supplier.list'].definitionHash).toBe(
+      'sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7',
+    );
+  });
+
+  it('keeps the handwritten UserManagement adapter bound to user.list', () => {
     expect(userPresentationRegistryEntry).toBe(corePresentationRegistry['user.list']);
-    expect(userPresentationRegistryEntry.definitionHash).toBe('__CORE_HASH__');
     expect(userPresentationRegistryEntry.definition.dataSources).toEqual([
       {
         id: 'user.list',
@@ -541,7 +762,7 @@ describe('packaged Foundation core presentation', () => {
     });
   });
 });
-""".replace("__CORE_HASH__", core_hash),
+""",
     encoding="utf-8",
 )
 PY
@@ -560,14 +781,49 @@ consumer_admin_web="${consumer_node_modules}/@mss-boot-io/admin-web"
   echo "external pnpm install did not resolve @mss-boot-io/admin-web" >&2
   exit 1
 }
-python3 - "${consumer_admin_web}" "${foundation_core_manifest}" <<'PY'
+python3 - "${consumer_admin_web}" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
 package = Path(sys.argv[1])
-core_snapshot = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-core_manifest = core_snapshot["manifests"][0]
+expected_core_entries = [
+    ("department.list", "sha256:01d4677adb1b5aeacc0e81ef51e7f4f46bdaad17e73a8c38075704c2e304be5d"),
+    ("language.list", "sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15"),
+    ("log.audit", "sha256:59fd4abe332bf09a1b0bf6e51db0f1eda68ae4f1f13c788ba833ecd23ae53672"),
+    ("log.login", "sha256:4a95df60fcb4c04ece595a0eebaf9248adaffe8c3bb3f165b7a95c110bf2dbb3"),
+    ("log.runtime", "sha256:cfea5bb3cb1b40609961c58e2ab6a5ea233328d9102f36e65bc8859099aa1525"),
+    ("menu.list", "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"),
+    ("notice.list", "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"),
+    ("online-session.list", "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"),
+    ("option.list", "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"),
+    ("post.list", "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"),
+    ("role.list", "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"),
+    ("system-config.list", "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"),
+    ("task.list", "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"),
+    ("user.list", "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"),
+]
+consumer_bindings = {
+    "src/modules/administration/userPresentation.ts": ["user.list"],
+    "src/modules/administration/tablePresentation.ts": [
+        "role.list",
+        "menu.list",
+        "department.list",
+        "post.list",
+    ],
+    "src/modules/operations/tablePresentation.ts": [
+        "task.list",
+        "notice.list",
+        "system-config.list",
+        "log.login",
+        "log.audit",
+        "log.runtime",
+    ],
+    "src/modules/language/tablePresentation.ts": ["language.list"],
+    "src/modules/option/tablePresentation.ts": ["option.list"],
+    "src/modules/session/tablePresentation.ts": ["online-session.list"],
+}
 manifest = json.loads((package / "package.json").read_text(encoding="utf-8"))
 for subpath in ("./runtime/presentation", "./runtime/presentation/client"):
     export = manifest.get("exports", {}).get(subpath)
@@ -580,19 +836,55 @@ for subpath in ("./runtime/presentation", "./runtime/presentation/client"):
     if not isinstance(target, str) or not target.startswith("./") or not (package / target).is_file():
         raise SystemExit(f"published Admin Web package target for {subpath} is not resolvable: {target!r}")
 
-core_registry_path = package / "src/generated/core-presentation-registry.generated.ts"
-user_adapter_path = package / "src/modules/administration/userPresentation.ts"
-user_management_path = package / "src/modules/administration/UserManagement.tsx"
-for required in (core_registry_path, user_adapter_path, user_management_path):
+required_paths = [
+    package / "src/generated/core-presentation-registry.generated.ts",
+    package / "src/modules/administration/UserManagement.tsx",
+    *(package / relative for relative in consumer_bindings),
+]
+for required in required_paths:
     if not required.is_file():
         raise SystemExit(f"installed Admin Web package omits {required.relative_to(package)}")
-core_registry = core_registry_path.read_text(encoding="utf-8")
-user_adapter = user_adapter_path.read_text(encoding="utf-8")
-user_management = user_management_path.read_text(encoding="utf-8")
-if core_manifest["pageKey"] not in core_registry or core_manifest["definitionHash"] not in core_registry:
-    raise SystemExit("installed core registry does not match the Foundation generated manifest")
-if "corePresentationRegistry['user.list']" not in user_adapter:
-    raise SystemExit("installed UserManagement adapter does not bind the generated user.list core entry")
+core_registry = required_paths[0].read_text(encoding="utf-8")
+hash_pattern = r"sha256:[0-9a-f]{64}"
+core_entries = re.findall(
+    rf'^\s+"([a-z0-9][a-z0-9.-]*)": \{{\n\s+definitionHash: "({hash_pattern})",$',
+    core_registry,
+    re.MULTILINE,
+)
+inventory_match = re.search(
+    r"corePresentationInventory = \[(.*?)\] as const;",
+    core_registry,
+    re.DOTALL,
+)
+if inventory_match is None:
+    raise SystemExit("installed Admin Web package omits corePresentationInventory")
+core_inventory = re.findall(r'"([a-z0-9][a-z0-9.-]*)"', inventory_match.group(1))
+expected_inventory = [page_key for page_key, _ in expected_core_entries]
+if core_entries != expected_core_entries:
+    raise SystemExit(
+        f"installed core registry identity drift: {core_entries!r} != {expected_core_entries!r}"
+    )
+if core_inventory != expected_inventory:
+    raise SystemExit(
+        f"installed core registry inventory drift: {core_inventory!r} != {expected_inventory!r}"
+    )
+
+bound_keys = []
+for relative, page_keys in consumer_bindings.items():
+    consumer = (package / relative).read_text(encoding="utf-8")
+    for page_key in page_keys:
+        binding = re.compile(
+            rf"corePresentationRegistry\[['\"]{re.escape(page_key)}['\"]\]"
+        )
+        if binding.search(consumer) is None:
+            raise SystemExit(f"installed {relative} does not bind the fixed {page_key} core entry")
+        bound_keys.append(page_key)
+if sorted(bound_keys) != sorted(expected_inventory):
+    raise SystemExit(
+        f"installed core consumer coverage drift: {sorted(bound_keys)!r} != {sorted(expected_inventory)!r}"
+    )
+
+user_management = (package / "src/modules/administration/UserManagement.tsx").read_text(encoding="utf-8")
 if "from './userPresentation'" not in user_management:
     raise SystemExit("installed UserManagement does not consume its compiled presentation adapter")
 PY

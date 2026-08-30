@@ -2,7 +2,9 @@ package spec
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +15,18 @@ import (
 )
 
 var adminRoutePathPropertyPattern = regexp.MustCompile(`(?m)\bpath:\s*["']([^"']+)["']`)
+var adminCoreRegistryIdentityPattern = regexp.MustCompile(`(?m)^  "([^"]+)": \{\n    definitionHash: "(sha256:[0-9a-f]{64})"`)
+
+type generatedPresentationManifestFile struct {
+	Sources   []string                        `json:"sources"`
+	Manifests []generatedPresentationIdentity `json:"manifests"`
+	Manifest  generatedPresentationIdentity   `json:"manifest"`
+}
+
+type generatedPresentationIdentity struct {
+	PageKey        string `json:"pageKey"`
+	DefinitionHash string `json:"definitionHash"`
+}
 
 func TestAdminPresentationPageInventorySchemaIsValidClosedAndAligned(t *testing.T) {
 	schema := readAdminPresentationPageInventorySchema(t)
@@ -171,6 +185,81 @@ func TestAdminPresentationPageInventoryHasExactProductScope(t *testing.T) {
 	}
 }
 
+func TestAdminPresentationPageInventoryMatchesGeneratedDefinitionsAndConsumers(t *testing.T) {
+	repositoryRoot := adminPresentationRepositoryRoot(t)
+	inventory := loadRepositoryAdminPresentationInventory(t, repositoryRoot)
+
+	var coreManifest generatedPresentationManifestFile
+	if err := json.Unmarshal(readRepositoryFile(t, repositoryRoot, "admin/presentation/core/manifest.generated.json"), &coreManifest); err != nil {
+		t.Fatalf("parse generated core presentation manifest: %v", err)
+	}
+	if len(coreManifest.Sources) != 14 || len(coreManifest.Manifests) != 14 {
+		t.Fatalf("generated core identity count = %d sources/%d manifests, want 14/14", len(coreManifest.Sources), len(coreManifest.Manifests))
+	}
+	coreHashes := make(map[string]string, len(coreManifest.Manifests))
+	for index, manifest := range coreManifest.Manifests {
+		coreHashes[manifest.PageKey] = manifest.DefinitionHash
+		if got, want := coreManifest.Sources[index], coreSourcePathForPageKey(manifest.PageKey); got != want {
+			t.Errorf("core source[%d] = %q, want %q", index, got, want)
+		}
+	}
+
+	frontendHashes := map[string]string{}
+	frontendSource := readRepositoryFile(t, repositoryRoot, "web/antd-v6/src/generated/core-presentation-registry.generated.ts")
+	for _, match := range adminCoreRegistryIdentityPattern.FindAllSubmatch(frontendSource, -1) {
+		frontendHashes[string(match[1])] = string(match[2])
+	}
+	if len(frontendHashes) != 14 {
+		t.Fatalf("frontend core registry identity count = %d, want 14", len(frontendHashes))
+	}
+	supplierFrontendSource := readRepositoryFile(t, repositoryRoot, "web/antd-v6/src/generated/presentation-registry.generated.ts")
+	supplierFrontendMatches := adminCoreRegistryIdentityPattern.FindAllSubmatch(supplierFrontendSource, -1)
+	if len(supplierFrontendMatches) != 1 || string(supplierFrontendMatches[0][1]) != "supplier.list" {
+		t.Fatalf("frontend Supplier registry identities = %#v", supplierFrontendMatches)
+	}
+	supplierFrontendHash := string(supplierFrontendMatches[0][2])
+
+	var supplierManifest generatedPresentationManifestFile
+	if err := json.Unmarshal(readRepositoryFile(t, repositoryRoot, "admin/modules/supplier/presentation_manifest.generated.json"), &supplierManifest); err != nil {
+		t.Fatalf("parse generated Supplier presentation manifest: %v", err)
+	}
+	if supplierManifest.Manifest.PageKey != "supplier.list" {
+		t.Fatalf("Supplier generated page key = %q", supplierManifest.Manifest.PageKey)
+	}
+
+	seen := map[string]bool{}
+	for _, page := range inventory.Spec.Pages {
+		if page.Disposition != "included" {
+			continue
+		}
+		seen[page.PageKey] = true
+		if page.ImplementationState != "generated" || page.DefinitionIdentity.State != "matching" {
+			t.Errorf("%s lifecycle = %s/%s, want generated/matching", page.PageKey, page.ImplementationState, page.DefinitionIdentity.State)
+		}
+		if page.SourcePath != page.TargetSourcePath {
+			t.Errorf("%s source identity = %q/%q", page.PageKey, page.SourcePath, page.TargetSourcePath)
+		}
+		if _, err := os.Stat(filepath.Join(repositoryRoot, filepath.FromSlash(page.RuntimeConsumer))); err != nil {
+			t.Errorf("%s runtime consumer %q: %v", page.PageKey, page.RuntimeConsumer, err)
+		}
+		wantHash := coreHashes[page.PageKey]
+		if page.PageKey == "supplier.list" {
+			wantHash = supplierManifest.Manifest.DefinitionHash
+			if supplierFrontendHash != wantHash {
+				t.Errorf("Supplier generated backend/frontend identities = %q/%q", wantHash, supplierFrontendHash)
+			}
+		} else if frontendHashes[page.PageKey] != wantHash {
+			t.Errorf("%s generated backend/frontend identities = %q/%q", page.PageKey, wantHash, frontendHashes[page.PageKey])
+		}
+		if wantHash == "" || page.DefinitionIdentity.BackendHash != wantHash || page.DefinitionIdentity.FrontendHash != wantHash {
+			t.Errorf("%s inventory identity = %q/%q, generated = %q", page.PageKey, page.DefinitionIdentity.BackendHash, page.DefinitionIdentity.FrontendHash, wantHash)
+		}
+	}
+	if len(seen) != 15 {
+		t.Fatalf("generated included page identity count = %d, want 15", len(seen))
+	}
+}
+
 func TestAdminPresentationPageInventoryClosesCompiledRouteDeclarations(t *testing.T) {
 	repositoryRoot := adminPresentationRepositoryRoot(t)
 	inventory := loadRepositoryAdminPresentationInventory(t, repositoryRoot)
@@ -213,6 +302,28 @@ func TestAdminPresentationPageInventoryClosesCompiledRouteDeclarations(t *testin
 	if got, want := len(inventory.Spec.Routes), len(compiledCore)+len(compiledGenerated)+len(compiledFallback); got != want {
 		t.Fatalf("route declaration count = %d, compiled count = %d", got, want)
 	}
+
+	wantSourceHashes := map[string]string{
+		"web/antd-v6/package/core-routes.cjs":    "16c05447567ec784f98219cda20578c0c331036c977fffb0806eb44f00dca69b",
+		"web/antd-v6/config/routes.generated.ts": "e6b670e37ea6133400fbf8d7283f7242e8baed4ab799512158064111af9726b9",
+		"web/antd-v6/src/generated/routes.ts":    "bc6d132bb48fa1af81522b0ad58c08d2a9c32ebe81f16ede807be91f6d87899a",
+	}
+	for sourcePath, wantHash := range wantSourceHashes {
+		sum := sha256.Sum256(readRepositoryFile(t, repositoryRoot, sourcePath))
+		if gotHash := fmt.Sprintf("%x", sum); gotHash != wantHash {
+			t.Errorf("compiled route declaration identity changed for %s: got %s, want %s", sourcePath, gotHash, wantHash)
+		}
+	}
+
+	var routeIdentities strings.Builder
+	for _, route := range inventory.Spec.Routes {
+		fmt.Fprintf(&routeIdentities, "%s|%s|%s|%s|%s\n", route.ID, route.Path, route.RouteKind, route.Disposition, strings.Join(route.PageIDs, ","))
+	}
+	routeIdentityHash := fmt.Sprintf("%x", sha256.Sum256([]byte(routeIdentities.String())))
+	const wantRouteIdentityHash = "f497785b750660c8216258e3dca126764bb30895167977e61097b6a9710c22d5"
+	if routeIdentityHash != wantRouteIdentityHash {
+		t.Fatalf("route classification identity changed: got %s, want %s", routeIdentityHash, wantRouteIdentityHash)
+	}
 }
 
 func TestAdminPresentationPageInventoryParserFailsClosed(t *testing.T) {
@@ -230,8 +341,8 @@ func TestAdminPresentationPageInventoryParserFailsClosed(t *testing.T) {
 	}{
 		{
 			name:       "unknown field",
-			old:        "  revision: \"1\"\n",
-			new:        "  revision: \"1\"\n  unexpected: true\n",
+			old:        "  revision: \"2\"\n",
+			new:        "  revision: \"2\"\n  unexpected: true\n",
 			wantSubstr: "field unexpected not found",
 		},
 		{
@@ -246,6 +357,24 @@ func TestAdminPresentationPageInventoryParserFailsClosed(t *testing.T) {
 			new:        "frontendHash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			wantSubstr: "backend and frontend hashes must match",
 		},
+		{
+			name:       "generated source identity drift",
+			old:        "sourcePath: .mss/core-pages/role-list.yaml",
+			new:        "sourcePath: .mss/core-pages/user-list.yaml",
+			wantSubstr: "sourcePath must equal targetSourcePath for generated pages",
+		},
+		{
+			name:       "generated runtime consumer missing",
+			old:        "runtimeConsumer: web/antd-v6/src/pages/Language/index.tsx",
+			new:        "runtimeConsumer: ''",
+			wantSubstr: "runtimeConsumer is unsafe or missing for a generated page",
+		},
+		{
+			name:       "active page lacks acceptance",
+			old:        "adoptionState: disabled",
+			new:        "adoptionState: active",
+			wantSubstr: "active adoption requires passed acceptance",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -259,6 +388,10 @@ func TestAdminPresentationPageInventoryParserFailsClosed(t *testing.T) {
 			}
 		})
 	}
+}
+
+func coreSourcePathForPageKey(pageKey string) string {
+	return ".mss/core-pages/" + strings.ReplaceAll(pageKey, ".", "-") + ".yaml"
 }
 
 func TestValidateFileDispatchesAdminPresentationPageInventory(t *testing.T) {

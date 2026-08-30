@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { corePresentationRegistry } from '../../generated/core-presentation-registry.generated';
 import {
   ADMIN_PRESENTATION_API_VERSION,
   ADMIN_PRESENTATION_KIND,
@@ -9,6 +10,7 @@ import {
   buildPageRenderModel,
   canonicalizeCapabilityContract,
   compilePortablePresentationPattern,
+  isLimitedTablePresentationCapability,
   type PageCapabilityDefinition,
   type PagePresentationSpec,
   resolvePagePresentation,
@@ -46,6 +48,9 @@ const allPermissions = new Set([
   '/suppliers/permissions/delete',
   '/suppliers/permissions/export',
 ]);
+
+const limitedUserDefinition = corePresentationRegistry['user.list']
+  .definition as unknown as PageCapabilityDefinition;
 
 function validV2Capability(): PageCapabilityDefinition {
   return {
@@ -271,6 +276,52 @@ describe('Admin page presentation contract', () => {
 
     expect(validatePageCapabilityDefinition(capability)).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'invalid-field-identifier' })]),
+    );
+  });
+
+  it('rejects visibility conditions on limited core table capabilities and keeps compiled runtime', () => {
+    const conditionalProfile: AdminPagePresentationProfile = {
+      apiVersion: ADMIN_PRESENTATION_API_VERSION,
+      kind: ADMIN_PRESENTATION_KIND,
+      metadata: {
+        name: 'user-application',
+        pageKey: limitedUserDefinition.pageKey,
+        definitionHash: limitedUserDefinition.definitionHash,
+        scope: { kind: 'application' },
+      },
+      spec: {
+        search: {
+          fields: [
+            {
+              field: 'name',
+              visibleWhen: { field: 'status', operator: 'eq', value: 'enabled' },
+            },
+          ],
+        },
+      },
+    };
+
+    expect(isLimitedTablePresentationCapability(limitedUserDefinition)).toBe(true);
+    expect(validatePagePresentationProfile(limitedUserDefinition, conditionalProfile)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'unsupported-limited-condition',
+          path: 'spec.search.fields[0].visibleWhen',
+        }),
+      ]),
+    );
+
+    const resolution = resolvePagePresentation(
+      limitedUserDefinition,
+      { application: conditionalProfile },
+      new Set(['/users']),
+    );
+    expect(resolution.appliedLayers).toEqual([]);
+    expect(resolution.rejectedLayers).toEqual([
+      expect.objectContaining({ layer: 'application', profileName: 'user-application' }),
+    ]);
+    expect(resolution.presentation.search.fields).toEqual(
+      limitedUserDefinition.defaultPresentation.search.fields,
     );
   });
 
