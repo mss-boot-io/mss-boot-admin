@@ -27,7 +27,7 @@ preview 只生成和核验将被发布的归档、包、SBOM、校验和与多�
 ### 构建检查
 
 - [ ] Thin Host 根目录执行 `mss verify --all` 成功
-- [ ] Foundation 根目录执行 `mss verify --all` 成功，包含依赖审计、release workflow 合同、delivery smoke 与 Playwright E2E
+- [ ] Foundation 根目录执行 `mss verify --all` 成功，包含 Agent 构建、Admin/Framework race、coverage、vet 与模块元数据、依赖审计、release workflow 合同、delivery smoke 与 Playwright E2E
 - [ ] Codex 内置浏览器在同一精确 Head 完成桌面、窄屏、深链、刷新、控制台和失败网络请求验收
 - [ ] PR 必需检查全部通过；候选 preview 不再重复 Go、lint、unit 或 Playwright 质量套件
 - [ ] 合并后的 Root preview 仅核验精确发布制品，且六平台二进制、候选 Thin Host、SBOM、校验和和双架构 OCI 均完整

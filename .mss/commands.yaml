@@ -221,7 +221,7 @@ spec:
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete local release-quality suite, including strict contracts, standalone compatibility, dependency policy, frontend delivery and browser behavior, release workflow contracts, backend, framework, Thin Host, and docs checks; candidate packaging does not repeat these broad gates.
+      description: Execute the complete local release-quality suite, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone compatibility, dependency policy, frontend delivery and browser behavior, release workflow contracts, Thin Host, and docs checks; candidate packaging does not repeat these broad gates.
       outputFormats: [text, json]
       category: verification
 

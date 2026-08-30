@@ -31,15 +31,15 @@ func TestFoundationModeAllOwnsLocalReleaseQualification(t *testing.T) {
 		t.Fatalf("PlanChecks(Foundation all): %v", err)
 	}
 	wantIDs := []string{
+		"agent-build",
 		"agent-doctor-strict",
+		"agent-release-test",
 		"agent-skills-validation",
-		"agent-tooling-test",
-		"backend-build",
 		"backend-doctor-strict",
-		"backend-test",
+		"backend-release-qualification",
 		"docs-build",
 		"foundation-compatibility",
-		"framework-test",
+		"framework-release-qualification",
 		"frontend-qualification",
 		"git-diff-check",
 		"git-worktree-check",

@@ -108,14 +108,14 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(thinHostFrontendTest(ctx), "full Thin Host verification includes host frontend tests")
 			add(thinHostFrontendBuild(ctx), "full Thin Host verification builds the single composed Umi application")
 		} else {
+			add(agentReleaseTest(ctx.Root), "full local verification runs the complete Agent module test target with GOWORK disabled")
+			add(agentReleaseBuild(ctx.Root), "full local verification builds both Agent executables independently")
 			add(strictAgentDoctor(ctx.Root), "full local verification validates the Agent environment contract before release preparation")
 			add(strictBackendDoctor(ctx.Root), "full local verification validates the Admin environment contract before release preparation")
 			add(skillContractValidation(ctx.Root), "full local verification validates every checked-in Agent skill")
-			add(toolingTest(ctx.Root), "full verification includes agent infrastructure tests")
 			add(foundationCompatibility(ctx.Root), "full local verification qualifies standalone package-first generation and upgrade behavior")
-			add(frameworkTest(ctx.Root), "full verification includes reusable framework tests")
-			add(backendTest(ctx.Root), "full verification includes backend tests")
-			add(backendBuild(ctx.Root), "full verification includes backend build")
+			add(frameworkReleaseQualification(ctx.Root), "full local verification includes Framework race, coverage, vet, tidy, and independent-module checks")
+			add(backendReleaseQualification(ctx.Root), "full local verification includes Admin race, coverage, vet, module metadata, external consumer, and build checks")
 			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
 			add(releaseContractTest(ctx.Root), "full local verification validates release policy and workflow contracts before candidate packaging")
 			if hasFrontendApplication(ctx, "web/antd-v6") {
@@ -611,6 +611,28 @@ func toolingTest(root string) command.Spec {
 	}
 }
 
+func agentReleaseTest(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-release-test",
+		Description: "run the complete Agent module test target independently",
+		Directory:   root,
+		Args:        []string{"make", "test-agent"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     30 * time.Minute,
+	}
+}
+
+func agentReleaseBuild(root string) command.Spec {
+	return command.Spec{
+		ID:          "agent-build",
+		Description: "build the mss and mss-mcp Agent executables independently",
+		Directory:   root,
+		Args:        []string{"make", "build-agent"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     20 * time.Minute,
+	}
+}
+
 func strictAgentDoctor(root string) command.Spec {
 	return command.Spec{
 		ID:          "agent-doctor-strict",
@@ -694,6 +716,17 @@ func frameworkTest(root string) command.Spec {
 	}
 }
 
+func frameworkReleaseQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "framework-release-qualification",
+		Description: "run Framework race, coverage, vet, tidy, and independent-module qualification",
+		Directory:   root,
+		Args:        []string{"make", "verify-framework"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     60 * time.Minute,
+	}
+}
+
 func presentationThinHostContract(root string) command.Spec {
 	return command.Spec{
 		ID:          "presentation-thin-host-contract",
@@ -735,6 +768,17 @@ func backendBuild(root string) command.Spec {
 			"GOWORK":      filepath.Join(root, "go.work"),
 		},
 		Timeout: 10 * time.Minute,
+	}
+}
+
+func backendReleaseQualification(root string) command.Spec {
+	return command.Spec{
+		ID:          "backend-release-qualification",
+		Description: "run Admin race, coverage, vet, module metadata, external consumer, and build qualification",
+		Directory:   root,
+		Args:        []string{"make", "verify-admin-preview"},
+		Environment: map[string]string{"CI": "true"},
+		Timeout:     60 * time.Minute,
 	}
 }
 
