@@ -183,6 +183,11 @@ spec:
         npm: "@mss-boot-io/admin-web@1.3.6"
   publicationWorkflowsReady: false
   docsRevisionPublicationReady: false
+  docsRevisionVersion: disabled
+  docsRevisionCommit: disabled
+  stablePromotionReady: false
+  stablePromotionVersion: v1.1.0
+  stablePromotionCommit: disabled
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"
@@ -204,7 +209,7 @@ spec:
 	if policy.Spec.DistributionVersion != "v1.1.0" || policy.Spec.DistributionComponents != "root,framework,admin,frontend" || policy.Spec.AdminTagTemplate != "admin/{version}" {
 		t.Fatalf("Admin Distribution release contract = %#v", policy.Spec)
 	}
-	if policy.Spec.ReleaseTargetState != "active" || policy.Spec.DocsRevisionPublicationReady == nil || *policy.Spec.DocsRevisionPublicationReady || policy.Spec.NpmPackageTemplate != "@mss-boot-io/admin-web@{npmVersion}" {
+	if policy.Spec.ReleaseTargetState != "active" || policy.Spec.DocsRevisionPublicationReady == nil || *policy.Spec.DocsRevisionPublicationReady || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.1.0" || policy.Spec.NpmPackageTemplate != "@mss-boot-io/admin-web@{npmVersion}" {
 		t.Fatalf("extended release contract = %#v", policy.Spec)
 	}
 	tests := []struct {
@@ -222,6 +227,12 @@ spec:
 		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
 		{name: "invalid target state", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: pending", 1), want: "releaseTargetState must equal active or stopped"},
 		{name: "missing docs publication boolean", data: strings.Replace(valid, "  docsRevisionPublicationReady: false\n", "", 1), want: "boolean controls are required"},
+		{name: "missing stable promotion boolean", data: strings.Replace(valid, "  stablePromotionReady: false\n", "", 1), want: "boolean controls are required"},
+		{name: "missing lifecycle string", data: strings.Replace(valid, "  docsRevisionCommit: disabled\n", "", 1), want: "boolean controls are required"},
+		{name: "empty lifecycle string", data: strings.Replace(valid, "docsRevisionCommit: disabled", "docsRevisionCommit: \"\"", 1), want: "lifecycle authorization fields are required"},
+		{name: "promotion version mismatch", data: strings.Replace(valid, "stablePromotionVersion: v1.1.0", "stablePromotionVersion: v1.2.0", 1), want: "stablePromotionVersion must equal nextPublicVersion"},
+		{name: "promotion commit enabled early", data: strings.Replace(valid, "stablePromotionCommit: disabled", "stablePromotionCommit: 1111111111111111111111111111111111111111", 1), want: "stablePromotionCommit must be disabled"},
+		{name: "docs revision enabled early", data: strings.Replace(valid, "docsRevisionVersion: disabled", "docsRevisionVersion: v1.0.0+docs.1", 1), want: "docs revision authorization must be disabled"},
 		{name: "stopped target version mismatch", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: stopped", 1), want: "stopped target must belong to immutableStoppedTrains"},
 		{name: "duplicate stopped version", data: strings.Replace(valid, "- version: v1.3.6", "- version: v1.3.5", 1), want: "duplicates version v1.3.5"},
 		{name: "abbreviated stopped commit", data: strings.Replace(valid, "b1fe47a3a83209574e09d53526b122dd2cbc5277", "b1fe47a3", 1), want: "commit must be a full commit"},
@@ -237,6 +248,82 @@ spec:
 			}
 		})
 	}
+
+	t.Run("legacy policy without lifecycle authorization remains compatible", func(t *testing.T) {
+		legacy := valid
+		for _, line := range []string{
+			"  docsRevisionVersion: disabled\n",
+			"  docsRevisionCommit: disabled\n",
+			"  stablePromotionReady: false\n",
+			"  stablePromotionVersion: v1.1.0\n",
+			"  stablePromotionCommit: disabled\n",
+		} {
+			legacy = strings.Replace(legacy, line, "", 1)
+		}
+		if _, err := decodeFoundationReleasePolicy([]byte(legacy)); err != nil {
+			t.Fatalf("decode legacy policy: %v", err)
+		}
+	})
+
+	t.Run("stable promotion exact binding", func(t *testing.T) {
+		ready := strings.NewReplacer(
+			"publicationWorkflowsReady: false", "publicationWorkflowsReady: true",
+			"stablePromotionReady: false", "stablePromotionReady: true",
+			"stablePromotionCommit: disabled", "stablePromotionCommit: 1111111111111111111111111111111111111111",
+		).Replace(valid)
+		if _, err := decodeFoundationReleasePolicy([]byte(ready)); err != nil {
+			t.Fatalf("decode promotion-ready policy: %v", err)
+		}
+
+		for _, test := range []struct {
+			name string
+			data string
+			want string
+		}{
+			{name: "workflows disabled", data: strings.Replace(ready, "publicationWorkflowsReady: true", "publicationWorkflowsReady: false", 1), want: "workflows must remain ready"},
+			{name: "short commit", data: strings.Replace(ready, strings.Repeat("1", 40), strings.Repeat("1", 39), 1), want: "full commit"},
+			{name: "uppercase commit", data: strings.Replace(ready, strings.Repeat("1", 40), strings.Repeat("A", 40), 1), want: "full commit"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				if _, err := decodeFoundationReleasePolicy([]byte(test.data)); err == nil || !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("decodeFoundationReleasePolicy() error = %v, want %q", err, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("docs revision exact binding", func(t *testing.T) {
+		ready := strings.NewReplacer(
+			"docsRevisionPublicationReady: false", "docsRevisionPublicationReady: true",
+			"docsRevisionVersion: disabled", "docsRevisionVersion: v1.0.0+docs.1",
+			"docsRevisionCommit: disabled", "docsRevisionCommit: 2222222222222222222222222222222222222222",
+		).Replace(valid)
+		for _, revision := range []string{"1", "999"} {
+			candidate := strings.Replace(ready, "+docs.1", "+docs."+revision, 1)
+			if _, err := decodeFoundationReleasePolicy([]byte(candidate)); err != nil {
+				t.Fatalf("decode docs revision %s: %v", revision, err)
+			}
+		}
+
+		for _, test := range []struct {
+			name string
+			data string
+			want string
+		}{
+			{name: "wrong base", data: strings.Replace(ready, "v1.0.0+docs.1", "v1.1.0+docs.1", 1), want: "current stable"},
+			{name: "zero", data: strings.Replace(ready, "+docs.1", "+docs.0", 1), want: "current stable"},
+			{name: "leading zero", data: strings.Replace(ready, "+docs.1", "+docs.01", 1), want: "current stable"},
+			{name: "too large", data: strings.Replace(ready, "+docs.1", "+docs.1000", 1), want: "current stable"},
+			{name: "short commit", data: strings.Replace(ready, strings.Repeat("2", 40), strings.Repeat("2", 39), 1), want: "full commit"},
+			{name: "uppercase commit", data: strings.Replace(ready, strings.Repeat("2", 40), strings.Repeat("A", 40), 1), want: "full commit"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				if _, err := decodeFoundationReleasePolicy([]byte(test.data)); err == nil || !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("decodeFoundationReleasePolicy() error = %v, want %q", err, test.want)
+				}
+			})
+		}
+	})
 }
 
 func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
@@ -248,11 +335,11 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode canonical release policy: %v", err)
 	}
-	if policy.Spec.DocsRevisionPublicationReady == nil || len(policy.Spec.ImmutableStoppedTrains) != 2 {
+	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "disabled" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
 		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
 	}
-	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || *policy.Spec.PublicationWorkflowsReady {
-		t.Fatalf("canonical recovery target = %#v, want v1.3.7 with publication disabled", policy.Spec)
+	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || !*policy.Spec.PublicationWorkflowsReady {
+		t.Fatalf("canonical recovery target = %#v, want v1.3.7 with publication enabled", policy.Spec)
 	}
 	stopped, err := validateFoundationStoppedTrains(policy)
 	if err != nil {

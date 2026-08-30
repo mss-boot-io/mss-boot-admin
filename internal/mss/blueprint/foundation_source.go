@@ -68,6 +68,11 @@ type foundationReleasePolicy struct {
 		ImmutableStoppedTrains       []foundationStoppedTrain `yaml:"immutableStoppedTrains"`
 		PublicationWorkflowsReady    *bool                    `yaml:"publicationWorkflowsReady"`
 		DocsRevisionPublicationReady *bool                    `yaml:"docsRevisionPublicationReady"`
+		DocsRevisionVersion          *string                  `yaml:"docsRevisionVersion"`
+		DocsRevisionCommit           *string                  `yaml:"docsRevisionCommit"`
+		StablePromotionReady         *bool                    `yaml:"stablePromotionReady"`
+		StablePromotionVersion       *string                  `yaml:"stablePromotionVersion"`
+		StablePromotionCommit        *string                  `yaml:"stablePromotionCommit"`
 		PublicPrereleases            *bool                    `yaml:"publicPrereleases"`
 		RootTagTemplate              string                   `yaml:"rootTagTemplate"`
 		FrameworkTagTemplate         string                   `yaml:"frameworkTagTemplate"`
@@ -396,8 +401,20 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 		len(policy.Spec.ImmutableStoppedTrains) != 0 ||
 		policy.Spec.DocsRevisionPublicationReady != nil ||
 		strings.TrimSpace(policy.Spec.NpmPackageTemplate) != ""
+	lifecycleAuthorizationContract := policy.Spec.StablePromotionReady != nil ||
+		policy.Spec.StablePromotionVersion != nil ||
+		policy.Spec.StablePromotionCommit != nil ||
+		policy.Spec.DocsRevisionVersion != nil ||
+		policy.Spec.DocsRevisionCommit != nil
 	if policy.Spec.PublicationWorkflowsReady == nil || policy.Spec.PublicPrereleases == nil ||
-		(extendedReleaseContract && policy.Spec.DocsRevisionPublicationReady == nil) {
+		(extendedReleaseContract && policy.Spec.DocsRevisionPublicationReady == nil) ||
+		(lifecycleAuthorizationContract && (policy.Spec.DocsRevisionPublicationReady == nil ||
+			policy.Spec.StablePromotionReady == nil ||
+			policy.Spec.StablePromotionVersion == nil ||
+			policy.Spec.StablePromotionCommit == nil ||
+			policy.Spec.DocsRevisionVersion == nil ||
+			policy.Spec.DocsRevisionCommit == nil)) ||
+		(policy.Spec.DocsRevisionPublicationReady != nil && *policy.Spec.DocsRevisionPublicationReady && !lifecycleAuthorizationContract) {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy boolean controls are required")
 	}
 	currentRaw := strings.TrimSpace(policy.Spec.CurrentStableVersion)
@@ -420,6 +437,48 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	}
 	if distributionRaw != nextRaw {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy distributionVersion must equal nextPublicVersion")
+	}
+	if lifecycleAuthorizationContract {
+		promotionRaw := strings.TrimSpace(*policy.Spec.StablePromotionVersion)
+		promotionCommit := strings.TrimSpace(*policy.Spec.StablePromotionCommit)
+		docsRevisionVersion := strings.TrimSpace(*policy.Spec.DocsRevisionVersion)
+		docsRevisionCommit := strings.TrimSpace(*policy.Spec.DocsRevisionCommit)
+		if promotionRaw == "" || promotionCommit == "" || docsRevisionVersion == "" || docsRevisionCommit == "" {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy lifecycle authorization fields are required")
+		}
+		if !strings.HasPrefix(promotionRaw, "v") || !validSemanticVersion(strings.TrimPrefix(promotionRaw, "v")) {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy stablePromotionVersion must be semantic")
+		}
+		if promotionRaw != nextRaw {
+			return foundationReleasePolicy{}, errors.New("committed foundation release policy stablePromotionVersion must equal nextPublicVersion")
+		}
+		if *policy.Spec.StablePromotionReady {
+			if !*policy.Spec.PublicationWorkflowsReady {
+				return foundationReleasePolicy{}, errors.New("committed foundation publication workflows must remain ready during stable promotion")
+			}
+			if !fullCommitPattern.MatchString(promotionCommit) {
+				return foundationReleasePolicy{}, errors.New("committed foundation stablePromotionCommit must be a full commit when promotion is ready")
+			}
+		} else if promotionCommit != "disabled" {
+			return foundationReleasePolicy{}, errors.New("committed foundation stablePromotionCommit must be disabled until promotion is ready")
+		}
+		*policy.Spec.StablePromotionVersion = promotionRaw
+		*policy.Spec.StablePromotionCommit = promotionCommit
+
+		if *policy.Spec.DocsRevisionPublicationReady {
+			base, revision, ok := strings.Cut(docsRevisionVersion, "+docs.")
+			revisionNumber, revisionErr := strconv.Atoi(revision)
+			if !ok || base != currentRaw || revisionErr != nil || revisionNumber < 1 || revisionNumber > 999 || strconv.Itoa(revisionNumber) != revision {
+				return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionVersion must be the current stable vX.Y.Z+docs.N revision from 1 through 999")
+			}
+			if !fullCommitPattern.MatchString(docsRevisionCommit) {
+				return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionCommit must be a full commit when publication is ready")
+			}
+		} else if docsRevisionVersion != "disabled" || docsRevisionCommit != "disabled" {
+			return foundationReleasePolicy{}, errors.New("committed foundation docs revision authorization must be disabled until publication is ready")
+		}
+		*policy.Spec.DocsRevisionVersion = docsRevisionVersion
+		*policy.Spec.DocsRevisionCommit = docsRevisionCommit
 	}
 	targetState := strings.TrimSpace(policy.Spec.ReleaseTargetState)
 	if extendedReleaseContract {
