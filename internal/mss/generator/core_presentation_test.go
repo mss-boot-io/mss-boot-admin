@@ -12,8 +12,23 @@ import (
 	"testing"
 )
 
-func TestCorePresentationTrackedOutputsMatchOneCanonicalSource(t *testing.T) {
+func TestCorePresentationTrackedOutputsMatchCanonicalInventory(t *testing.T) {
 	repositoryRoot := findRepositoryRoot(t)
+	sourceMatches, err := filepath.Glob(filepath.Join(repositoryRoot, ".mss", "core-pages", "*.yaml"))
+	if err != nil {
+		t.Fatalf("discover core sources: %v", err)
+	}
+	expectedSources := make([]string, 0, len(sourceMatches))
+	for _, source := range sourceMatches {
+		relative, relativeErr := filepath.Rel(repositoryRoot, source)
+		if relativeErr != nil {
+			t.Fatalf("relativize core source %s: %v", source, relativeErr)
+		}
+		expectedSources = append(expectedSources, filepath.ToSlash(relative))
+	}
+	if len(expectedSources) != 14 {
+		t.Fatalf("core source count = %d, want 14", len(expectedSources))
+	}
 	repository, err := os.OpenRoot(repositoryRoot)
 	if err != nil {
 		t.Fatalf("os.OpenRoot() error = %v", err)
@@ -38,7 +53,7 @@ func TestCorePresentationTrackedOutputsMatchOneCanonicalSource(t *testing.T) {
 		if string(actual) != string(output.content) {
 			t.Fatalf("tracked core output %s is stale", output.path)
 		}
-		if output.source != ".mss/core-pages/user-list.yaml" {
+		if output.source != strings.Join(expectedSources, ",") {
 			t.Fatalf("core output %s source = %q", output.path, output.source)
 		}
 	}
@@ -48,28 +63,41 @@ func TestCorePresentationTrackedOutputsMatchOneCanonicalSource(t *testing.T) {
 	if err := json.Unmarshal(snapshotData, &snapshot); err != nil {
 		t.Fatalf("parse tracked core snapshot: %v", err)
 	}
-	if !slices.Equal(snapshot.Sources, []string{".mss/core-pages/user-list.yaml"}) || len(snapshot.Manifests) != 1 {
+	if !slices.Equal(snapshot.Sources, expectedSources) || len(snapshot.Manifests) != len(expectedSources) {
 		t.Fatalf("core snapshot provenance = %#v", snapshot)
-	}
-	projection := &snapshot.Manifests[0]
-	canonical, err := canonicalPresentationProjection(projection)
-	if err != nil {
-		t.Fatalf("canonicalPresentationProjection(user.list) error = %v", err)
-	}
-	digest := sha256.Sum256(canonical)
-	wantHash := "sha256:" + hex.EncodeToString(digest[:])
-	if projection.DefinitionHash != wantHash {
-		t.Fatalf("snapshot hash = %q, want %q", projection.DefinitionHash, wantHash)
 	}
 	backend := string(readGeneratedTestFile(t, repositoryRoot, "admin/presentation/core/definitions_generated.go"))
 	frontend := string(readGeneratedTestFile(t, repositoryRoot, "web/antd-v6/src/generated/core-presentation-registry.generated.ts"))
-	for path, content := range map[string]string{"backend": backend, "frontend": frontend} {
-		if !strings.Contains(content, wantHash) || !strings.Contains(content, ".mss/core-pages/user-list.yaml") {
-			t.Errorf("%s core projection omitted hash or source provenance", path)
+	wantPageKeys := []string{
+		"department.list", "language.list", "log.audit", "log.login", "log.runtime", "menu.list", "notice.list",
+		"online-session.list", "option.list", "post.list", "role.list", "system-config.list", "task.list", "user.list",
+	}
+	for index := range snapshot.Manifests {
+		projection := &snapshot.Manifests[index]
+		if projection.PageKey != wantPageKeys[index] {
+			t.Fatalf("manifest page %d = %q, want %q", index, projection.PageKey, wantPageKeys[index])
+		}
+		canonical, canonicalErr := canonicalPresentationProjection(projection)
+		if canonicalErr != nil {
+			t.Fatalf("canonicalPresentationProjection(%s) error = %v", projection.PageKey, canonicalErr)
+		}
+		digest := sha256.Sum256(canonical)
+		wantHash := "sha256:" + hex.EncodeToString(digest[:])
+		if projection.DefinitionHash != wantHash {
+			t.Fatalf("snapshot %s hash = %q, want %q", projection.PageKey, projection.DefinitionHash, wantHash)
+		}
+		for path, content := range map[string]string{"backend": backend, "frontend": frontend} {
+			if !strings.Contains(content, wantHash) || !strings.Contains(content, projection.PageKey) {
+				t.Errorf("%s core projection omitted %s or its hash", path, projection.PageKey)
+			}
+		}
+		if len(projection.Actions) != 0 || len(projection.DefaultPresentation.Form.Fields) != 0 ||
+			len(projection.DefaultPresentation.Detail.Fields) != 0 || len(projection.DefaultPresentation.Actions) != 0 {
+			t.Errorf("core projection %s exposed non-list capability", projection.PageKey)
 		}
 	}
 	for _, contract := range []string{
-		"export const corePresentationInventory", "export const corePresentationRegistry", `"user.list"`,
+		"export const corePresentationInventory", "export const corePresentationRegistry", `"user.list"`, `"system-config.list"`,
 		`"user-identity"`, `"user-role"`, `"user-organization"`, `"status-tag"`, `"status-filter"`,
 		`"maxSortFields": 0`, `"defaultSort": []`, `"requiredPermissions": [`, `"/users"`,
 	} {
@@ -79,7 +107,7 @@ func TestCorePresentationTrackedOutputsMatchOneCanonicalSource(t *testing.T) {
 	}
 	lower := strings.ToLower(frontend)
 	for _, forbidden := range []string{
-		"password", "confirmpassword", "roleid", "departmentid", "postid", `"root"`,
+		"password", "confirmpassword", "departmentid", "postid", `"root"`,
 		"accesstoken", "sessionid", "oauth", "dynamic import", "import(", "fetch(", "axios",
 	} {
 		if strings.Contains(lower, forbidden) {
@@ -118,8 +146,17 @@ func TestGenerateCorePresentationIsIdempotentAndCleansRemovedFoundationSource(t 
 		t.Fatalf("Generate(core check) error = %v", err)
 	}
 
-	if err := os.Remove(filepath.Join(root, ".mss", "core-pages", "user-list.yaml")); err != nil {
-		t.Fatalf("remove temporary core source: %v", err)
+	coreSources, err := os.ReadDir(filepath.Join(root, ".mss", "core-pages"))
+	if err != nil {
+		t.Fatalf("read temporary core sources: %v", err)
+	}
+	for _, source := range coreSources {
+		if source.IsDir() || filepath.Ext(source.Name()) != ".yaml" {
+			continue
+		}
+		if removeErr := os.Remove(filepath.Join(root, ".mss", "core-pages", source.Name())); removeErr != nil {
+			t.Fatalf("remove temporary core source %s: %v", source.Name(), removeErr)
+		}
 	}
 	plan, err := Generate(module, Options{Root: root, Check: true})
 	var drift *DriftError

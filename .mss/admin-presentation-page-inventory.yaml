@@ -1,0 +1,919 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminPresentationPageInventory
+metadata:
+  name: admin-presentation-pages
+  revision: "1"
+  baselineBranch: codex/page-presentation-complete-design
+  baselineCommit: 1b855d0b71e2884d7b743d49edc73f4dcd853787
+  routeSources:
+    - web/antd-v6/package/core-routes.cjs
+    - web/antd-v6/config/routes.generated.ts
+    - web/antd-v6/src/generated/routes.ts
+spec:
+  objective: >-
+    Classify every compiled Admin route and define the complete target set of table-oriented
+    management pages that must consume governed runtime presentation without allowing stored
+    profiles to define transport, authorization, mutations, executable components, or sensitive
+    subflows.
+  coveragePolicy:
+    closureRule: >-
+      Every route declaration from every listed route source must match exactly one route record
+      by declaration identity; a new, removed, duplicate, or unclassified compiled route fails
+      the route-closure gate.
+    includedRule: >-
+      Every included page owns one stable page key, one reviewed machine source, matching backend
+      and frontend definition identities, a compiled runtime consumer, disabled-by-default
+      adoption, and exact-Head acceptance evidence before activation.
+    excludedRule: >-
+      Excluded routes remain compiled and are recorded with a durable security or product reason;
+      exclusion is intentional classification rather than missing implementation.
+    pairedGeneratedRouteRule: >-
+      The generated Umi route configuration and packaged generated route-registration index are
+      paired projections of the same generated declaration identity; their ordered path sets must
+      match each other and one generated inventory record rather than being double-counted.
+    defaultAdoptionMode: disabled
+    activationRule: >-
+      Pages advance independently through disabled, isolated shadow, and exact allowlisted active
+      states; wildcard or implicit all-page activation is prohibited and recovery mode overrides
+      every page.
+  facetPolicies:
+    full-table:
+      - title.localized
+      - list.columns
+      - list.labels
+      - list.order
+      - list.visibility
+      - list.width
+      - list.components
+      - list.density
+      - list.pageSize
+      - list.defaultSort
+      - search.fields
+      - search.labels
+      - search.order
+      - search.visibility
+      - search.components
+      - search.collapsedByDefault
+      - form.fields
+      - form.labels
+      - form.order
+      - form.visibility
+      - form.components
+      - form.span
+      - form.columns
+      - detail.fields
+      - detail.labels
+      - detail.order
+      - detail.visibility
+      - detail.components
+      - detail.span
+      - detail.columns
+      - actions.visibility
+      - actions.order
+      - actions.placement
+      - actions.labels
+      - actions.confirmation
+      - conditions.safe
+    limited-table:
+      - title.localized
+      - list.columns
+      - list.labels
+      - list.order
+      - list.visibility
+      - list.width
+      - list.density
+      - list.pageSize
+      - search.fields
+      - search.labels
+      - search.order
+      - search.visibility
+      - search.collapsedByDefault
+  pages:
+    - id: supplier-list
+      displayName:
+        zh-CN: 供应商管理
+        en-US: Suppliers
+      disposition: included
+      eligibility: full
+      pageKey: supplier.list
+      routePatterns: [/suppliers]
+      sourceKind: admin-module
+      sourcePath: .mss/modules/example-supplier.yaml
+      targetSourcePath: .mss/modules/example-supplier.yaml
+      binding: supplier.list
+      pageKind: table
+      dataClass: business
+      rootOnly: false
+      requiredPermissions: [/suppliers]
+      implementationState: generated
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-1
+      facetPolicy: full-table
+      protectedCapabilities:
+        - Routes, API operations, query encoding, permission requirements, component implementations, and action handlers remain compiled.
+        - Profiles cannot create fields, actions, data sources, validators, workflows, or mutations.
+      runtimeConsumer: web/antd-v6/src/generated/modules/supplier/SupplierPage.tsx
+      definitionIdentity:
+        state: matching
+        backendHash: sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7
+        frontendHash: sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7
+      notes: Existing complete generated reference; exact-Head browser acceptance is still required.
+    - id: user-list
+      displayName:
+        zh-CN: 用户管理
+        en-US: Users
+      disposition: included
+      eligibility: limited
+      pageKey: user.list
+      routePatterns:
+        - /users
+        - /users/control/create
+        - /users/control/:id
+        - /users/password-reset/:id
+      sourceKind: foundation-core
+      sourcePath: .mss/core-pages/user-list.yaml
+      targetSourcePath: .mss/core-pages/user-list.yaml
+      binding: administration.users
+      pageKind: table
+      dataClass: identity
+      rootOnly: false
+      requiredPermissions: [/users]
+      implementationState: generated
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-1
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Passwords, credentials, OAuth facts, tokens, sessions, relation identifiers, root markers, and privilege facts never enter presentation contracts.
+        - Create, edit, delete, password reset, forms, details, permissions, routes, and API selection remain compiled.
+      runtimeConsumer: web/antd-v6/src/pages/Administration/index.tsx
+      definitionIdentity:
+        state: matching
+        backendHash: sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f
+        frontendHash: sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f
+      notes: Existing Foundation core pilot; its sensitive subroutes are classified with the page but are never profile-controlled.
+    - id: role-list
+      displayName:
+        zh-CN: 角色管理
+        en-US: Roles
+      disposition: included
+      eligibility: limited
+      pageKey: role.list
+      routePatterns: [/role, /role/create, /role/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/role-list.yaml
+      binding: administration.roles
+      pageKind: table
+      dataClass: authorization
+      rootOnly: false
+      requiredPermissions: [/role]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Authorization tree, permission paths, root and default-role safeguards, create, edit, delete, and authorize actions remain compiled.
+        - Presentation cannot alter role data scope or grant any route or API permission.
+      definitionIdentity:
+        state: planned
+    - id: menu-list
+      displayName:
+        zh-CN: 菜单管理
+        en-US: Menus
+      disposition: included
+      eligibility: limited
+      pageKey: menu.list
+      routePatterns: [/menu, /menu/create, /menu/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/menu-list.yaml
+      binding: administration.menus
+      pageKind: table
+      dataClass: authorization
+      rootOnly: false
+      requiredPermissions: [/menu]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Menu routes, component paths, permission strings, HTTP methods, API binding, hierarchy mutation, and every write action remain compiled.
+        - Profiles may hide or reorder registered list columns but cannot create navigation or authorization facts.
+      definitionIdentity:
+        state: planned
+    - id: department-list
+      displayName:
+        zh-CN: 部门管理
+        en-US: Departments
+      disposition: included
+      eligibility: limited
+      pageKey: department.list
+      routePatterns: [/departments, /departments/create, /departments/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/department-list.yaml
+      binding: administration.departments
+      pageKind: table
+      dataClass: business
+      rootOnly: false
+      requiredPermissions: [/departments]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-2
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Parent relations, leader relations, create, edit, delete, routes, and mutation payloads remain compiled.
+        - Required fields and root-only write guards cannot be hidden or weakened by a profile.
+      definitionIdentity:
+        state: planned
+    - id: post-list
+      displayName:
+        zh-CN: 岗位管理
+        en-US: Posts
+      disposition: included
+      eligibility: limited
+      pageKey: post.list
+      routePatterns: [/posts, /posts/create, /posts/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/post-list.yaml
+      binding: administration.posts
+      pageKind: table
+      dataClass: authorization
+      rootOnly: false
+      requiredPermissions: [/posts]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-2
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Data-scope semantics, create, edit, delete, routes, mutation payloads, and backend authorization remain compiled.
+        - Presentation cannot change which records or departments a post may access.
+      definitionIdentity:
+        state: planned
+    - id: task-list
+      displayName:
+        zh-CN: 任务管理
+        en-US: Tasks
+      disposition: included
+      eligibility: limited
+      pageKey: task.list
+      routePatterns: [/task, /task/create, /task/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/task-list.yaml
+      binding: operations.tasks
+      pageKind: table
+      dataClass: operations
+      rootOnly: false
+      requiredPermissions: [/task]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Provider, endpoint, body, metadata, Python, scheduler execution, create, edit, run, and delete behavior remain compiled.
+        - Sensitive task payloads and executable facts never enter definitions, preview data, diagnostics, or profiles.
+      definitionIdentity:
+        state: planned
+    - id: notice-list
+      displayName:
+        zh-CN: 通知中心
+        en-US: Notices
+      disposition: included
+      eligibility: limited
+      pageKey: notice.list
+      routePatterns: [/notice]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/notice-list.yaml
+      binding: operations.notices
+      pageKind: table
+      dataClass: operations
+      rootOnly: false
+      requiredPermissions: [/notice]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Current-user row scope, notice body access, detail loading, mark-read mutation, and notification delivery remain compiled.
+        - Profiles cannot select another subject or broaden visible notice records.
+      definitionIdentity:
+        state: planned
+    - id: language-list
+      displayName:
+        zh-CN: 语言管理
+        en-US: Languages
+      disposition: included
+      eligibility: limited
+      pageKey: language.list
+      routePatterns: [/language, /language/create, /language/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/language-list.yaml
+      binding: language.languages
+      pageKind: table
+      dataClass: configuration
+      rootOnly: false
+      requiredPermissions: [/language]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-2
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Locale definitions, create, edit, delete, optimistic conflict handling, routes, and mutation contracts remain compiled.
+        - Presentation labels do not create or modify translation resources.
+      definitionIdentity:
+        state: planned
+    - id: option-list
+      displayName:
+        zh-CN: 选项管理
+        en-US: Options
+      disposition: included
+      eligibility: limited
+      pageKey: option.list
+      routePatterns: [/option, /option/create, /option/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/option-list.yaml
+      binding: option.options
+      pageKind: table
+      dataClass: configuration
+      rootOnly: false
+      requiredPermissions: [/option]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-2
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Option values, built-in protection, create, edit, delete, version conflicts, routes, and mutation contracts remain compiled.
+        - Presentation cannot create option categories or values.
+      definitionIdentity:
+        state: planned
+    - id: system-config-list
+      displayName:
+        zh-CN: 系统配置
+        en-US: System configuration
+      disposition: included
+      eligibility: limited
+      pageKey: system-config.list
+      routePatterns: [/system-config, /system-config/create, /system-config/:id]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/system-config-list.yaml
+      binding: operations.system-configs
+      pageKind: table
+      dataClass: configuration
+      rootOnly: true
+      requiredPermissions: [/system-config]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Configuration content, secret classification, detail, create, edit, delete, import, export, routes, and mutation bodies remain compiled.
+        - Only already-redacted non-sensitive list metadata may enter the presentation definition or preview.
+      definitionIdentity:
+        state: planned
+    - id: online-session-list
+      displayName:
+        zh-CN: 在线会话
+        en-US: Online sessions
+      disposition: included
+      eligibility: limited
+      pageKey: online-session.list
+      routePatterns: [/security, /security/online-sessions]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/online-session-list.yaml
+      binding: session.online-sessions
+      pageKind: table
+      dataClass: security
+      rootOnly: true
+      requiredPermissions: []
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-3
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Root-only access, session identifiers, revocation, current-session safeguards, authentication facts, and API contracts remain compiled.
+        - Raw tokens and credential material never enter definitions, profiles, preview data, diagnostics, or audit output.
+      definitionIdentity:
+        state: planned
+    - id: login-log
+      displayName:
+        zh-CN: 登录日志
+        en-US: Login logs
+      disposition: included
+      eligibility: limited
+      pageKey: log.login
+      routePatterns: [/log]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/log-login.yaml
+      binding: operations.login-logs
+      pageKind: table
+      dataClass: operations
+      rootOnly: false
+      requiredPermissions: [/log]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-4
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Login-log data source, username filter encoding, row scope, redaction, and API contract remain compiled.
+        - Presentation cannot expose credential or authentication payloads.
+      definitionIdentity:
+        state: planned
+    - id: audit-log
+      displayName:
+        zh-CN: 审计日志
+        en-US: Audit logs
+      disposition: included
+      eligibility: limited
+      pageKey: log.audit
+      routePatterns: [/log]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/log-audit.yaml
+      binding: operations.audit-logs
+      pageKind: table
+      dataClass: operations
+      rootOnly: false
+      requiredPermissions: [/log]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-4
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Audit event types, data source, filter encoding, redaction, retention, row scope, and API contract remain compiled.
+        - Request and response bodies, secrets, and unredacted paths never enter presentation data.
+      definitionIdentity:
+        state: planned
+    - id: runtime-log
+      displayName:
+        zh-CN: 运行日志
+        en-US: Runtime logs
+      disposition: included
+      eligibility: limited
+      pageKey: log.runtime
+      routePatterns: [/log]
+      sourceKind: foundation-core
+      targetSourcePath: .mss/core-pages/log-runtime.yaml
+      binding: operations.runtime-logs
+      pageKind: table
+      dataClass: operations
+      rootOnly: false
+      requiredPermissions: [/log]
+      implementationState: planned
+      adoptionState: disabled
+      acceptanceState: pending
+      rolloutWave: wave-4
+      facetPolicy: limited-table
+      protectedCapabilities:
+        - Runtime file discovery, level and time-range encoding, truncation, raw expansion, export, redaction, and permissions remain compiled.
+        - Profiles cannot select arbitrary files, paths, time ranges, export targets, or raw-log sources.
+      definitionIdentity:
+        state: planned
+    - id: workplace
+      displayName:
+        zh-CN: 工作台
+        en-US: Workplace
+      disposition: excluded
+      eligibility: non-management
+      routePatterns: [/workplace]
+      sourceKind: not-applicable
+      pageKind: dashboard
+      dataClass: navigation
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Dashboard cards, monitor queries, and authorized quick links remain compiled in this table-page scope.
+      exclusionReason: The current successor scope covers table-oriented management pages; dashboard composition requires a separately versioned presentation contract.
+    - id: account-pages
+      displayName:
+        zh-CN: 个人中心与个人设置
+        en-US: Account center and settings
+      disposition: excluded
+      eligibility: protected
+      routePatterns: [/account, /account/center, /account/settings]
+      sourceKind: not-applicable
+      pageKind: settings
+      dataClass: identity
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Profile writes, password changes, personal tokens, OAuth bindings, notification settings, and personal theme remain compiled.
+      exclusionReason: Personal identity and security settings are not organizational page-presentation surfaces and cannot be governed by application or role profiles.
+    - id: auth-pages
+      displayName:
+        zh-CN: 登录与身份恢复页面
+        en-US: Authentication and recovery pages
+      disposition: excluded
+      eligibility: protected
+      routePatterns:
+        - /user
+        - /user/login
+        - /user/register
+        - /user/forget
+        - /user/oauth/callback/:provider
+        - /user/*
+      sourceKind: not-applicable
+      pageKind: public
+      dataClass: public
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Login, registration, recovery, OAuth callback, redirect, challenge, and credential behavior remain compiled.
+      exclusionReason: Authentication surfaces must remain stable before a principal exists and cannot depend on authenticated presentation profiles.
+    - id: app-config
+      displayName:
+        zh-CN: 应用配置
+        en-US: Application configuration
+      disposition: excluded
+      eligibility: protected
+      routePatterns: [/app-config]
+      sourceKind: not-applicable
+      pageKind: settings
+      dataClass: configuration
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Security, storage, email, secret lifecycle, admission, and theme-control contracts remain compiled.
+      exclusionReason: Application configuration includes secret-bearing and security-sensitive controls whose availability and order cannot be changed by presentation profiles.
+    - id: presentation-governance
+      displayName:
+        zh-CN: 页面展示配置治理
+        en-US: Presentation governance
+      disposition: excluded
+      eligibility: protected
+      routePatterns: [/presentation-config]
+      sourceKind: not-applicable
+      pageKind: governance
+      dataClass: configuration
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Capability loading, draft editing, publication, history, rollback, recovery, and diagnostics remain compiled.
+      exclusionReason: The governance and recovery control plane must remain usable when every profile is invalid or presentation adoption is disabled.
+    - id: exception-pages
+      displayName:
+        zh-CN: 异常与兜底页面
+        en-US: Exception and fallback pages
+      disposition: excluded
+      eligibility: non-management
+      routePatterns: [/403, /*, /user/*]
+      sourceKind: not-applicable
+      pageKind: exception
+      dataClass: navigation
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Forbidden, not-found, and fallback behavior remains compiled and independent from optional presentation reads.
+      exclusionReason: Exception pages are safety fallbacks rather than management data surfaces.
+    - id: redirects
+      displayName:
+        zh-CN: 重定向路由
+        en-US: Redirect routes
+      disposition: excluded
+      eligibility: non-management
+      routePatterns: [/, /welcome, /analysis, /security]
+      sourceKind: not-applicable
+      pageKind: redirect
+      dataClass: navigation
+      implementationState: excluded
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
+      facetPolicy: none
+      protectedCapabilities:
+        - Redirect targets and routing precedence remain compiled.
+      exclusionReason: Redirect declarations do not render a management page and must never be profile-controlled.
+  routes:
+    - id: core-user-layout
+      path: /user
+      routeKind: layout
+      disposition: excluded
+      pageIDs: [auth-pages]
+      reason: Public authentication layout is protected.
+    - id: core-user-login
+      path: /user/login
+      routeKind: page
+      disposition: excluded
+      pageIDs: [auth-pages]
+      reason: Login is protected.
+    - id: core-user-register
+      path: /user/register
+      routeKind: page
+      disposition: excluded
+      pageIDs: [auth-pages]
+      reason: Registration is protected.
+    - id: core-user-forget
+      path: /user/forget
+      routeKind: page
+      disposition: excluded
+      pageIDs: [auth-pages]
+      reason: Password recovery is protected.
+    - id: core-user-oauth-callback
+      path: /user/oauth/callback/:provider
+      routeKind: page
+      disposition: excluded
+      pageIDs: [auth-pages]
+      reason: OAuth callback behavior is protected.
+    - id: core-user-fallback
+      path: /user/*
+      routeKind: fallback
+      disposition: exception
+      pageIDs: [auth-pages, exception-pages]
+      reason: Authentication subtree not-found fallback is compiled.
+    - id: core-workplace
+      path: /workplace
+      routeKind: page
+      disposition: excluded
+      pageIDs: [workplace]
+      reason: Dashboard is outside the table-page contract.
+    - id: core-welcome-redirect
+      path: /welcome
+      routeKind: redirect
+      disposition: redirect
+      pageIDs: [redirects]
+      reason: Redirects to Workplace.
+    - id: core-analysis-redirect
+      path: /analysis
+      routeKind: redirect
+      disposition: redirect
+      pageIDs: [redirects]
+      reason: Redirects to Workplace.
+    - id: core-users
+      path: /users
+      routeKind: page
+      disposition: included
+      pageIDs: [user-list]
+      reason: Limited user-list presentation applies.
+    - id: core-users-create
+      path: /users/control/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [user-list]
+      reason: Classified with user management; create remains compiled and outside profile control.
+    - id: core-users-edit
+      path: /users/control/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [user-list]
+      reason: Classified with user management; edit remains compiled and outside profile control.
+    - id: core-users-password-reset
+      path: /users/password-reset/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [user-list]
+      reason: Classified with user management; password reset remains protected and compiled.
+    - id: core-role
+      path: /role
+      routeKind: page
+      disposition: included
+      pageIDs: [role-list]
+      reason: Limited role-list presentation target.
+    - id: core-role-create
+      path: /role/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [role-list]
+      reason: Classified with role management; create remains compiled.
+    - id: core-role-edit
+      path: /role/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [role-list]
+      reason: Classified with role management; edit and authorization remain compiled.
+    - id: core-menu
+      path: /menu
+      routeKind: page
+      disposition: included
+      pageIDs: [menu-list]
+      reason: Limited menu-list presentation target.
+    - id: core-menu-create
+      path: /menu/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [menu-list]
+      reason: Classified with menu management; create remains compiled.
+    - id: core-menu-edit
+      path: /menu/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [menu-list]
+      reason: Classified with menu management; edit and API binding remain compiled.
+    - id: core-departments
+      path: /departments
+      routeKind: page
+      disposition: included
+      pageIDs: [department-list]
+      reason: Limited department-list presentation target.
+    - id: core-departments-create
+      path: /departments/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [department-list]
+      reason: Classified with department management; create remains compiled.
+    - id: core-departments-edit
+      path: /departments/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [department-list]
+      reason: Classified with department management; edit remains compiled.
+    - id: core-posts
+      path: /posts
+      routeKind: page
+      disposition: included
+      pageIDs: [post-list]
+      reason: Limited post-list presentation target.
+    - id: core-posts-create
+      path: /posts/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [post-list]
+      reason: Classified with post management; create remains compiled.
+    - id: core-posts-edit
+      path: /posts/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [post-list]
+      reason: Classified with post management; edit remains compiled.
+    - id: core-task
+      path: /task
+      routeKind: page
+      disposition: included
+      pageIDs: [task-list]
+      reason: Limited task-list presentation target.
+    - id: core-task-create
+      path: /task/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [task-list]
+      reason: Classified with task management; create remains compiled.
+    - id: core-task-edit
+      path: /task/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [task-list]
+      reason: Classified with task management; edit and execution remain compiled.
+    - id: core-notice
+      path: /notice
+      routeKind: page
+      disposition: included
+      pageIDs: [notice-list]
+      reason: Limited notice-list presentation target.
+    - id: core-log
+      path: /log
+      routeKind: page
+      disposition: included
+      pageIDs: [login-log, audit-log, runtime-log]
+      reason: One compiled route hosts three independently identified table datasets.
+    - id: core-system-config
+      path: /system-config
+      routeKind: page
+      disposition: included
+      pageIDs: [system-config-list]
+      reason: Limited redacted system-configuration list target.
+    - id: core-system-config-create
+      path: /system-config/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [system-config-list]
+      reason: Classified with system configuration; create remains protected and compiled.
+    - id: core-system-config-edit
+      path: /system-config/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [system-config-list]
+      reason: Classified with system configuration; detail and edit remain protected and compiled.
+    - id: core-app-config
+      path: /app-config
+      routeKind: page
+      disposition: excluded
+      pageIDs: [app-config]
+      reason: Secret-bearing application configuration is protected.
+    - id: core-language
+      path: /language
+      routeKind: page
+      disposition: included
+      pageIDs: [language-list]
+      reason: Limited language-list presentation target.
+    - id: core-language-create
+      path: /language/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [language-list]
+      reason: Classified with language management; create remains compiled.
+    - id: core-language-edit
+      path: /language/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [language-list]
+      reason: Classified with language management; edit remains compiled.
+    - id: core-option
+      path: /option
+      routeKind: page
+      disposition: included
+      pageIDs: [option-list]
+      reason: Limited option-list presentation target.
+    - id: core-option-create
+      path: /option/create
+      routeKind: subroute
+      disposition: included
+      pageIDs: [option-list]
+      reason: Classified with option management; create remains compiled.
+    - id: core-option-edit
+      path: /option/:id
+      routeKind: subroute
+      disposition: included
+      pageIDs: [option-list]
+      reason: Classified with option management; edit remains compiled.
+    - id: core-presentation-config
+      path: /presentation-config
+      routeKind: page
+      disposition: excluded
+      pageIDs: [presentation-governance]
+      reason: Governance and recovery must remain compiled.
+    - id: core-security-layout
+      path: /security
+      routeKind: layout
+      disposition: included
+      pageIDs: [online-session-list]
+      reason: Layout contains the included online-session table.
+    - id: core-security-index
+      path: /security
+      routeKind: redirect
+      disposition: redirect
+      pageIDs: [redirects, online-session-list]
+      reason: Redirects to the included online-session page.
+    - id: core-online-sessions
+      path: /security/online-sessions
+      routeKind: page
+      disposition: included
+      pageIDs: [online-session-list]
+      reason: Limited root-only online-session list target.
+    - id: core-account-layout
+      path: /account
+      routeKind: layout
+      disposition: excluded
+      pageIDs: [account-pages]
+      reason: Personal account settings are protected.
+    - id: core-account-center
+      path: /account/center
+      routeKind: page
+      disposition: excluded
+      pageIDs: [account-pages]
+      reason: Personal identity detail is outside organizational presentation governance.
+    - id: core-account-settings
+      path: /account/settings
+      routeKind: page
+      disposition: excluded
+      pageIDs: [account-pages]
+      reason: Password, token, OAuth, and personal settings are protected.
+    - id: generated-suppliers
+      path: /suppliers
+      routeKind: page
+      disposition: included
+      pageIDs: [supplier-list]
+      reason: Complete generated presentation reference.
+    - id: fallback-forbidden
+      path: /403
+      routeKind: fallback
+      disposition: exception
+      pageIDs: [exception-pages]
+      reason: Forbidden fallback remains compiled.
+    - id: fallback-root-redirect
+      path: /
+      routeKind: redirect
+      disposition: redirect
+      pageIDs: [redirects]
+      reason: Root redirects to Workplace.
+    - id: fallback-not-found
+      path: /*
+      routeKind: fallback
+      disposition: exception
+      pageIDs: [exception-pages]
+      reason: Global not-found fallback remains compiled.

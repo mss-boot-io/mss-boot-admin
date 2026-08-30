@@ -1,0 +1,403 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-presentation-all-management-pages
+  displayName: Runtime presentation for all classified Admin management pages
+  description: >-
+    Extends the completed Supplier and user-list pilots into a closed, machine-classified
+    inventory of every compiled Admin route and a governed runtime-presentation target for every
+    table-oriented management page, while keeping actions, authorization, transport, sensitive
+    subflows, and excluded control planes compiled.
+  owner: admin-platform
+  labels:
+    domain: configuration
+    scope: presentation
+    phase: successor-design-and-implementation-required
+spec:
+  problem: >-
+    The current complete-design branch proves the generated Supplier path and one separately
+    reviewed user-list core-page pilot, but it does not satisfy the product goal that every
+    existing table-oriented Admin management page can be adjusted at runtime. Other compiled
+    routes are not yet classified by one machine contract, most core table pages have no
+    Foundation-owned presentation source or matching Go and TypeScript identity, and their page
+    components do not consume the shared runtime. The governance console must also be proven on
+    fresh and upgraded databases before an operator can configure any page. The successor must
+    close those gaps without turning display data into runtime models, dynamic routes,
+    authorization, transport definitions, executable templates, or mutable action handlers.
+  goals:
+    - Classify one hundred percent of compiled core, generated, redirect, layout, and fallback route declarations.
+    - Register every in-scope table management page with one stable page key and reviewed machine source.
+    - Keep Supplier as the only full list, search, form, detail, and action reference in this scope.
+    - Give every other included page a limited title, list, search, density, and page-size presentation surface.
+    - Generate or otherwise project matching backend and frontend definitions and hashes from one source.
+    - Make every included production page consume the shared bounded presentation runtime.
+    - Preserve backend authorization, row scope, action handlers, routes, API transport, and sensitive workflows unchanged.
+    - Prove fresh-database governance, deterministic fallback, staged adoption, exact-Head browser behavior, and Thin Host compatibility.
+  nonGoals:
+    - Make Workplace dashboards, account pages, authentication pages, application configuration, presentation governance, redirects, or exception pages presentation-configurable.
+    - Make non-Supplier actions, forms, details, mutations, or sensitive subflows editable in this successor scope.
+    - Add runtime entities, virtual CRUD, remote components, plugins, downloaded code, JavaScript, HTML, SQL, templates, expressions, or profile-defined imports.
+    - Let profiles define routes, URLs, HTTP methods, query keys, encoders, permissions, principals, data scope, API selection, or action handlers.
+    - Infer capability definitions by inspecting arbitrary React trees or server responses at runtime.
+    - Activate every page through a wildcard, implicit default, database row, or governance-console mutation.
+    - Treat this specification or a green unit suite as executed exact-Head browser evidence.
+    - Merge, tag, release, publish, or modify an existing public artifact as part of the design contract.
+  actors:
+    - id: admin-user
+      displayName: Admin management-page user
+      description: Uses a compiled management page whose approved display may vary by application, role, and user.
+    - id: presentation-author
+      displayName: Presentation draft author
+      description: Adjusts only the registered display facets exposed for one page.
+    - id: presentation-publisher
+      displayName: Presentation publisher
+      description: Reviews and publishes a current valid draft without gaining business-resource authority.
+    - id: platform-maintainer
+      displayName: Admin platform maintainer
+      description: Owns route classification, core-page sources, generation, registries, adapters, rollout, and validation.
+    - id: security-reviewer
+      displayName: Presentation security reviewer
+      description: Proves that limited presentation cannot expose sensitive data or expand authority.
+    - id: recovery-operator
+      displayName: Presentation recovery operator
+      description: Disables one page or enables global recovery while preserving profiles and history.
+  modules:
+    - name: presentation-page-inventory
+      kind: infrastructure
+      operation: create
+      specPath: .mss/admin-presentation-page-inventory.yaml
+      description: Machine-readable route closure, page classification, capability boundary, rollout, and evidence inventory.
+    - name: foundation-core-presentations
+      kind: infrastructure
+      operation: extend
+      description: One reviewed source and deterministic paired projections for every included handwritten core table page.
+    - name: presentation-runtime
+      kind: infrastructure
+      operation: extend
+      description: Shared optional runtime consumption by every included page while compiled defaults remain authoritative on failure.
+    - name: presentation-governance
+      kind: infrastructure
+      operation: extend
+      description: Fresh and upgraded database capability discovery, editing, publication, history, rollback, and diagnostics.
+    - name: presentation-acceptance
+      kind: infrastructure
+      operation: create
+      description: Route closure, single source, identity parity, runtime use, permission, fallback, browser, and Thin Host gates.
+    - name: supplier
+      kind: admin-module
+      operation: extend
+      specPath: .mss/modules/example-supplier.yaml
+      description: Existing complete presentation reference retained without reducing its configured surfaces.
+  requirements:
+    - id: classify-every-compiled-route
+      title: Close the compiled route inventory
+      description: Every route declaration receives one durable product classification before implementation can be accepted.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-page-inventory
+      rules:
+        - Route sources are exactly the core route package and deterministic generated business route indexes declared by the inventory.
+        - Layout and redirect declarations sharing the same normalized path retain distinct declaration identifiers.
+        - Every page, subroute, layout, redirect, catch-all, forbidden fallback, and not-found fallback has one inventory record.
+        - The generated Umi route configuration and packaged route-registration index are paired projections of one declaration identity and must have the same ordered path set.
+        - New, removed, duplicated, or unclassified compiled route declarations fail CI until the inventory and decision are reviewed together.
+        - Every route references one or more known page-family records and no inventory page refers to an unknown route declaration.
+        - Excluded routes require a durable security or product reason and are not counted as incomplete implementation.
+    - id: register-all-table-pages
+      title: Register every in-scope table management page
+      description: The product target contains the complete reviewed page-key inventory rather than two pilots.
+      priority: must
+      actor: platform-maintainer
+      module: foundation-core-presentations
+      rules:
+        - Included page keys are supplier.list, user.list, role.list, menu.list, department.list, post.list, task.list, notice.list, language.list, option.list, system-config.list, online-session.list, log.login, log.audit, and log.runtime.
+        - Supplier retains full title, list, search, form, detail, action, registered component, layout, sort, pagination, confirmation, and safe-condition presentation.
+        - Every other included page exposes only localized title, safe list columns and labels, list order, visibility and width, safe search fields and labels, search order, visibility and initial collapse, table density, and compiled page-size options.
+        - Forms, details, actions, mutations, privileged dialogs, secret-bearing fields, credential material, executable task facts, audit payloads, session tokens, and configuration content remain outside every limited capability.
+        - Every newly introduced generated business page registers disabled by default and follows the same inventory and acceptance lifecycle.
+    - id: preserve-one-machine-source
+      title: Keep one source for every page definition
+      description: Core and generated pages cannot acquire independent handwritten Go and TypeScript presentation manifests.
+      priority: must
+      actor: platform-maintainer
+      module: foundation-core-presentations
+      rules:
+        - Supplier remains sourced from its AdminModule presentation section.
+        - Every included handwritten page receives one reviewed Foundation source at its inventory targetSourcePath and one closed compiled binding.
+        - Core sources contain presentation defaults only and cannot carry routes, permissions, HTTP facts, handlers, imports, secrets, or executable values.
+        - One normalization and canonical-hash pipeline emits backend definition, frontend definition, manifest snapshot, and deterministic registry entries.
+        - Missing, duplicated, stale, hand-edited, or one-sided outputs fail generation and build qualification.
+        - Thin Hosts consume packaged Foundation core definitions and never copy or regenerate Foundation source files.
+    - id: prove-definition-identity
+      title: Match backend and frontend inventories and hashes
+      description: Every included page has one exact definition identity in the server and browser build.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-acceptance
+      rules:
+        - Backend and frontend inventories contain exactly the same included page-key set and no excluded page key.
+        - Each page key has the same definition version and canonical definition hash on both sides.
+        - Inventory acceptance cannot become passed until both hashes are recorded from generated artifacts on the same exact Head.
+        - Capability responses return cloned serializable definitions only and never expose runtime adapters or mutable registry handles.
+        - An unknown page key, collision, stale projection, or protected-page registration fails closed before listeners or production builds become ready.
+    - id: consume-runtime-on-every-page
+      title: Apply optional runtime presentation on every included page
+      description: Registry presence alone is insufficient; each target page must actually render the resolved presentation model.
+      priority: must
+      actor: admin-user
+      module: presentation-runtime
+      rules:
+        - Every included page calls the shared bounded runtime exactly once per page identity and verified principal context.
+        - Page shell, authorization, and business data loading remain independent from the optional effective-presentation read.
+        - Limited pages consume only declared limited facets; their forms, details, actions, mutations, sensitive dialogs, and handlers remain current compiled code.
+        - No-profile, disabled, shadow, stale, invalid, unavailable, timed-out, cancelled, and recovery paths render semantically equivalent compiled defaults.
+        - An active valid profile becomes visible after a hard refresh without a rebuild, deployment, local-storage mutation, or browser-generated code.
+        - Presentation state is React Query server state only and is not persisted to localStorage, IndexedDB, or a service worker.
+    - id: preserve-permission-and-data-scope
+      title: Keep authorization and data scope invariant
+      description: Runtime display choices can reduce visible controls but can never grant access or select a broader dataset.
+      priority: must
+      actor: security-reviewer
+      module: presentation-runtime
+      rules:
+        - Backend authorization and row-level scope remain authoritative for every data source and mutation.
+        - Required permissions are compiled profile-external facts and are intersected after application, role, and user layers.
+        - The server derives current user and role subjects; the browser cannot request or merge another principal's layers.
+        - Hiding, showing, ordering, relabeling, or resizing a registered field or search control cannot change an endpoint, query encoder, predicate, relation, or submitted value.
+        - Denied data sources return the existing forbidden state and denied actions remain absent even if a stored document references them.
+        - Positive and negative direct API tests accompany browser visibility tests; frontend hiding is never accepted as authorization evidence.
+    - id: fail-safe-to-compiled-defaults
+      title: Make optional presentation fail safe
+      description: Presentation validation, storage, and transport failures must not make a management page unavailable or partially configured.
+      priority: must
+      actor: recovery-operator
+      module: presentation-runtime
+      rules:
+        - Effective reads use the existing bounded timeout and do not retry in a periodic failure loop.
+        - Invalid identity, stale hash, parse failure, semantic failure, database error, timeout, cancellation, or unknown page rejects a complete layer.
+        - Lower valid layers and then complete compiled defaults remain usable without mixing fragments from a rejected layer.
+        - Disabled renders defaults, shadow resolves only for bounded diagnostics, active applies only an exact allowlist, and recovery overrides all adoption.
+        - Logs, diagnostics, metrics, and audit contain bounded identifiers and outcome codes but no profile text, subject identifiers, business rows, credentials, task payloads, configuration content, or raw logs.
+    - id: keep-governance-operable
+      title: Qualify governance on fresh and upgraded databases
+      description: Operators cannot configure the fleet if capability discovery, profile listing, editing, or publication fails at the control-plane entry point.
+      priority: must
+      actor: presentation-author
+      module: presentation-governance
+      rules:
+        - A fresh migrated database and a supported upgraded database both open the governance console without a load-failed state.
+        - Capability and profile responses parse on an empty profile store and expose the complete registered inventory with explicit empty state.
+        - Capability or profile loading performs bounded retries only and cannot create a repeated request storm.
+        - Draft save, visual and raw round-trip, semantic navigation, publish, history, conflict preservation, rollback, and inheritance reset remain usable.
+        - Governance and recovery remain compiled, excluded from the presentation registry, and usable while adoption is disabled or recovery mode is active.
+        - Draft, publish, and rollback permissions remain independent from management-page read or mutation permissions.
+    - id: qualify-exact-head-browser
+      title: Accept every page in the built-in browser
+      description: Product completion requires observable runtime behavior on the final unchanged Head, not source inspection alone.
+      priority: must
+      actor: platform-maintainer
+      module: presentation-acceptance
+      rules:
+        - Acceptance starts and ends by recording the remote pull-request Head SHA; a changed Head invalidates the complete browser record.
+        - Codex built-in Browser opens the real local Admin, navigates by menu and direct route, refreshes every included page, and records critical screenshots.
+        - Each page proves compiled default, published application profile, role and user precedence where applicable, rollback, failure fallback, and exact allowlist behavior.
+        - Browser acceptance covers desktop and mobile widths, zh-CN and en-US, loading, empty, retryable error, forbidden, conflict where applicable, keyboard focus, and visible content.
+        - Console errors, deprecation warnings, failed network requests, repeated retries, and unexpected request-shape changes are inspected and recorded.
+        - Screenshots, console review, request review, exact Head, adoption mode, and page-key matrix are one evidence bundle stored outside the repository unless the repository defines a sanitized report path.
+  constraints:
+    - id: data-only-profiles
+      type: security
+      statement: Stored profiles remain strict data-only overlays and can never contain executable code, markup, SQL, transport, imports, handlers, permissions, principals, or component implementations.
+    - id: exact-page-identity
+      type: compatibility
+      statement: Every layer binds to one stable page key, definition version, and exact canonical hash from the current compiled application.
+    - id: authorization-last
+      type: security
+      statement: Trusted backend permission requirements and row scope are immutable profile-external facts and are applied after every presentation layer.
+    - id: whole-layer-rejection
+      type: compatibility
+      statement: A stale, invalid, corrupt, unavailable, or incompatible layer is rejected as one unit without partially changing a page.
+    - id: governance-independent
+      type: operations
+      statement: Presentation governance, recovery, authentication, application configuration, account security, redirects, and exception pages never depend on optional presentation resolution.
+    - id: no-wildcard-activation
+      type: security
+      statement: Production activation uses exact reviewed page keys only; wildcard, empty-means-all, database-controlled, and newly-generated automatic activation are prohibited.
+    - id: route-inventory-authority
+      type: compatibility
+      statement: The machine route inventory is validated against compiled route declarations and cannot be replaced by a manually maintained prose checklist.
+    - id: evidence-is-executed
+      type: operations
+      statement: Planned commands, path references, and this FeatureSpec are requirements only; they become evidence solely when executed and recorded against one unchanged exact Head.
+  acceptance:
+    - id: page-inventory-schema-gate
+      requirement: classify-every-compiled-route
+      statement: The page inventory validates against its strict schema with unique page, route, page-key, and declaration identities and no dangling references.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/admin-presentation-page-inventory.yaml
+        - type: path
+          value: .mss/schemas/admin-presentation-page-inventory.schema.json
+        - type: test
+          value: internal/mss/spec Admin presentation page-inventory schema and semantic suites
+    - id: compiled-route-closure-gate
+      requirement: classify-every-compiled-route
+      statement: A deterministic test compares every compiled declaration from all inventory route sources, proves paired generated route projections agree, and fails on any missing, extra, duplicate, or reclassified route.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 core and generated route-to-presentation inventory closure suite
+    - id: complete-page-key-set-gate
+      requirement: register-all-table-pages
+      statement: The inventory contains exactly the approved fifteen included page keys, Supplier alone uses the full-table facet policy, and every other included page uses the limited-table policy.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: path
+          value: .mss/admin-presentation-page-inventory.yaml
+        - type: test
+          value: Admin presentation page-inventory semantic and facet-policy suite
+    - id: all-page-source-gate
+      requirement: preserve-one-machine-source
+      statement: Every included page has exactly one reviewed source and the generator rejects handwritten, missing, stale, duplicated, or one-sided projections.
+      level: contract
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: internal/mss/spec and internal/mss/generator all-management-page presentation suites
+    - id: all-page-registry-hash-gate
+      requirement: prove-definition-identity
+      statement: Backend and frontend inventories contain exactly all fifteen included page keys with equal versions and hashes and contain no excluded page.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: Admin backend and Ant Design frontend presentation registry parity suites
+    - id: runtime-consumer-gate
+      requirement: consume-runtime-on-every-page
+      statement: Static and behavioral tests prove every included page consumes its registered definition and resolved model while every excluded page remains independent.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6 all-management-page runtime-consumption and compiled-default parity suites
+    - id: permission-invariance-gate
+      requirement: preserve-permission-and-data-scope
+      statement: Positive and negative backend tests plus browser checks prove profiles do not expand page access, row scope, sensitive data, or actions.
+      level: security
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: Admin direct API authorization and row-scope matrix for every included page
+        - type: test
+          value: Ant Design denied-data-source and denied-action presentation suites
+    - id: fallback-recovery-gate
+      requirement: fail-safe-to-compiled-defaults
+      statement: Disabled, shadow, not-allowlisted, stale, invalid, timeout, cancellation, store failure, active, and recovery tests prove whole-layer fallback without page outage or retry storms.
+      level: integration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: Admin effective-layer and Ant Design runtime fallback matrix
+    - id: fresh-database-governance-gate
+      requirement: keep-governance-operable
+      statement: Fresh and upgrade-path databases open the governance console, list capabilities and empty profiles, and complete draft, publish, history, conflict, rollback, and inheritance workflows.
+      level: migration
+      phase: checkpoint
+      required: true
+      evidence:
+        - type: test
+          value: Admin presentation migration and fresh-store API integration suites
+        - type: manual
+          value: Pending built-in Browser governance-console evidence on fresh and upgraded local databases.
+    - id: exact-head-browser-matrix-gate
+      requirement: qualify-exact-head-browser
+      statement: One final unchanged remote Head has built-in Browser screenshots, refresh, visible-result, console, failed-request, responsive, locale, permission, fallback, and rollback evidence for every included page.
+      level: e2e
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: manual
+          value: Pending Codex built-in Browser all-management-page acceptance bundle tied to the final remote pull-request Head.
+    - id: thin-host-all-page-gate
+      requirement: preserve-one-machine-source
+      statement: A clean external Thin Host consumes packaged core definitions and generated business definitions, preserves owned files, and passes build and representative browser behavior without copied Foundation sources.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: Repository-external Admin Distribution compatibility workflow for the final exact Head.
+    - id: successor-contract-validation
+      requirement: classify-every-compiled-route
+      statement: The successor FeatureSpec validates, the documentation site builds, and changed-scope then full verification pass without tracked-file drift.
+      level: integration
+      phase: feature-freeze
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/admin-presentation-all-management-pages.yaml --format json
+        - type: command
+          value: corepack pnpm@9.15.9 --dir docs build
+        - type: command
+          value: go run ./cmd/mss verify --changed
+        - type: command
+          value: go run ./cmd/mss verify --all
+  risks:
+    - id: scope-claim-exceeds-runtime
+      description: A complete route checklist could be mistaken for proof that every page actually consumes presentation.
+      severity: high
+      mitigation: Separate classification, generated identity, runtime-consumer, adoption, and browser acceptance states and require all of them before completion.
+    - id: protected-page-expansion
+      description: Pressure for all-page flexibility could expose role authorization, menu API binding, task execution, configuration content, session revocation, or log payloads.
+      severity: critical
+      mitigation: Use limited page definitions with explicit protected capabilities and direct negative security tests for every sensitive page family.
+    - id: many-page-failure-blast-radius
+      description: Activating many pages together could obscure regressions and make rollback operationally expensive.
+      severity: high
+      mitigation: Default every page to disabled, qualify isolated shadow, activate exact page keys one at a time, and retain global recovery precedence.
+    - id: route-inventory-drift
+      description: New core or generated routes may ship without a product decision or presentation classification.
+      severity: high
+      mitigation: Compare compiled route declaration identities with the inventory in CI and fail every unclassified addition or stale record.
+    - id: governance-entry-point-fails
+      description: A schema or transport mismatch could make the configuration console unusable even while capability APIs return successful HTTP status codes.
+      severity: high
+      mitigation: Qualify raw response parsing, fresh and upgraded databases, bounded retry behavior, visible empty state, console, and request traces before page rollout.
+    - id: cross-language-definition-drift
+      description: Independent backend and frontend page definitions could validate and render the same profile differently.
+      severity: critical
+      mitigation: Generate both projections from one source, embed one canonical hash, and fail registry parity and Thin Host gates on any mismatch.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - go run ./cmd/mss spec validate .mss/features/admin-presentation-all-management-pages.yaml --format json
+      - corepack pnpm@9.15.9 --dir docs build
+  rollout:
+    strategy: phased
+    migration: >-
+      Wave 0 freezes and validates route classification and makes fresh or upgraded governance
+      reliable. Wave 1 requalifies Supplier and user.list. Wave 2 adds department, post, language,
+      and option. Wave 3 adds limited role, menu, task, notice, system-config, and online-session
+      pages with dedicated security tests. Wave 4 adds three independent log page keys on the
+      existing compiled route. Wave 5 advances each accepted page from disabled through isolated
+      shadow to exact allowlisted active. No wave implicitly activates another page, and every
+      generated future page starts disabled.
+    rollback: >-
+      Remove only the affected exact page key from activePages to restore compiled defaults while
+      retaining profiles and immutable history. If several pages or the governance store are
+      suspect, enable startup recovery mode, verify compiled behavior, then repair through a
+      follow-up pull request. Never delete history, rewrite a pushed branch, reinterpret a stale
+      hash, or activate a page through a database mutation.

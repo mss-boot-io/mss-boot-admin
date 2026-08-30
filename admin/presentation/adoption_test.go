@@ -1,10 +1,27 @@
 package presentation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestAdoptionPolicyActivePagesSerializesEmptyCollectionAsArray(t *testing.T) {
+	registry := MustNewRegistry(validCapability(t))
+	policy, err := NewAdoptionPolicy(AdoptionDisabled, nil, false, registry)
+	require.NoError(t, err)
+
+	activePages := policy.ActivePages()
+	require.NotNil(t, activePages)
+	require.Empty(t, activePages)
+
+	raw, err := json.Marshal(struct {
+		ActivePages []string `json:"activePages"`
+	}{ActivePages: activePages})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"activePages":[]}`, string(raw))
+}
 
 func TestAdoptionPolicySnapshotsModesAllowlistAndRecovery(t *testing.T) {
 	capability := validCapability(t)

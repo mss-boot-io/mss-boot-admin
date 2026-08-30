@@ -15,10 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	CorePagePresentationKind = "AdminCorePagePresentation"
-	userListCoreBindingID    = "administration.users"
-)
+const CorePagePresentationKind = "AdminCorePagePresentation"
 
 // CorePagePresentation is the strict, Foundation-only source for a handwritten
 // core page. Authority, transport and renderer implementations are absent from
@@ -73,7 +70,8 @@ type corePagePresentationBinding struct {
 	PageSizeOptions     []int
 	MaxPageSize         int
 	MaxSortFields       int
-	ListFields          []corePagePresentationFieldBinding
+	Fields              []corePagePresentationFieldBinding
+	ListFields          []string
 	SearchFields        []string
 }
 
@@ -91,60 +89,6 @@ type corePagePresentationFieldBinding struct {
 	ListWidth       int
 	EnumValues      []NormalizedPresentationEnumValue
 	Validation      NormalizedPresentationValidation
-}
-
-var foundationCorePagePresentationBindings = map[string]corePagePresentationBinding{
-	userListCoreBindingID: {
-		ID:                  userListCoreBindingID,
-		PageKey:             "user.list",
-		DataSourceID:        "user.list",
-		RequiredPermissions: []string{"/users"},
-		PageSizeOptions:     []int{20, 50, 100},
-		MaxPageSize:         100,
-		MaxSortFields:       0,
-		SearchFields:        []string{"name", "status"},
-		ListFields: []corePagePresentationFieldBinding{
-			{
-				ID: "username", Label: corePresentationText("账号", "Account"),
-				ValueType: "string", Format: "identifier", Required: true,
-				ListComponent: "user-identity", ListWidth: 210,
-			},
-			{
-				ID: "name", Label: corePresentationText("姓名", "Name"),
-				ValueType: "string", Format: "plain", Nullable: true, Searchable: true,
-				ListComponent: "text", SearchComponent: "input",
-			},
-			{
-				ID: "email", Label: corePresentationText("邮箱", "Email"),
-				ValueType: "string", Format: "email", Nullable: true,
-				ListComponent: "text",
-			},
-			{
-				ID: "roleName", Label: corePresentationText("角色", "Role"),
-				ValueType: "string", Format: "plain", Nullable: true,
-				ListComponent: "user-role", ListWidth: 150,
-			},
-			{
-				ID: "organization", Label: corePresentationText("组织", "Organization"),
-				ValueType: "string", Format: "plain", Nullable: true,
-				ListComponent: "user-organization",
-			},
-			{
-				ID: "status", Label: corePresentationText("状态", "Status"),
-				ValueType: "enum", Format: "plain", Required: true, Filterable: true,
-				ListComponent: "status-tag", SearchComponent: "status-filter", ListWidth: 120,
-				EnumValues: []NormalizedPresentationEnumValue{
-					{Value: "disabled", Label: corePresentationText("禁用", "Disabled"), Color: "red"},
-					{Value: "enabled", Label: corePresentationText("启用", "Enabled"), Color: "green"},
-					{Value: "locked", Label: corePresentationText("锁定", "Locked"), Color: "orange"},
-				},
-			},
-		},
-	},
-}
-
-func corePresentationText(zhCN, enUS string) PresentationLocalizedText {
-	return PresentationLocalizedText{ZhCN: zhCN, EnUS: enUS}
 }
 
 // ParseCorePagePresentation strictly decodes and validates one Foundation core
@@ -326,17 +270,22 @@ func (d *CorePagePresentation) NormalizePresentation() (*NormalizedPresentationM
 		return nil, &ValidationError{Issues: issues}
 	}
 	binding := foundationCorePagePresentationBindings[d.Spec.Binding]
-	fields := make([]NormalizedPresentationField, 0, len(binding.ListFields))
+	fields := make([]NormalizedPresentationField, 0, len(binding.Fields))
 	list := make([]NormalizedCompleteField, 0, len(binding.ListFields))
 	search := make([]NormalizedCompleteField, 0, len(binding.SearchFields))
 	componentSet := map[string]bool{}
-	fieldByID := make(map[string]corePagePresentationFieldBinding, len(binding.ListFields))
-	for index, field := range binding.ListFields {
+	fieldByID := make(map[string]corePagePresentationFieldBinding, len(binding.Fields))
+	for _, field := range binding.Fields {
 		fieldByID[field.ID] = field
-		surfaces := []string{"list"}
-		surfaceComponents := []NormalizedPresentationSurfaceComponents{{Surface: "list", Components: []string{field.ListComponent}}}
-		components := []string{field.ListComponent}
-		componentSet[field.ListComponent] = true
+		surfaces := make([]string, 0, 2)
+		surfaceComponents := make([]NormalizedPresentationSurfaceComponents, 0, 2)
+		components := make([]string, 0, 2)
+		if field.ListComponent != "" {
+			surfaces = append(surfaces, "list")
+			surfaceComponents = append(surfaceComponents, NormalizedPresentationSurfaceComponents{Surface: "list", Components: []string{field.ListComponent}})
+			components = append(components, field.ListComponent)
+			componentSet[field.ListComponent] = true
+		}
 		if field.SearchComponent != "" {
 			surfaces = append(surfaces, "search")
 			surfaceComponents = append(surfaceComponents, NormalizedPresentationSurfaceComponents{Surface: "search", Components: []string{field.SearchComponent}})
@@ -352,6 +301,9 @@ func (d *CorePagePresentation) NormalizePresentation() (*NormalizedPresentationM
 			Surfaces: surfaces, Components: components, SurfaceComponents: surfaceComponents,
 			EnumValues: enumValues, Validation: field.Validation,
 		})
+	}
+	for index, fieldID := range binding.ListFields {
+		field := fieldByID[fieldID]
 		var width *int
 		if field.ListWidth > 0 {
 			value := field.ListWidth

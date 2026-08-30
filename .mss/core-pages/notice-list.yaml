@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: notice-list
+spec:
+  binding: operations.notices
+  pageKey: notice.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 通知中心
+    en-US: Notices
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [title, type, status]
+  form: []
+  detail: []
+  actions: []

@@ -116,7 +116,9 @@ func (policy AdoptionPolicy) Mode() AdoptionMode {
 func (policy AdoptionPolicy) RecoveryEnabled() bool { return policy.recovery }
 
 func (policy AdoptionPolicy) ActivePages() []string {
-	return append([]string(nil), policy.pages...)
+	activePages := make([]string, len(policy.pages))
+	copy(activePages, policy.pages)
+	return activePages
 }
 
 func (policy AdoptionPolicy) Decide(pageKey string) AdoptionDecision {

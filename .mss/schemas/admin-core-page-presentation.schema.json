@@ -51,13 +51,13 @@
       "properties": {
         "fields": {
           "type": "array",
-          "prefixItems": [
-            {"const": "name"},
-            {"const": "status"}
-          ],
-          "items": false,
-          "minItems": 2,
-          "maxItems": 2
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9]*$",
+            "maxLength": 120
+          },
+          "maxItems": 16,
+          "uniqueItems": true
         }
       }
     },
@@ -65,9 +65,28 @@
       "type": "array",
       "maxItems": 0
     },
+    "bindingIdentity": {
+      "oneOf": [
+        {"properties": {"binding": {"const": "administration.users"}, "pageKey": {"const": "user.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "administration.roles"}, "pageKey": {"const": "role.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "administration.menus"}, "pageKey": {"const": "menu.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "administration.departments"}, "pageKey": {"const": "department.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "administration.posts"}, "pageKey": {"const": "post.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.tasks"}, "pageKey": {"const": "task.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.notices"}, "pageKey": {"const": "notice.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "language.languages"}, "pageKey": {"const": "language.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "option.options"}, "pageKey": {"const": "option.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.system-configs"}, "pageKey": {"const": "system-config.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "session.online-sessions"}, "pageKey": {"const": "online-session.list"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.login-logs"}, "pageKey": {"const": "log.login"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.audit-logs"}, "pageKey": {"const": "log.audit"}}, "required": ["binding", "pageKey"]},
+        {"properties": {"binding": {"const": "operations.runtime-logs"}, "pageKey": {"const": "log.runtime"}}, "required": ["binding", "pageKey"]}
+      ]
+    },
     "spec": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/bindingIdentity"}],
       "required": [
         "binding",
         "pageKey",
@@ -80,8 +99,44 @@
         "actions"
       ],
       "properties": {
-        "binding": {"const": "administration.users"},
-        "pageKey": {"const": "user.list"},
+        "binding": {
+          "type": "string",
+          "enum": [
+            "administration.users",
+            "administration.roles",
+            "administration.menus",
+            "administration.departments",
+            "administration.posts",
+            "operations.tasks",
+            "operations.notices",
+            "language.languages",
+            "option.options",
+            "operations.system-configs",
+            "session.online-sessions",
+            "operations.login-logs",
+            "operations.audit-logs",
+            "operations.runtime-logs"
+          ]
+        },
+        "pageKey": {
+          "type": "string",
+          "enum": [
+            "user.list",
+            "role.list",
+            "menu.list",
+            "department.list",
+            "post.list",
+            "task.list",
+            "notice.list",
+            "language.list",
+            "option.list",
+            "system-config.list",
+            "online-session.list",
+            "log.login",
+            "log.audit",
+            "log.runtime"
+          ]
+        },
         "definitionVersion": {"const": "2"},
         "title": {"$ref": "#/$defs/localizedText"},
         "list": {"$ref": "#/$defs/list"},

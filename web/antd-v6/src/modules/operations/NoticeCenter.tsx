@@ -10,6 +10,12 @@ import {
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
 import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl, useSearchParams } from '@umijs/max';
@@ -42,9 +48,15 @@ import {
   OPERATIONS_PAGE_SIZES,
 } from './contract';
 import { useNotice, useNoticePage } from './query';
+import {
+  noticePresentationListComponents,
+  noticePresentationMobileFields,
+  noticePresentationSearchComponents,
+} from './tablePresentation';
 
 interface NoticeCenterProps {
   canMarkRead: boolean;
+  presentationRuntime: PagePresentationRuntime;
 }
 
 interface NoticeFilterValues {
@@ -59,7 +71,7 @@ function isNoticeType(value: string | null): value is NoticeType {
   return noticeTypes.some((candidate) => candidate === value);
 }
 
-export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
+export default function NoticeCenter({ canMarkRead, presentationRuntime }: NoticeCenterProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -69,12 +81,17 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   const routeType: NoticeType | 'all' = isNoticeType(requestedType) ? requestedType : 'all';
   const initialParams: NoticeListParams = {
     current: 1,
-    pageSize: 20,
+    pageSize: isOperationsPageSize(presentationRuntime.model.list.pageSize)
+      ? presentationRuntime.model.list.pageSize
+      : 20,
     status: 'all',
     type: routeType,
   };
   const [form] = Form.useForm<NoticeFilterValues>();
-  const [params, setParams] = useState<NoticeListParams>(initialParams);
+  const [params, setParams] = usePresentationPageParams(initialParams, initialParams.pageSize);
+  const searchPresentation = usePresentationSearchExpansion(
+    presentationRuntime.model.search.collapsedByDefault,
+  );
   const [detailID, setDetailID] = useState<string>();
   const notices = useNoticePage(params);
   const detail = useNotice(detailID);
@@ -92,11 +109,11 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
   });
 
   useEffect(() => {
-    setParams((current) =>
-      current.type === routeType ? current : { ...current, current: 1, type: routeType },
-    );
+    if (params.type !== routeType) {
+      setParams((current) => ({ ...current, current: 1, type: routeType }));
+    }
     if (isFilterFormMounted) form.setFieldValue('type', routeType);
-  }, [form, isFilterFormMounted, routeType]);
+  }, [form, isFilterFormMounted, params.type, routeType, setParams]);
 
   const formatDate = (value?: string) =>
     value
@@ -106,7 +123,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
         }).format(new Date(value))
       : '—';
 
-  const columns: TableColumnsType<NoticeSummary> = [
+  const compiledColumns: TableColumnsType<NoticeSummary> = [
     {
       title: intl.formatMessage({ id: 'notice.field.title' }),
       dataIndex: 'title',
@@ -187,6 +204,19 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
       ),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: 20,
+    isPageSize: isOperationsPageSize,
+    listComponents: noticePresentationListComponents,
+    mobileColumnKeys: [...noticePresentationMobileFields, 'actions'],
+    model: presentationRuntime.model,
+    protectedColumnKeys: ['actions'],
+    searchComponents: noticePresentationSearchComponents,
+  });
+  const titleSearch = tablePresentation.searchFields.get('title');
+  const typeSearch = tablePresentation.searchFields.get('type');
+  const statusSearch = tablePresentation.searchFields.get('status');
 
   if (listStatus === 403) {
     return <PageForbidden message={intl.formatMessage({ id: 'notice.forbidden.read' })} />;
@@ -237,47 +267,63 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
         }
       >
         <Row align="bottom" gutter={16}>
-          <Col xs={24} sm={12} lg={7}>
-            <Form.Item name="title" label={intl.formatMessage({ id: 'notice.field.title' })}>
-              <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={12} sm={6} lg={4}>
-            <Form.Item name="type" label={intl.formatMessage({ id: 'notice.field.type' })}>
-              <Select
-                options={(['all', ...noticeTypes] as const).map((value) => ({
-                  value,
-                  label: intl.formatMessage({ id: `notice.type.${value}` }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={12} sm={6} lg={4}>
-            <Form.Item name="status" label={intl.formatMessage({ id: 'notice.field.status' })}>
-              <Select
-                options={(['all', 'urgent', 'doing', 'processing', 'todo'] as const).map(
-                  (value) => ({
+          {searchPresentation.expanded && titleSearch ? (
+            <Col xs={24} sm={12} lg={7} style={{ order: titleSearch.order }}>
+              <Form.Item name="title" label={titleSearch.label} extra={titleSearch.help}>
+                <Input allowClear maxLength={255} placeholder={titleSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && typeSearch ? (
+            <Col xs={12} sm={6} lg={4} style={{ order: typeSearch.order }}>
+              <Form.Item name="type" label={typeSearch.label} extra={typeSearch.help}>
+                <Select
+                  placeholder={typeSearch.placeholder}
+                  options={(['all', ...noticeTypes] as const).map((value) => ({
                     value,
-                    label: intl.formatMessage({ id: `notice.status.${value}` }),
-                  }),
-                )}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={9}>
+                    label: intl.formatMessage({ id: `notice.type.${value}` }),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && statusSearch ? (
+            <Col xs={12} sm={6} lg={4} style={{ order: statusSearch.order }}>
+              <Form.Item name="status" label={statusSearch.label} extra={statusSearch.help}>
+                <Select
+                  placeholder={statusSearch.placeholder}
+                  options={(['all', 'urgent', 'doing', 'processing', 'todo'] as const).map(
+                    (value) => ({
+                      value,
+                      label: intl.formatMessage({ id: `notice.status.${value}` }),
+                    }),
+                  )}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} lg={9} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields();
-                    setParams(initialParams);
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        form.resetFields();
+                        setParams({ ...initialParams, pageSize: tablePresentation.pageSize });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={notices.isFetching}
@@ -300,7 +346,7 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
         </Row>
       </Form>
       <ResponsiveEntityTable<NoticeSummary>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={notices.data?.data ?? []}
         loading={notices.isFetching}
         locale={{
@@ -319,9 +365,10 @@ export default function NoticeCenter({ canMarkRead }: NoticeCenterProps) {
               pageSize: isOperationsPageSize(pageSize) ? pageSize : previous.pageSize,
             })),
         }}
-        mobileColumnKeys={['title', 'type', 'status', 'description', 'sentAt', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         rowKey="id"
         scroll={{ x: 880 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <Drawer
         destroyOnHidden

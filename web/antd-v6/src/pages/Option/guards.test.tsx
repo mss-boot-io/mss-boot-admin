@@ -1,6 +1,6 @@
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { render, screen } from '@testing-library/react';
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CreateOptionPage from './Create';
 import EditOptionPage from './Edit';
@@ -10,15 +10,27 @@ const runtime = vi.hoisted(() => ({
   initialState: undefined as InitialState | undefined,
   routeID: 'option-1',
 }));
+const presentation = vi.hoisted(() => ({
+  usePagePresentation: vi.fn(() => ({ model: { title: 'Configured options' } })),
+}));
 
 vi.mock('@umijs/max', () => ({
-  useIntl: () => ({ formatMessage: ({ id }: { id: string }) => id }),
+  useIntl: () => ({ locale: 'en-US', formatMessage: ({ id }: { id: string }) => id }),
   useModel: () => ({ initialState: runtime.initialState }),
   useParams: () => ({ id: runtime.routeID }),
 }));
 
 vi.mock('@ant-design/pro-components', () => ({
-  PageContainer: ({ children }: PropsWithChildren) => <main>{children}</main>,
+  PageContainer: ({ children, title }: PropsWithChildren<{ title?: ReactNode }>) => (
+    <main>
+      {title}
+      {children}
+    </main>
+  ),
+}));
+
+vi.mock('@mss-admin-core/shared/presentation/runtime', () => ({
+  usePagePresentation: presentation.usePagePresentation,
 }));
 
 vi.mock('@mss-admin-core/modules/option/OptionListView', () => ({
@@ -47,6 +59,7 @@ describe('option route guards', () => {
   beforeEach(() => {
     runtime.initialState = undefined;
     runtime.routeID = 'option-1';
+    presentation.usePagePresentation.mockClear();
   });
 
   it('fails closed before identity bootstrap and without read permission', () => {
@@ -66,6 +79,13 @@ describe('option route guards', () => {
     });
     render(<OptionPage />);
     expect(screen.getByText('list:true:false:true')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Configured options' })).toBeTruthy();
+    expect(presentation.usePagePresentation).toHaveBeenCalledWith(
+      expect.objectContaining({ definition: expect.objectContaining({ pageKey: 'option.list' }) }),
+      'en-US',
+      runtime.initialState?.currentUser,
+      runtime.initialState?.authorizationVersion,
+    );
   });
 
   it('guards create and edit independently while root remains authoritative', () => {

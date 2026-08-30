@@ -8,6 +8,12 @@ import {
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
 import ResponsiveEntityTable from '@mss-admin-core/shared/design-system/ResponsiveEntityTable';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+  usePresentationSearchExpansion,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryClient, queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -39,6 +45,11 @@ import {
 import { sessionDeviceSummary } from './device';
 import { useOnlineSessionPage } from './query';
 import SessionDetailDrawer from './SessionDetailDrawer';
+import {
+  onlineSessionPresentationListComponents,
+  onlineSessionPresentationMobileFields,
+  onlineSessionPresentationSearchComponents,
+} from './tablePresentation';
 
 interface SessionFilterValues {
   ip?: string;
@@ -65,11 +76,20 @@ function statusColor(status: ReturnType<typeof getOnlineSessionStatus>): string 
   return 'default';
 }
 
-export default function OnlineSessionsView() {
+export default function OnlineSessionsView({
+  presentationRuntime,
+}: {
+  presentationRuntime: PagePresentationRuntime;
+}) {
   const intl = useIntl();
   const { message } = App.useApp();
   const [form] = Form.useForm<SessionFilterValues>();
-  const [params, setParams] = useState<OnlineSessionListParams>(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isOnlineSessionPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
+  const searchPresentation = usePresentationSearchExpansion(presentation.search.collapsedByDefault);
   const [detailID, setDetailID] = useState<string>();
   const sessions = useOnlineSessionPage(params);
   const revoke = useMutation({
@@ -173,7 +193,7 @@ export default function OnlineSessionsView() {
     );
   };
 
-  const columns: TableColumnsType<OnlineSession> = [
+  const compiledColumns: TableColumnsType<OnlineSession> = [
     {
       title: intl.formatMessage({ id: 'sessions.field.username' }),
       dataIndex: 'username',
@@ -222,6 +242,19 @@ export default function OnlineSessionsView() {
       render: (_, row) => renderActions(row),
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isOnlineSessionPageSize,
+    listComponents: onlineSessionPresentationListComponents,
+    mobileColumnKeys: [...onlineSessionPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: onlineSessionPresentationSearchComponents,
+  });
+  const usernameSearch = tablePresentation.searchFields.get('username');
+  const ipSearch = tablePresentation.searchFields.get('ip');
+  const statusSearch = tablePresentation.searchFields.get('status');
 
   if (sessions.isPending && !sessions.data) return <PageLoading rows={9} />;
   if (sessions.isError && (listStatus === 401 || !sessions.data)) {
@@ -270,43 +303,55 @@ export default function OnlineSessionsView() {
         }
       >
         <Row gutter={16} align="bottom">
-          <Col xs={24} sm={12} lg={5}>
-            <Form.Item
-              name="username"
-              label={intl.formatMessage({ id: 'sessions.field.username' })}
-            >
-              <Input allowClear maxLength={255} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Form.Item name="ip" label={intl.formatMessage({ id: 'sessions.field.ip' })}>
-              <Input allowClear maxLength={64} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12} lg={4}>
-            <Form.Item name="status" label={intl.formatMessage({ id: 'sessions.field.status' })}>
-              <Select
-                options={(['active', 'revoked', 'expired', 'all'] as const).map((value) => ({
-                  value,
-                  label: intl.formatMessage({ id: `sessions.status.${value}` }),
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} lg={6}>
+          {searchPresentation.expanded && usernameSearch ? (
+            <Col xs={24} sm={12} lg={5} style={{ order: usernameSearch.order }}>
+              <Form.Item name="username" label={usernameSearch.label} extra={usernameSearch.help}>
+                <Input allowClear maxLength={255} placeholder={usernameSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && ipSearch ? (
+            <Col xs={24} sm={12} lg={4} style={{ order: ipSearch.order }}>
+              <Form.Item name="ip" label={ipSearch.label} extra={ipSearch.help}>
+                <Input allowClear maxLength={64} placeholder={ipSearch.placeholder} />
+              </Form.Item>
+            </Col>
+          ) : null}
+          {searchPresentation.expanded && statusSearch ? (
+            <Col xs={24} sm={12} lg={4} style={{ order: statusSearch.order }}>
+              <Form.Item name="status" label={statusSearch.label} extra={statusSearch.help}>
+                <Select
+                  placeholder={statusSearch.placeholder}
+                  options={(['active', 'revoked', 'expired', 'all'] as const).map((value) => ({
+                    value,
+                    label: intl.formatMessage({ id: `sessions.status.${value}` }),
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          ) : null}
+          <Col xs={24} lg={6} style={{ order: 10_000 }}>
             <Form.Item>
               <Space wrap>
-                <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
-                  {intl.formatMessage({ id: 'actions.search' })}
-                </Button>
-                <Button
-                  onClick={() => {
-                    form.resetFields();
-                    setParams(initialParams);
-                  }}
-                >
-                  {intl.formatMessage({ id: 'actions.reset' })}
-                </Button>
+                {searchPresentation.expanded ? (
+                  <>
+                    <Button htmlType="submit" icon={<SearchOutlined />} type="primary">
+                      {intl.formatMessage({ id: 'actions.search' })}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        form.resetFields();
+                        setParams({ ...initialParams, pageSize: tablePresentation.pageSize });
+                      }}
+                    >
+                      {intl.formatMessage({ id: 'actions.reset' })}
+                    </Button>
+                  </>
+                ) : (
+                  <Button icon={<SearchOutlined />} onClick={searchPresentation.expand}>
+                    {intl.formatMessage({ id: 'actions.search' })}
+                  </Button>
+                )}
                 <Button
                   icon={<ReloadOutlined />}
                   loading={sessions.isFetching}
@@ -320,13 +365,13 @@ export default function OnlineSessionsView() {
         </Row>
       </Form>
       <ResponsiveEntityTable<OnlineSession>
-        columns={columns}
+        columns={tablePresentation.columns}
         dataSource={sessions.data?.data ?? []}
         loading={sessions.isFetching}
         locale={{
           emptyText: <PageEmpty description={intl.formatMessage({ id: 'sessions.empty' })} />,
         }}
-        mobileColumnKeys={['username', 'ip', 'lastSeenAt', 'status', 'actions']}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         pagination={{
           current: params.current,
           pageSize: params.pageSize,
@@ -342,6 +387,7 @@ export default function OnlineSessionsView() {
         }}
         rowKey="id"
         scroll={{ x: 760 }}
+        size={tablePresentation.density === 'compact' ? 'small' : tablePresentation.density}
       />
       <SessionDetailDrawer
         id={detailID}

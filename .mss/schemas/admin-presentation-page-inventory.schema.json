@@ -1,0 +1,493 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mss-boot.io/schemas/admin-presentation-page-inventory.v1alpha1.json",
+  "title": "MSS Admin presentation page inventory",
+  "description": "Classifies every compiled Admin route and records the governed runtime-presentation coverage expected for each page family.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {
+      "const": "mss.io/v1alpha1"
+    },
+    "kind": {
+      "const": "AdminPresentationPageInventory"
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    },
+    "spec": {
+      "$ref": "#/$defs/spec"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 120
+    },
+    "repositoryPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "revision", "baselineBranch", "baselineCommit", "routeSources"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "baselineBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "baselineCommit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "routeSources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/repositoryPath"
+          }
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objective", "coveragePolicy", "facetPolicies", "pages", "routes"],
+      "properties": {
+        "objective": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 1200
+        },
+        "coveragePolicy": {
+          "$ref": "#/$defs/coveragePolicy"
+        },
+        "facetPolicies": {
+          "$ref": "#/$defs/facetPolicies"
+        },
+        "pages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/page"
+          }
+        },
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/route"
+          }
+        }
+      }
+    },
+    "coveragePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "closureRule",
+        "includedRule",
+        "excludedRule",
+        "pairedGeneratedRouteRule",
+        "defaultAdoptionMode",
+        "activationRule"
+      ],
+      "properties": {
+        "closureRule": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 800
+        },
+        "includedRule": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 800
+        },
+        "excludedRule": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 800
+        },
+        "pairedGeneratedRouteRule": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 800
+        },
+        "defaultAdoptionMode": {
+          "const": "disabled"
+        },
+        "activationRule": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 800
+        }
+      }
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zh-CN", "en-US"],
+      "properties": {
+        "zh-CN": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "en-US": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "facetPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full-table", "limited-table"],
+      "properties": {
+        "full-table": {
+          "$ref": "#/$defs/facetList"
+        },
+        "limited-table": {
+          "$ref": "#/$defs/facetList"
+        }
+      }
+    },
+    "facetList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-zA-Z0-9]*(?:\\.[a-z][a-zA-Z0-9]*)*$",
+        "maxLength": 120
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "disposition",
+        "eligibility",
+        "routePatterns",
+        "sourceKind",
+        "dataClass",
+        "implementationState",
+        "adoptionState",
+        "acceptanceState",
+        "rolloutWave",
+        "facetPolicy",
+        "protectedCapabilities"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "displayName": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "disposition": {
+          "type": "string",
+          "enum": ["included", "excluded"]
+        },
+        "eligibility": {
+          "type": "string",
+          "enum": ["full", "limited", "protected", "non-management"]
+        },
+        "pageKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "maxLength": 120
+        },
+        "routePatterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^/",
+            "maxLength": 300
+          }
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": ["admin-module", "foundation-core", "not-applicable"]
+        },
+        "sourcePath": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "targetSourcePath": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "binding": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "maxLength": 160
+        },
+        "pageKind": {
+          "type": "string",
+          "enum": ["table", "dashboard", "settings", "public", "governance", "exception", "redirect"]
+        },
+        "dataClass": {
+          "type": "string",
+          "enum": [
+            "business",
+            "identity",
+            "authorization",
+            "operations",
+            "configuration",
+            "security",
+            "navigation",
+            "public"
+          ]
+        },
+        "rootOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "requiredPermissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "implementationState": {
+          "type": "string",
+          "enum": ["planned", "generated", "excluded"]
+        },
+        "adoptionState": {
+          "type": "string",
+          "enum": ["disabled", "shadow", "active", "not-applicable"]
+        },
+        "acceptanceState": {
+          "type": "string",
+          "enum": ["pending", "passed", "not-applicable"]
+        },
+        "rolloutWave": {
+          "type": "string",
+          "enum": ["wave-0", "wave-1", "wave-2", "wave-3", "wave-4", "wave-5", "excluded"]
+        },
+        "facetPolicy": {
+          "type": "string",
+          "enum": ["full-table", "limited-table", "none"]
+        },
+        "protectedCapabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
+          }
+        },
+        "runtimeConsumer": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "definitionIdentity": {
+          "$ref": "#/$defs/definitionIdentity"
+        },
+        "exclusionReason": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 800
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "included"
+              }
+            },
+            "required": ["disposition"]
+          },
+          "then": {
+            "required": [
+              "pageKey",
+              "targetSourcePath",
+              "binding",
+              "pageKind",
+              "requiredPermissions",
+              "definitionIdentity"
+            ],
+            "properties": {
+              "eligibility": {
+                "enum": ["full", "limited"]
+              },
+              "sourceKind": {
+                "enum": ["admin-module", "foundation-core"]
+              },
+              "implementationState": {
+                "enum": ["planned", "generated"]
+              },
+              "adoptionState": {
+                "enum": ["disabled", "shadow", "active"]
+              },
+              "acceptanceState": {
+                "enum": ["pending", "passed"]
+              },
+              "facetPolicy": {
+                "enum": ["full-table", "limited-table"]
+              }
+            }
+          },
+          "else": {
+            "required": ["exclusionReason"],
+            "properties": {
+              "eligibility": {
+                "enum": ["protected", "non-management"]
+              },
+              "sourceKind": {
+                "const": "not-applicable"
+              },
+              "implementationState": {
+                "const": "excluded"
+              },
+              "adoptionState": {
+                "const": "not-applicable"
+              },
+              "acceptanceState": {
+                "const": "not-applicable"
+              },
+              "rolloutWave": {
+                "const": "excluded"
+              },
+              "facetPolicy": {
+                "const": "none"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eligibility": {
+                "const": "full"
+              }
+            },
+            "required": ["eligibility"]
+          },
+          "then": {
+            "properties": {
+              "facetPolicy": {
+                "const": "full-table"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eligibility": {
+                "const": "limited"
+              }
+            },
+            "required": ["eligibility"]
+          },
+          "then": {
+            "properties": {
+              "facetPolicy": {
+                "const": "limited-table"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "definitionIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["matching", "planned"]
+        },
+        "backendHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "frontendHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "matching"
+              }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["backendHash", "frontendHash"]
+          }
+        }
+      ]
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "routeKind", "disposition", "pageIDs", "reason"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/",
+          "maxLength": 300
+        },
+        "routeKind": {
+          "type": "string",
+          "enum": ["layout", "page", "subroute", "redirect", "fallback"]
+        },
+        "disposition": {
+          "type": "string",
+          "enum": ["included", "excluded", "redirect", "exception"]
+        },
+        "pageIDs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 600
+        }
+      }
+    }
+  }
+}

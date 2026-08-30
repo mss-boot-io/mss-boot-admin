@@ -5,6 +5,11 @@ import {
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
 import { formatMenuLabel } from '@mss-admin-core/shared/navigation/menuLocale';
+import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
@@ -31,17 +36,24 @@ import { administrationAPI, RoleAuthorizationRevisionConflictError } from './api
 import {
   type AdministrationListParams,
   flattenAdministrationTree,
+  isAdminPageSize,
   type MenuSummary,
   type RoleSummary,
   type RoleWriteValues,
 } from './contract';
 import { useAdministrationPage, useMenuTree, useRoleAuthorization } from './query';
+import {
+  rolePresentationListComponents,
+  rolePresentationMobileFields,
+  rolePresentationSearchComponents,
+} from './tablePresentation';
 
 interface RoleManagementProps {
   canAuthorize: boolean;
   canCreate: boolean;
   canDelete: boolean;
   canEdit: boolean;
+  presentationRuntime: PagePresentationRuntime;
   routeIntent?: ManagementRouteIntent;
 }
 
@@ -68,12 +80,17 @@ export default function RoleManagement({
   canCreate,
   canDelete,
   canEdit,
+  presentationRuntime,
   routeIntent,
 }: RoleManagementProps) {
   const intl = useIntl();
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState(initialParams);
+  const presentation = presentationRuntime.model;
+  const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
+    ? presentation.list.pageSize
+    : initialParams.pageSize;
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const roles = useAdministrationPage('roles', params);
   const [editing, setEditing] = useState<RoleSummary | 'create'>();
   const [form] = Form.useForm<RoleWriteValues>();
@@ -167,7 +184,7 @@ export default function RoleManagement({
     },
   });
 
-  const columns: TableColumnsType<RoleSummary> = [
+  const compiledColumns: TableColumnsType<RoleSummary> = [
     {
       title: intl.formatMessage({ id: 'administration.field.name' }),
       dataIndex: 'name',
@@ -241,16 +258,31 @@ export default function RoleManagement({
       },
     },
   ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: rolePresentationListComponents,
+    mobileColumnKeys: [...rolePresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: rolePresentationSearchComponents,
+  });
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'role.empty' })}
+        nameSearch={tablePresentation.searchFields.get('name') ?? null}
         params={params}
         query={roles}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
         setParams={setParams}
-        mobileColumnKeys={['name', 'classification', 'status', 'actions']}
+        statusSearch={tablePresentation.searchFields.get('status') ?? null}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

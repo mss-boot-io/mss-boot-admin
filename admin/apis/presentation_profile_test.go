@@ -406,6 +406,36 @@ func setupPresentationProfileAPITest(t *testing.T) (*gorm.DB, *gin.Engine, prese
 	return db, router, capability
 }
 
+func TestPresentationCapabilitiesAPIUsesArrayForEmptyActivePages(t *testing.T) {
+	capability := apiPresentationCapability(t)
+	registry := presentation.MustNewRegistry(capability)
+	policy := presentation.MustNewAdoptionPolicy(
+		presentation.AdoptionDisabled, nil, false, registry,
+	)
+	profileService, err := service.NewPresentationProfileService(registry, policy)
+	require.NoError(t, err)
+	api, err := NewPresentationProfileController(profileService)
+	require.NoError(t, err)
+
+	previousAuthHandler := response.AuthHandler
+	response.AuthHandler = func(ctx *gin.Context) { ctx.Next() }
+	t.Cleanup(func() { response.AuthHandler = previousAuthHandler })
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	api.Other(router.Group("/admin/api"))
+	result := presentationAPIRequest(
+		router, http.MethodGet, "/admin/api/presentation-capabilities", "", nil,
+	)
+	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
+
+	var payload dto.PresentationCapabilityListResponse
+	require.NoError(t, json.Unmarshal(result.Body.Bytes(), &payload), result.Body.String())
+	require.NotNil(t, payload.ActivePages)
+	require.Empty(t, payload.ActivePages)
+	require.Contains(t, result.Body.String(), `"activePages":[]`)
+}
+
 func presentationAPIRequest(
 	router http.Handler,
 	method string,

@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: option-list
+spec:
+  binding: option.options
+  pageKey: option.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 选项管理
+    en-US: Options
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [name, category, status]
+  form: []
+  detail: []
+  actions: []

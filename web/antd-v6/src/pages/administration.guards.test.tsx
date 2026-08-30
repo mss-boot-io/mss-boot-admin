@@ -6,6 +6,7 @@ import AdministrationPage from './Administration';
 
 const runtime = vi.hoisted(() => ({
   initialState: undefined as InitialState | undefined,
+  presentationPageKey: '',
   pathname: '/users',
   presentationTitle: 'Users',
 }));
@@ -32,7 +33,10 @@ vi.mock('@ant-design/pro-components', () => ({
 }));
 
 vi.mock('@mss-admin-core/shared/presentation/runtime', () => ({
-  usePagePresentation: () => ({ model: { title: runtime.presentationTitle } }),
+  usePagePresentation: (entry: { definition: { pageKey: string } }) => {
+    runtime.presentationPageKey = entry.definition.pageKey;
+    return { model: { title: runtime.presentationTitle } };
+  },
 }));
 
 vi.mock('@mss-admin-core/modules/administration/UserManagement', () => ({
@@ -69,6 +73,7 @@ describe('administration route guards', () => {
   beforeEach(() => {
     runtime.initialState = undefined;
     runtime.pathname = '/users';
+    runtime.presentationPageKey = '';
     runtime.presentationTitle = 'Users';
   });
   afterEach(cleanup);
@@ -129,5 +134,30 @@ describe('administration route guards', () => {
 
     expect(screen.getByRole('heading', { name: 'Directory operators' })).toBeTruthy();
     expect(screen.getByText('users:false:false:false:false')).toBeTruthy();
+  });
+
+  it('binds every administration route to its exact runtime page identity and title', () => {
+    runtime.initialState = state({
+      '/users': true,
+      '/role': true,
+      '/menu': true,
+      '/departments': true,
+      '/posts': true,
+    });
+    const routes = [
+      ['/users', 'user.list', 'Configured users'],
+      ['/role', 'role.list', 'Configured roles'],
+      ['/menu', 'menu.list', 'Configured menus'],
+      ['/departments', 'department.list', 'Configured departments'],
+      ['/posts', 'post.list', 'Configured posts'],
+    ] as const;
+
+    for (const [path, pageKey, title] of routes) {
+      runtime.presentationTitle = title;
+      renderRoute(path);
+      expect(runtime.presentationPageKey).toBe(pageKey);
+      expect(screen.getByRole('heading', { name: title })).toBeTruthy();
+      cleanup();
+    }
   });
 });

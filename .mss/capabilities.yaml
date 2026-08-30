@@ -159,19 +159,25 @@ spec:
 
     - id: platform.presentation-configuration
       displayName: Governed Admin Page Presentation Configuration
-      status: planned
+      status: beta
       owners: [frontend, backend, security, agent-infrastructure]
       paths:
         - .mss/features/admin-presentation-configuration.yaml
         - .mss/features/admin-presentation-publication-workflow.yaml
         - .mss/features/admin-presentation-complete-design.yaml
-        - .mss/core-pages/user-list.yaml
+        - .mss/features/admin-presentation-all-management-pages.yaml
+        - .mss/admin-presentation-page-inventory.yaml
+        - .mss/core-pages
         - .mss/schemas/admin-page-presentation.schema.json
+        - .mss/schemas/admin-core-page-presentation.schema.json
+        - .mss/schemas/admin-presentation-page-inventory.schema.json
         - docs/adr/2026-08-24-governed-admin-presentation-configuration.md
         - docs/adr/2026-08-24-admin-presentation-publication-workflow.md
         - docs/adr/2026-08-28-admin-presentation-complete-design.md
+        - docs/adr/2026-08-30-all-management-page-presentation-coverage.md
         - docs/docs/admin/presentation-configuration.md
         - docs/docs/admin/presentation-complete-design.md
+        - docs/docs/admin/presentation-all-management-pages.md
       backendPaths:
         - admin/presentation
         - admin/presentation/core
@@ -187,25 +193,19 @@ spec:
         - web/antd-v6/src/modules/presentation-config
         - web/antd-v6/src/pages/PresentationConfig
       guidance: >-
-        P0 defines a strict data-only sparse profile over compiled page, field, data-source,
-        component, action, and permission capabilities, and P1 owns draft, publication, history,
-        rollback, and recovery. Supplier remains the first generated AdminModule reference. The maintainer
-        has now explicitly authorized user.list as one separately reviewed Foundation Core Page
-        Presentation pilot; implementation and exact-Head acceptance are in progress on the current
-        development branch, so no pending test or browser check is completion evidence. user.list is not
-        an AdminModule and must have exactly one source at .mss/core-pages/user-list.yaml. The deterministic
-        generator owns its Go definition, TypeScript definition, canonical hash, normalized manifest,
-        and statically imported frontend core registry; application composition injects the generated core
-        definition before business modules. Handwritten Go/TypeScript duplicates are forbidden. Its first surface is limited to title, safe list display,
-        name/status search, density, and page size with maxSortFields=0 and an exact backend status filter.
-        Passwords, credentials, OAuth, tokens, sessions, relation IDs, root markers, form, detail, actions,
-        permissions, routes, and API selection remain outside profiles; compiled root and target-user
-        protections remain authoritative. Roll out disabled, then isolated shadow, then exact-allowlisted
-        active, with recovery taking precedence. Thin Hosts consume the packaged Foundation core registry
-        and never copy it. Every other protected or arbitrary handwritten core page remains excluded until
-        separately reviewed and moved to a single generated source. Never add scripts, HTML, SQL, transport
-        definitions, component imports, permissions, runtime models, virtual CRUD, or browser code
-        generation to a presentation profile.
+        P0 defines strict data-only sparse profiles over compiled capabilities and P1 owns draft,
+        publication, history, rollback, adoption, and recovery. The machine route inventory classifies
+        every compiled Admin route. Supplier remains the only full list/search/form/detail/action
+        reference; the fourteen reviewed handwritten table pages expose only title, safe list and search
+        presentation, density, and compiled page-size choices from one source under .mss/core-pages.
+        The deterministic generator owns their Go and TypeScript definitions, canonical hashes, manifest,
+        and registries; handwritten projections are forbidden. Runtime adapters may only select and arrange
+        exact compiled renderers, while actions, forms, details, routes, APIs, queries, permissions, row
+        scope, secrets, task execution facts, raw logs, configuration content, and session controls remain
+        compiled and backend-authorized. Adoption proceeds through disabled, shadow, and an exact reviewed
+        allowlist; recovery always wins and newly generated pages are never activated implicitly. Thin Hosts
+        consume the packaged Foundation registry without copying it. Never add scripts, HTML, SQL, transport,
+        imports, permissions, runtime models, virtual CRUD, remote components, or browser code generation.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters

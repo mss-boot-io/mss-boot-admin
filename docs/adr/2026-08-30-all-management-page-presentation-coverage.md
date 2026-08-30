@@ -1,0 +1,270 @@
+# ADR: Classify all Admin routes and adopt every table management page
+
+- Status: Proposed successor scope; implementation and exact-Head acceptance are incomplete
+- Date: 2026-08-30
+- Evaluated branch: `codex/page-presentation-complete-design`
+- Evaluated baseline commit: `1b855d0b71e2884d7b743d49edc73f4dcd853787`
+- Owners: Admin platform, backend, frontend, security, agent infrastructure
+- Successor FeatureSpec: `.mss/features/admin-presentation-all-management-pages.yaml`
+- Page and route inventory: `.mss/admin-presentation-page-inventory.yaml`
+- Inventory schema: `.mss/schemas/admin-presentation-page-inventory.schema.json`
+- Predecessor design: `.mss/features/admin-presentation-complete-design.yaml`
+
+## Context
+
+The predecessor design established the production presentation architecture and implemented two deliberate
+pilots:
+
+- generated business page `supplier.list`, with complete list, search, form, detail, and action
+  presentation;
+- Foundation core page `user.list`, with a separately reviewed limited list and search surface.
+
+Those pilots prove the architecture but do not satisfy the product objective that all existing
+table-oriented Admin management pages can be adjusted at runtime. The current generated business registry
+contains only Supplier, the current Foundation core registry contains only user management, and the first
+core-page source and binding are intentionally specific to user management.
+
+The repository also has more route shapes than one CRUD table:
+
+- layouts and redirects;
+- hidden create, edit, and security subroutes;
+- one `/log` route containing login, audit, and runtime datasets;
+- Workplace dashboard composition;
+- personal account and security settings;
+- secret-bearing application configuration;
+- presentation governance and recovery;
+- public authentication and exception fallbacks.
+
+Calling this entire set configurable without first classifying it would create two failures. Product
+coverage could be claimed while pages do not consume the runtime, and pressure for flexibility could
+accidentally move authorization, transport, task execution, configuration content, credentials, or
+recovery controls into stored data.
+
+## Decision
+
+Adopt a machine-closed route inventory and a bounded all-management-page target.
+
+### 1. Classify every compiled route declaration
+
+`.mss/admin-presentation-page-inventory.yaml` is the machine contract for product coverage. It lists the
+route sources, every route declaration, every page family, inclusion or exclusion, the reason for
+exclusion, page identity, source ownership, configurable facets, protected capabilities, rollout wave,
+and acceptance state.
+
+The route closure is declaration-based rather than normalized-path-based. A layout and a nested redirect
+may share `/security` but remain separate compiled declarations with separate inventory identifiers.
+
+A deterministic CI check must compare:
+
+1. `web/antd-v6/package/core-routes.cjs`;
+2. `web/antd-v6/config/routes.generated.ts`;
+3. `web/antd-v6/src/generated/routes.ts`;
+4. the inventory route declarations.
+
+The two generated files are paired projections of one generated route identity: the Umi route
+configuration is the compiled declaration and the packaged registration index is its distribution
+contract. Their ordered path sets must agree and map to one inventory record; they are not counted as
+two user-visible routes.
+
+Any missing, extra, duplicated, or newly unclassified declaration fails. An excluded route is complete
+only when it has a durable reason; it is not counted as missing implementation.
+
+### 2. Include every table-oriented management page
+
+The successor target contains these fifteen stable page keys:
+
+| Page key | Route | Scope |
+| --- | --- | --- |
+| `supplier.list` | `/suppliers` | Full reference |
+| `user.list` | `/users` | Limited |
+| `role.list` | `/role` | Limited |
+| `menu.list` | `/menu` | Limited |
+| `department.list` | `/departments` | Limited |
+| `post.list` | `/posts` | Limited |
+| `task.list` | `/task` | Limited |
+| `notice.list` | `/notice` | Limited |
+| `language.list` | `/language` | Limited |
+| `option.list` | `/option` | Limited |
+| `system-config.list` | `/system-config` | Limited, redacted metadata only |
+| `online-session.list` | `/security/online-sessions` | Limited, root only |
+| `log.login` | `/log` | Limited login dataset |
+| `log.audit` | `/log` | Limited audit dataset |
+| `log.runtime` | `/log` | Limited runtime dataset |
+
+Supplier remains the only full surface in this successor:
+
+- title;
+- list, search, form, and detail fields;
+- registered component choices;
+- density, page size, and compiled sort choices;
+- registered action visibility, order, placement, labels, and confirmation;
+- bounded reviewed conditions.
+
+Every other page exposes only:
+
+- localized title;
+- safe registered list columns and labels;
+- list order, visibility, width, density, and compiled page size;
+- safe registered search fields and labels;
+- search order, visibility, and initial collapse.
+
+Limited pages do not expose forms, details, actions, mutations, privileged dialogs, route behavior,
+transport, query encoding, component implementations, or sensitive fields.
+
+### 3. Preserve sensitive subflows in compiled code
+
+The route family may be included while a hidden route or dialog remains protected.
+
+- User create, edit, delete, password reset, credentials, root facts, and relations stay compiled.
+- Role authorization trees, root/default safeguards, and authorization actions stay compiled.
+- Menu routes, permissions, HTTP methods, API binding, and mutations stay compiled.
+- Post data-scope semantics stay compiled.
+- Task provider, endpoint, body, metadata, Python, execution, and scheduler behavior stay compiled.
+- Notice current-user scope, detail access, delivery, and mark-read mutation stay compiled.
+- System configuration content, secrets, detail, create, edit, delete, import, and export stay compiled.
+- Online-session identities, raw tokens, revocation, and current-session safeguards stay compiled.
+- Log data sources, row scope, redaction, raw payloads, file selection, filters, truncation, and export
+  remain compiled.
+
+Presentation may reduce or reorder visible registered controls. It never grants access, broadens rows,
+creates data, changes a query encoder, or replaces a mutation.
+
+### 4. Use one reviewed source and one identity per page
+
+Supplier continues to use its AdminModule source. Each handwritten core page receives one source under
+`.mss/core-pages/` and one closed Foundation binding. The source contains presentation defaults only;
+trusted permissions, transport, component implementations, and handlers remain compiled.
+
+One normalizer and canonical hash pipeline must produce:
+
+- backend definition;
+- frontend definition;
+- normalized manifest snapshot;
+- backend registry entry;
+- frontend static registry entry.
+
+Backend and frontend inventories must contain the same fifteen page keys and equal versions and hashes.
+Independent handwritten Go and TypeScript definitions are prohibited. Thin Hosts consume packaged core
+definitions and do not copy Foundation source files.
+
+### 5. Require real runtime consumption
+
+Registry membership is not page adoption. Every included page must call the shared bounded runtime and
+render the resulting model.
+
+The optional effective read cannot block authorization, page shell, or business data. No profile,
+disabled mode, shadow mode, not-allowlisted state, stale hash, bad content, database failure, network
+failure, timeout, cancellation, or recovery mode must settle to complete compiled defaults.
+
+Profiles use application, current-role, and current-user precedence. The server selects the principal.
+Backend authorization and row scope are applied after presentation resolution.
+
+### 6. Keep protected and non-management routes excluded
+
+The following remain explicitly excluded:
+
+- Workplace dashboard;
+- account center and account settings;
+- login, registration, password recovery, and OAuth callback pages;
+- application configuration;
+- presentation governance;
+- forbidden and not-found pages;
+- redirect declarations.
+
+These exclusions are not permanent statements that no future presentation contract may exist. They are
+the safety boundary of this table-page successor. Dashboard composition or personal-page presentation
+requires a separately versioned product decision and contract.
+
+Presentation governance is deliberately excluded from its own registry. It must remain usable when every
+profile is invalid, adoption is disabled, or recovery mode is active.
+
+### 7. Roll out by exact page key
+
+All pages default to disabled.
+
+1. Wave 0 validates route closure and fresh or upgraded governance.
+2. Wave 1 requalifies Supplier and user management.
+3. Wave 2 adds department, post, language, and option.
+4. Wave 3 adds limited role, menu, task, notice, system configuration, and online sessions.
+5. Wave 4 adds login, audit, and runtime log identities.
+6. Wave 5 advances each accepted page through isolated shadow to exact allowlisted active.
+
+Wildcard, empty-means-all, database-controlled, and newly-generated automatic activation are prohibited.
+Recovery mode overrides every page. Removing one page key from the allowlist restores its compiled
+defaults without deleting profiles or history.
+
+## Acceptance consequences
+
+The feature is not complete when files merely exist or unit tests are green. Completion requires:
+
+- strict inventory schema and semantic validation;
+- compiled route closure;
+- one source and paired generation for every page;
+- equal backend and frontend inventory and hashes;
+- runtime-consumer tests for every included page;
+- direct positive and negative authorization and row-scope tests;
+- whole-layer failure and recovery tests;
+- fresh and upgrade-path governance-console acceptance;
+- external Thin Host qualification;
+- built-in Browser evidence on one final unchanged remote Head.
+
+The Browser record must cover direct navigation, menu navigation, hard refresh, compiled defaults,
+published application presentation, role and user precedence where applicable, rollback, disabled,
+shadow, exact active allowlist, recovery, timeout or failure fallback, desktop, mobile, zh-CN, en-US,
+page states, console errors, deprecation warnings, and failed requests.
+
+If the remote Head changes during acceptance, the browser record is invalid.
+
+## Consequences
+
+### Positive
+
+- Product coverage becomes measurable and cannot silently omit a legacy route.
+- All table management pages receive meaningful runtime display adjustment without creating a low-code
+  runtime or weakening backend authority.
+- Sensitive page families can participate through narrow list presentation while their privileged
+  subflows remain compiled.
+- New generated routes cannot ship without a classification and default-disabled adoption decision.
+- One-page rollout and rollback constrain the blast radius.
+
+### Cost
+
+- Foundation must generalize the user-specific core-page source and binding mechanism.
+- Fifteen page identities require source, generation, registry, runtime, permission, and browser evidence.
+- The `/log` route needs three independent definition identities even though the current UI uses one
+  compiled Tabs component.
+- Route closure and page acceptance add maintained machine contracts and CI work.
+
+## Rejected alternatives
+
+### Treat Supplier and user management as all-page completion
+
+Rejected because the registries and runtime consumers would still omit most shipped management pages.
+
+### Infer definitions from React components at runtime
+
+Rejected because it creates unstable identities, executable discovery, dual authority, and an
+unreviewable security boundary.
+
+### Give every page the full Supplier contract
+
+Rejected because role authorization, menu API binding, task execution, configuration content, session
+revocation, and log internals are not routine display choices.
+
+### Activate all registered pages at once
+
+Rejected because it increases failure blast radius, obscures page-specific regressions, and weakens
+recovery.
+
+### Configure the governance console itself
+
+Rejected because the recovery and publication control plane must remain available independently of the
+optional feature it controls.
+
+## Next executable step
+
+Implement and validate the inventory parser and compiled-route closure test first. Completion of that
+step is measurable when every current route declaration matches one inventory record and an added
+unclassified fixture route fails deterministically. Page binding and runtime work then proceeds in the
+declared waves; no page becomes active before its own identity, permission, fallback, and exact-Head
+browser gates pass.

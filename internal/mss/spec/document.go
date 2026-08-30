@@ -46,6 +46,20 @@ func ValidateFile(path string) (*ValidatedDocument, error) {
 	}
 	cleanPath := filepath.ToSlash(path)
 	switch header.Kind {
+	case AdminPresentationPageInventoryKind:
+		inventory, loadErr := LoadAdminPresentationPageInventory(path)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		inventory.SourcePath = cleanPath
+		return &ValidatedDocument{
+			Path:       cleanPath,
+			APIVersion: inventory.APIVersion,
+			Kind:       inventory.Kind,
+			Name:       inventory.Metadata.Name,
+			Summary:    inventory.Summary(),
+			Document:   inventory,
+		}, nil
 	case CorePagePresentationKind:
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {

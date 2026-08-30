@@ -5,12 +5,16 @@ import {
   useManagementRouteIntent,
 } from '@mss-admin-core/shared/navigation/managementRoute';
 import type { PagePresentationRuntime } from '@mss-admin-core/shared/presentation/runtime';
+import {
+  resolveTablePresentation,
+  usePresentationPageParams,
+} from '@mss-admin-core/shared/presentation/table';
 import { queryKeys } from '@mss-admin-core/shared/query/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from '@umijs/max';
 import type { TableColumnsType } from 'antd';
 import { Alert, App, Avatar, Button, Form, Input, Modal, Popconfirm, Select, Space } from 'antd';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import AdministrationTable, { AdministrationStatusTag } from './AdministrationTable';
 import { administrationAPI } from './api';
 import {
@@ -59,23 +63,7 @@ export default function UserManagement({
   const configuredPageSize = isAdminPageSize(presentation.list.pageSize)
     ? presentation.list.pageSize
     : initialParams.pageSize;
-  const [params, setParams] = useState<AdministrationListParams>(() => ({
-    ...initialParams,
-    pageSize: configuredPageSize,
-  }));
-  const queryWasChanged = useRef(false);
-  const appliedPresentationPageSize = useRef(configuredPageSize);
-  const updateParams: typeof setParams = (value) => {
-    queryWasChanged.current = true;
-    setParams(value);
-  };
-  useEffect(() => {
-    if (queryWasChanged.current || appliedPresentationPageSize.current === configuredPageSize) {
-      return;
-    }
-    setParams((current) => ({ ...current, current: 1, pageSize: configuredPageSize }));
-    appliedPresentationPageSize.current = configuredPageSize;
-  }, [configuredPageSize]);
+  const [params, setParams] = usePresentationPageParams(initialParams, configuredPageSize);
   const users = useAdministrationPage('users', params);
   const roles = useAdministrationCatalog('roles');
   const departments = useAdministrationCatalog('departments');
@@ -277,62 +265,35 @@ export default function UserManagement({
     },
   ];
 
-  const compiledColumnByField = new Map<string, TableColumnsType<UserSummary>[number]>();
-  let compiledActionColumn: TableColumnsType<UserSummary>[number] | undefined;
-  for (const column of compiledColumns) {
-    if ('dataIndex' in column && typeof column.dataIndex === 'string') {
-      compiledColumnByField.set(column.dataIndex, column);
-    } else if ('key' in column && typeof column.key === 'string') {
-      if (column.key === 'actions') compiledActionColumn = column;
-      else compiledColumnByField.set(column.key, column);
-    }
-  }
-  const columns: TableColumnsType<UserSummary> = presentation.list.columns.flatMap((field) => {
-    const expectedComponent =
-      userPresentationListComponents[field.field as keyof typeof userPresentationListComponents];
-    const column = compiledColumnByField.get(field.field);
-    if (!column || !expectedComponent || field.component !== expectedComponent) return [];
-    return [
-      {
-        ...column,
-        title: field.label,
-        ...(field.width !== undefined ? { width: field.width } : {}),
-      },
-    ];
+  const tablePresentation = resolveTablePresentation({
+    compiledColumns,
+    fallbackPageSize: initialParams.pageSize,
+    isPageSize: isAdminPageSize,
+    listComponents: userPresentationListComponents,
+    mobileColumnKeys: [...userPresentationMobileFields, 'actions'],
+    model: presentation,
+    protectedColumnKeys: ['actions'],
+    searchComponents: userPresentationSearchComponents,
   });
-  if (compiledActionColumn) columns.push(compiledActionColumn);
-  const mobileFields = new Set<string>(userPresentationMobileFields);
-  const mobileColumnKeys = presentation.list.columns
-    .map((field) => field.field)
-    .filter((field) => mobileFields.has(field));
-  if (compiledActionColumn) mobileColumnKeys.push('actions');
-  const nameSearch =
-    presentation.search.fields.find(
-      (field) =>
-        field.field === 'name' && field.component === userPresentationSearchComponents.name,
-    ) ?? null;
-  const statusSearch =
-    presentation.search.fields.find(
-      (field) =>
-        field.field === 'status' && field.component === userPresentationSearchComponents.status,
-    ) ?? null;
+  const nameSearch = tablePresentation.searchFields.get('name') ?? null;
+  const statusSearch = tablePresentation.searchFields.get('status') ?? null;
 
   const dependencyError = roles.error || departments.error || posts.error;
 
   return (
     <>
       <AdministrationTable
-        columns={columns}
-        density={presentation.list.density}
+        columns={tablePresentation.columns}
+        density={tablePresentation.density}
         emptyText={intl.formatMessage({ id: 'user.empty' })}
         nameSearch={nameSearch}
         params={params}
         query={users}
-        resetPageSize={configuredPageSize}
-        searchCollapsedByDefault={presentation.search.collapsedByDefault}
-        setParams={updateParams}
+        resetPageSize={tablePresentation.pageSize}
+        searchCollapsedByDefault={tablePresentation.searchCollapsedByDefault}
+        setParams={setParams}
         statusSearch={statusSearch}
-        mobileColumnKeys={mobileColumnKeys}
+        mobileColumnKeys={tablePresentation.mobileColumnKeys}
         toolbar={
           canCreate ? (
             <Button type="primary" onClick={() => openEditor('create')}>

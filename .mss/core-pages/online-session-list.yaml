@@ -1,0 +1,19 @@
+apiVersion: mss.io/v1alpha1
+kind: AdminCorePagePresentation
+metadata:
+  name: online-session-list
+spec:
+  binding: session.online-sessions
+  pageKey: online-session.list
+  definitionVersion: "2"
+  title:
+    zh-CN: 在线会话
+    en-US: Online sessions
+  list:
+    density: large
+    pageSize: 20
+  search:
+    fields: [username, ip, status]
+  form: []
+  detail: []
+  actions: []
