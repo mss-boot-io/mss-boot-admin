@@ -96,7 +96,7 @@ python3 tools/release/verify_release_source.py \
 
 Confirm all prerequisite PRs are merged in dependency order. Confirm root, Framework, Admin, and frontend version references agree. Check every proposed remote tag before creating any one of them. Stop on any existing unexpected ref; never move or reuse it.
 
-### 2. Run the cheap failure gates first
+### 2. Run focused review gates, then one exact-main qualification
 
 Before the release-preparation PR, run the changed-impact plan and focused verification:
 
@@ -105,13 +105,9 @@ go run ./cmd/mss verify --changed --plan --format json
 go run ./cmd/mss verify --changed
 ```
 
-Before final review and merge, run the complete local qualification and capture the required Codex in-app Browser evidence from the same commit. Treat this PR-head result as review evidence until the commit is merged:
+Before final review and merge, run the focused tests selected by the changed-impact plan and capture Codex in-app Browser evidence for every affected visible journey. Do not run a second complete suite merely to qualify the pull-request Head; the lightweight required PR checks and focused local evidence authorize review, not publication.
 
-```bash
-go run ./cmd/mss verify --all
-```
-
-After merge and source freeze in step 1, run the self-binding complete gate again on the exact clean merged-main `SHA`. The command fails closed unless tracked files are clean before and after and `HEAD` remains the frozen full commit:
+After merge and source freeze in step 1, run the self-binding complete gate once on the exact clean merged-main `SHA`. The command fails closed unless tracked files are clean before and after and `HEAD` remains the frozen full commit:
 
 ```bash
 go run ./cmd/mss verify --all \
@@ -125,7 +121,7 @@ jq -e \
 sha256sum .mss/reports/verify.json
 ```
 
-The release ledger outside the tracked worktree records the report digest and result; the report itself binds the full `SHA` and both tracked-clean observations. In release-evidence mode, the real external Thin Host check also records a persistent system-temporary evidence directory in command output and writes its sanitized `evidence-manifest.json`; retain or hash that directory with the ledger when its detailed reports are needed. The complete verifier owns code quality, dependency policy, contracts, tests, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict output, empty second upgrade, evals, real external Thin Host behavior, and browser behavior. Pull requests retain only lightweight server-side governance, vulnerability, CodeQL, the ordinary Admin test required by branch protection, and an applicable ordinary Framework smoke test; broad component matrices run locally and again after merge as non-blocking audit where configured. The unique Root candidate preview must not repeat those suites. It owns only release policy plus exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images later published byte-for-byte. Even a self-bound local report never replaces merged-main, actor, immutable-ref, public Framework resolution, OIDC, provenance, or public-reconciliation boundaries.
+The release ledger outside the tracked worktree records the report digest and result; the report itself binds the full `SHA` and both tracked-clean observations. In release-evidence mode, the real external Thin Host check also records a persistent system-temporary evidence directory in command output and writes its sanitized `evidence-manifest.json`; retain or hash that directory with the ledger when its detailed reports are needed. The complete verifier owns code quality, dependency policy, contracts, tests, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict output, empty second upgrade, evals, real external Thin Host behavior, and browser behavior. Pull requests retain only changed-impact local checks, affected browser evidence, lightweight server-side governance, vulnerability, CodeQL, the ordinary Admin test required by branch protection, and an applicable ordinary Framework smoke test; broad component matrices run locally only in the single exact-main release-evidence pass and again after merge as non-blocking audit where configured. The unique Root candidate preview must not repeat those suites. It owns only release policy plus exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images later published byte-for-byte. Even a self-bound local report never replaces merged-main, actor, immutable-ref, public Framework resolution, OIDC, provenance, or public-reconciliation boundaries.
 
 Classify a missing local browser binary or package as workstation setup first. Install it locally when repository and CI contracts are already correct. Change repository setup only when the failure reproduces in the checked-in workflow or a clean supported setup.
 
