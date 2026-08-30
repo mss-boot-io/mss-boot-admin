@@ -98,7 +98,8 @@ spec:
       actor: release-operator
       module: release-governance
       rules:
-        - The exact commit passes mss verify --all, Codex in-app Browser acceptance, and every required pull-request check before merge.
+        - The pull-request Head passes mss verify --all, Codex in-app Browser acceptance, and every required pull-request check before merge; after merge the frozen exact tracked-clean origin/main commit passes mss verify --all again.
+        - An external review or release ledger records the frozen full commit, trackedClean=true, exact verifier command, report digest, and result before preview.
         - The manual Root workflow accepts only v1.3.7 from main and never publishes.
         - The Root preview builds and verifies only exact publication binaries, archives, packages, SBOMs, checksums, portable delivery, candidate Thin Host composition, and multi-platform images; it does not rerun Go, dependency, lint, unit, or Playwright suites.
         - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
@@ -171,7 +172,7 @@ spec:
       required: true
       evidence:
         - type: report
-          value: Exact mss verify --all report, required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
+          value: Exact-clean merged-main mss verify --all command and report externally bound to the full commit, trackedClean=true, report digest and result; required PR checks, Codex in-app Browser acceptance evidence, and successful v1.3.7 Root artifact preview with checksums.
     - id: v137-public-reconciliation
       requirement: reconcile-complete-v137-ledger
       statement: Every public surface and repository-external consumer probe succeeds before any stable promotion.
@@ -214,7 +215,9 @@ spec:
       Trusted Publisher to npm-release.yml plus npm-auto without creating a
       token. Complete mss verify --all and Browser acceptance on the exact PR
       Head, merge only after required checks pass, then freeze the clean exact
-      origin/main commit. Run one non-publishing v1.3.7 Root artifact preview
+      origin/main commit and run mss verify --all again. Externally record its full
+      commit, trackedClean=true, exact command, report digest, and result before
+      running one non-publishing v1.3.7 Root artifact preview
       and inspect every expected artifact. As lwnmengjing, create annotated Framework, Admin, Admin Web,
       and Root tags in order. Reconcile package, image, and Release surfaces,
       then publish Docs from its independent tag. Stable promotion is a later

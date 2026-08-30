@@ -14,6 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPOSITORY_ROOT / ".github" / "workflows"
 RETIRED_WORKFLOWS = (
     "docs-drift.yml",
+    "foundation-compatibility.yml",
     "frontend-cloudflare.yml",
     "release-draft.yml",
     "release-readiness.yml",
@@ -181,46 +182,24 @@ class WorkflowGovernanceTest(unittest.TestCase):
             with self.subTest(required=required):
                 self.assertIn(required, script)
 
-    def test_foundation_compatibility_registry_serves_exact_tarball_metadata(self):
-        workflow = self.workflows["foundation-compatibility.yml"]
-        steps = workflow["jobs"]["downstream-generation-and-upgrade"]["steps"]
-        registry = next(
-            step
-            for step in steps
-            if step.get("name") == "Start temporary Admin Web metadata registry"
-        )
-        script = registry["run"]
-        for required in (
-            "tarball = f'foundation-compatibility-admin-web-{version}'.encode('utf-8')",
-            "sha512(tarball).digest()",
-            "tarball_path = f'/artifacts/foundation-compatibility-admin-web-{version}.tgz'",
-            "'tarball': f'http://127.0.0.1:{self.server.server_port}{tarball_path}'",
-            "if path == tarball_path:",
-            "self.wfile.write(tarball)",
-        ):
-            with self.subTest(required=required):
-                self.assertIn(required, script)
-
-    def test_foundation_compatibility_runs_agent_evals_against_candidate_registry(self):
-        foundation = self.workflows["foundation-compatibility.yml"]
-        steps = foundation["jobs"]["downstream-generation-and-upgrade"]["steps"]
-        evaluation = next(
-            step
-            for step in steps
-            if step.get("name") == "Run deterministic Agent evaluations"
-        )
-        script = evaluation["run"]
-        self.assertIn('"${RUNNER_TEMP}/mss-current" eval run --all', script)
-        self.assertIn(
-            '--contributor-npm-registry "${COMPATIBILITY_FRONTEND_REGISTRY_URL}"',
-            script,
-        )
-        self.assertNotIn("npm publish", script)
-        self.assertNotIn("pnpm publish", script)
-
+    def test_foundation_compatibility_is_a_single_local_gate(self):
+        agent = self.workflows["agent-native-ci.yml"]
         root = self.workflows["release.yml"]
-        self.assertNotIn("test", root["jobs"])
+        self.assertNotIn("foundation-compatibility", agent["jobs"])
         self.assertNotIn("foundation-compatibility", root["jobs"])
+
+        agent_source = (WORKFLOW_DIR / "agent-native-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("test-standalone-mss-consumer.sh --upgrade", agent_source)
+
+        makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn(
+            "compatibility-foundation-next:\n"
+            "\tbash tools/compatibility/test-standalone-mss-consumer.sh "
+            "--upgrade --next-foundation",
+            makefile,
+        )
 
     def test_scorecard_does_not_run_on_every_main_push(self):
         triggers = self.workflows["scorecard.yml"]["on"]
@@ -339,7 +318,9 @@ class WorkflowGovernanceTest(unittest.TestCase):
         script = (
             REPOSITORY_ROOT / "tools" / "ci" / "verify-admin-module-metadata.sh"
         ).read_text(encoding="utf-8")
-        self.assertIn('GOWORK=off go mod tidy -modfile="${temporary_mod}"', script)
+        self.assertIn(
+            'GOWORK=off GOFLAGS= go mod tidy -modfile="${temporary_mod}"', script
+        )
         self.assertIn(
             '-replace="${framework_module}@${framework_version}=${framework_dir}"',
             script,
@@ -1572,17 +1553,11 @@ exit 66
         ):
             self.assertIn(required, makefile)
 
-        compatibility_steps = self.workflows["foundation-compatibility.yml"]["jobs"][
-            "downstream-generation-and-upgrade"
-        ]["steps"]
-        names = [step.get("name") for step in compatibility_steps]
-        self.assertLess(
-            names.index("Generate a standalone downstream repository"),
-            names.index("Run deterministic Agent evaluations"),
-        )
-        self.assertLess(
-            names.index("Run deterministic Agent evaluations"),
-            names.index("Stop temporary Admin Web metadata registry"),
+        self.assertIn(
+            "compatibility-foundation-next:\n"
+            "\tbash tools/compatibility/test-standalone-mss-consumer.sh "
+            "--upgrade --next-foundation",
+            makefile,
         )
 
 

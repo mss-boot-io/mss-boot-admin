@@ -6,7 +6,7 @@ COVERAGE_DIR ?= .coverage
 COVERAGE_POLICY := .mss/coverage.json
 
 .PHONY: build build-admin build-agent test test-agent test-admin test-admin-race \
-	coverage-admin vet-admin tidy-admin-check tidy-admin-prepublication-check verify-admin verify-admin-preview compatibility-admin compatibility-standalone-mss \
+	coverage-admin vet-admin tidy-admin-check tidy-admin-prepublication-check verify-admin verify-admin-preview compatibility-admin compatibility-standalone-mss compatibility-foundation-next \
 	deps deps-agent deps-admin deps-admin-workspace deps-framework deps-all deps-release-preview \
 	test-framework test-framework-race coverage-framework vet-framework \
 	tidy-framework-check verify-framework test-all generate lint fix-lint clean \
@@ -57,6 +57,9 @@ compatibility-admin:
 
 compatibility-standalone-mss:
 	bash tools/compatibility/test-standalone-mss-consumer.sh
+
+compatibility-foundation-next:
+	bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade --next-foundation
 
 verify-admin: test-admin-race coverage-admin vet-admin tidy-admin-check compatibility-admin build-admin
 

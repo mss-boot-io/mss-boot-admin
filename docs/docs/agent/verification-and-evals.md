@@ -24,10 +24,29 @@ mss verify --all
 
 - `--changed` 是默认日常入口；
 - `--module` 聚焦一个垂直模块；
-- `--all` 是升级、合并或发布前的完整本地质量入口，包含严格环境与 Skill 合同、Agent 独立测试和构建、Admin 与 Framework 的 race/coverage/vet/模块元数据检查、独立升级兼容、依赖策略、release workflow 合同、前端 delivery 与 Playwright、Thin Host 和文档构建。合并后的候选流水线只构建并核验发布制品，不重复这些宽泛测试。
+- `--all` 是升级、合并或发布前的完整本地质量入口，包含严格环境与 Skill 合同、Agent 独立测试和构建、Admin 与 Framework 的 race/coverage/vet/模块元数据检查、独立 next-Foundation 生成与升级、CLI/MCP/doctor 身份一致性、确定性冲突、第二次升级零变更、eval、依赖策略、release workflow 合同、前端 delivery 与 Playwright、Thin Host 和文档构建。合并后的候选流水线只构建并核验发布制品，不重复这些宽泛测试。
 
 机器报告位于 `.mss/reports/verify.json`，Markdown 摘要用于审查。退出码和单项结果都
 应保留。
+
+## 固定完整验证证据
+
+用于发布资格的完整验证必须在一个精确且 tracked-clean 的提交上执行，并在执行前后
+确认完整 SHA 未变化：
+
+```sh
+git rev-parse HEAD
+test -z "$(git status --porcelain=v1 --untracked-files=no)"
+mss verify --all
+test -z "$(git status --porcelain=v1 --untracked-files=no)"
+git rev-parse HEAD
+sha256sum .mss/reports/verify.json
+```
+
+PR、审查记录或仓库外发布台账必须记录完整 commit、`trackedClean: true`、精确命令、
+报告摘要或哈希和退出结果。`.mss/reports/verify.json` 单独存在不构成发布授权；它也不
+替代合并到 `main`、精确 SHA、Tag actor、不可变引用、OIDC、provenance 和公共制品对账。
+候选 preview 只验证同一 merged-main commit 产生的精确发布字节。
 
 ## Evals
 

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/mss-boot-io/mss-boot-admin/internal/mss/project"
 )
@@ -65,6 +66,7 @@ func TestReleaseWorkflowContractSensitivity(t *testing.T) {
 		".agents/skills/mss-release/SKILL.md",
 		"Makefile",
 		"tools/release/test_root_release_workflow.py",
+		"tools/verification/run-frontend-e2e.sh",
 	} {
 		if !releaseWorkflowContractSensitive(path) {
 			t.Errorf("release workflow contract did not select %q", path)
@@ -78,6 +80,35 @@ func TestReleaseWorkflowContractSensitivity(t *testing.T) {
 		if releaseWorkflowContractSensitive(path) {
 			t.Errorf("release workflow contract unexpectedly selected %q", path)
 		}
+	}
+}
+
+func TestLocalQualificationScriptSensitivity(t *testing.T) {
+	if !foundationCompatibilitySensitive("tools/compatibility/test-standalone-mss-consumer.sh") {
+		t.Fatal("standalone Foundation gate did not select next-Foundation qualification")
+	}
+	if foundationCompatibilitySensitive("tools/compatibility/test-admin-external-consumer.sh") {
+		t.Fatal("Admin consumer unexpectedly selected next-Foundation qualification")
+	}
+	if !frontendQualificationSensitive("tools/verification/run-frontend-e2e.sh") {
+		t.Fatal("frontend E2E wrapper did not select frontend qualification")
+	}
+	if frontendQualificationSensitive("tools/verification/other.sh") {
+		t.Fatal("unrelated verification helper unexpectedly selected frontend qualification")
+	}
+}
+
+func TestFoundationCompatibilityUsesCanonicalLocalNextFoundationGate(t *testing.T) {
+	root := t.TempDir()
+	spec := foundationCompatibility(root)
+	if spec.Directory != root {
+		t.Fatalf("Foundation compatibility directory = %q, want %q", spec.Directory, root)
+	}
+	if want := []string{"make", "compatibility-foundation-next"}; !reflect.DeepEqual(spec.Args, want) {
+		t.Fatalf("Foundation compatibility arguments = %q, want %q", spec.Args, want)
+	}
+	if spec.Environment["CI"] != "true" || spec.Timeout != 90*time.Minute {
+		t.Fatalf("Foundation compatibility contract = %#v", spec)
 	}
 }
 
@@ -175,6 +206,22 @@ func TestBackendChecksUseTheFoundationWorkspaceBeforePublicDependencyQualificati
 	if buildSpec.Environment["GOWORK"] != filepath.Join(root, "go.work") ||
 		buildSpec.Environment["GOFLAGS"] != "-mod=readonly" || buildSpec.Environment["CGO_ENABLED"] != "0" {
 		t.Fatalf("backend build environment = %#v", buildSpec.Environment)
+	}
+
+	qualification := backendReleaseQualification(root)
+	if got, want := qualification.Environment["GOWORK"], filepath.Join(root, "go.work"); got != want {
+		t.Fatalf("backend release qualification GOWORK = %q, want %q", got, want)
+	}
+	if qualification.Environment["GOFLAGS"] != "-mod=readonly" {
+		t.Fatalf("backend release qualification environment = %#v", qualification.Environment)
+	}
+
+	frontend := frontendQualification(root)
+	if got, want := frontend.Environment["GOWORK"], filepath.Join(root, "go.work"); got != want {
+		t.Fatalf("frontend qualification GOWORK = %q, want %q", got, want)
+	}
+	if frontend.Environment["GOFLAGS"] != "-mod=readonly" {
+		t.Fatalf("frontend qualification environment = %#v", frontend.Environment)
 	}
 }
 

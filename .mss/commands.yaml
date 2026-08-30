@@ -221,7 +221,7 @@ spec:
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete local release-quality suite, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone compatibility, dependency policy, frontend delivery and browser behavior, release workflow contracts, Thin Host, and docs checks; candidate packaging does not repeat these broad gates.
+      description: Execute the complete local release-quality suite on one exact tracked-clean commit, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict and empty second upgrade, evals, dependency policy, frontend delivery and browser behavior, release workflow contracts, Thin Host, and docs checks; externally record the full commit, trackedClean=true, exact command, report digest, and result because candidate packaging does not repeat these broad gates.
       outputFormats: [text, json]
       category: verification
 
@@ -254,7 +254,7 @@ spec:
 
     root-release-preview:
       command: gh workflow run release.yml --ref main -f version=<version>
-      description: Build and verify the unique non-publishing Root artifact candidate for one locally and through-PR qualified active version on the exact merged-main commit; a later matching Root tag push reuses those bytes to publish Root artifacts, images, and the already-bootstrapped npm package through protected workflows.
+      description: Build and verify only the unique non-publishing Root binaries, archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform image candidate for an externally recorded exact-clean mss verify --all result and required PR checks on the same merged-main commit; a later matching Root tag push publishes those verified bytes through protected workflows without repeating broad quality suites.
       outputFormats: [text]
       category: release
 

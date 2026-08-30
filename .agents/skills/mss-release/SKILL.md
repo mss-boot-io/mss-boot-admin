@@ -105,13 +105,24 @@ go run ./cmd/mss verify --changed --plan --format json
 go run ./cmd/mss verify --changed
 ```
 
-Before final review and merge, run the complete local qualification and capture the required Codex in-app Browser evidence from the same commit:
+Before final review and merge, run the complete local qualification and capture the required Codex in-app Browser evidence from the same commit. Treat this PR-head result as review evidence until the commit is merged:
 
 ```bash
 go run ./cmd/mss verify --all
 ```
 
-Local qualification and the required PR checks own code quality, dependency policy, contracts, tests, and browser behavior. The unique Root candidate preview must not repeat those broad suites. It owns only release policy plus the exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images that later tag workflows publish byte-for-byte. Local reports support review but never replace the merged-main, actor, immutable-ref, OIDC, provenance, or public-reconciliation boundaries.
+After merge and source freeze in step 1, run the complete gate again on the exact clean merged-main `SHA`. Require the tracked worktree to be clean both before and after, and require `HEAD` to remain the frozen full commit:
+
+```bash
+test "$(git rev-parse HEAD)" = "${SHA}"
+test -z "$(git status --porcelain=v1 --untracked-files=no)"
+go run ./cmd/mss verify --all
+test -z "$(git status --porcelain=v1 --untracked-files=no)"
+test "$(git rev-parse HEAD)" = "${SHA}"
+sha256sum .mss/reports/verify.json
+```
+
+The release ledger outside the tracked worktree must record the full `SHA`, `trackedClean=true`, the exact command, report digest, and result. The complete verifier owns code quality, dependency policy, contracts, tests, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict output, empty second upgrade, evals, and browser behavior together with the required PR checks. The unique Root candidate preview must not repeat those broad suites. It owns only release policy plus the exact binaries, archives, packages, SBOMs, checksums, portable delivery smoke, Thin Host package composition, and multi-architecture images that later tag workflows publish byte-for-byte. The local report alone never replaces the merged-main, actor, immutable-ref, OIDC, provenance, or public-reconciliation boundaries.
 
 Classify a missing local browser binary or package as workstation setup first. Install it locally when repository and CI contracts are already correct. Change repository setup only when the failure reproduces in the checked-in workflow or a clean supported setup.
 
@@ -145,7 +156,7 @@ Immediately before the preview and every tag push, fetch `origin/main` again and
 
 ### 4. Run the unique Root candidate preview
 
-The only current preview authority is `release.yml` on `workflow_dispatch`. It accepts only `version`, never publishes, and builds and verifies the exact archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform images that formal tag workflows later reuse. It does not repeat dependency audits, Go suites, lint, unit tests, or Playwright; those must already be successful locally and in the reviewed PR.
+The only current preview authority is `release.yml` on `workflow_dispatch`. It accepts only `version`, never publishes, and builds and verifies only the exact archives, packages, SBOMs, checksums, portable delivery paths, Thin Host composition, and multi-platform images that formal tag workflows later reuse. It does not repeat dependency audits, Go suites, lint, unit tests, Playwright, next-Foundation compatibility, CLI/MCP/doctor parity, conflict/no-op rehearsals, or evals; the external ledger must already bind the successful complete local gate and required PR checks to this same frozen `SHA`.
 
 ```bash
 test "$(gh api user --jq .login)" = "lwnmengjing"

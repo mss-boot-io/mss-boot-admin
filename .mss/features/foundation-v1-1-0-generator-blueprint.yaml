@@ -697,7 +697,7 @@ spec:
           value: Required-test report proving contract-kind schema parity, infrastructure plan success, AdminModule missing-spec failure, and phase-scoped declarative evidence grouping without counting commands as executed.
     - id: version-identity-checkpoint-evidence
       requirement: record-version-identities
-      statement: The shared snapshot reader, CLI status, MCP upgrade adapter, doctor strict classification, and checked-in compatibility-workflow contract pass fully anchored single-package evidence without source/generated transition races or nested-module identity conflation.
+      statement: The shared snapshot reader, CLI status, MCP upgrade adapter, and doctor strict classification pass fully anchored single-package evidence without source/generated transition races or nested-module identity conflation.
       level: contract
       phase: checkpoint
       required: true
@@ -705,13 +705,12 @@ spec:
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
-            --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+            --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition)$'
             --count 20 --race --go-work off
             --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
             --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
             --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
             --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
-            --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
         - type: command
           value: >-
             go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
@@ -734,7 +733,7 @@ spec:
             --require TestRunAgentScopeRequiresValidGeneratedSnapshot
             --require TestRunAgentScopeFailsMalformedCurrentSnapshotWithoutSourceFallback
         - type: report
-          value: Commit 151a91c is the development checkpoint for these consumers; exact local test evidence and the static workflow-contract test do not assert that foundation-compatibility.yml has run in GitHub Actions.
+          value: Commit 151a91c is the historical development checkpoint for these consumers; current release qualification accepts the complete `mss verify --all` command and report only when an external ledger binds them to the same full commit and records the tracked worktree as clean.
     - id: blueprint-upgrade-rehearsal-checkpoint-evidence
       requirement: upgrade-preserving-customizations
       statement: The external development rehearsal upgrades a Blueprint 0.1.0 downstream from Foundation commit 35e41d3e to the Blueprint 0.2.0 candidate at commit 160e2df, preserves downstream-owned code, proves a zero-change second application, and atomically retains the prior snapshot in an independent injected apply failure without claiming feature-freeze evidence.
@@ -778,22 +777,28 @@ spec:
         - type: test
           value: Blueprint 0.1-to-0.2 three-way customization rehearsal
         - type: report
-          value: Exact-commit downstream upgrade, conflict, apply, and idempotency report
-    - id: version-identity-foundation-compatibility-gate
+          value: Exact-clean-commit `mss verify --all` downstream generation, upgrade, deterministic conflict, apply, and empty-second-upgrade report, bound by an external ledger to the full commit and tracked-clean state.
+    - id: version-identity-local-verification-gate
       requirement: record-version-identities
-      statement: After feature freeze, a real foundation-compatibility.yml run checks out the selected full SHA and proves CLI, MCP, and doctor agreement on all four identities and record digests through a Blueprint 0.1-to-0.2 customization-preserving upgrade whose second application is empty.
+      statement: After feature freeze, the complete local verifier runs on the selected exact clean commit and proves standalone next-Foundation generation and upgrade, CLI/MCP/doctor agreement on all four identities and record digests, deterministic conflict reporting, customization preservation, an empty second application, and the required eval matrix.
       level: integration
       phase: feature-freeze
       required: true
       evidence:
+        - type: command
+          value: go run ./cmd/mss verify --all
         - type: path
-          value: .github/workflows/foundation-compatibility.yml
+          value: tools/compatibility/test-standalone-mss-consumer.sh
+        - type: path
+          value: internal/mss/verify
         - type: report
           value: >-
-            GitHub Actions run URL and artifact manifest bound to the exact feature-freeze SHA, with Foundation version/full commit,
-            Blueprint 0.1 and 0.2 versions/digests, generator build version/full commit, downstream root module/snapshot digest,
-            lock digest, identical CLI/MCP/doctor status, preserved customization, deterministic conflict output, and a second
-            upgrade reporting zero changes. A local or static workflow-contract test is not accepted as this evidence.
+            The verifier report and command output are accepted when an external review or release ledger records the same full
+            feature-freeze commit, `trackedClean=true`, the exact command, and the report digest and result. The evidence includes
+            Foundation version/full commit, Blueprint source and target versions/digests, generator build version/full commit,
+            downstream root module/snapshot digest, lock digest, identical CLI/MCP/doctor status, preserved customization,
+            deterministic conflict output, a second upgrade reporting zero changes, and eval results. The local report alone does
+            not authorize a tag or replace merged-main, actor, immutable-ref, OIDC, provenance, or public-reconciliation checks.
     - id: version-identity-gate
       requirement: record-version-identities
       statement: A release-built external artifact from the prerequisite published Framework and the same reviewed root commit creates a new application outside the source checkout with GOWORK=off, and its generation output, lock, manifest, doctor, CLI status, and MCP status agree without manual identity edits.
@@ -971,13 +976,12 @@ spec:
         --require TestBusinessRoutesMountOnlyAfterCanonicalEmailSchemaReadiness
       - >-
         go run ./cmd/mss test evidence --directory . --package ./internal/mss/blueprint
-        --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition|TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence)$'
+        --run '^(TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords|TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel|TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack|TestInspectSnapshotWaitsForSourceToGeneratedTransition)$'
         --count 20 --race --go-work off
         --require TestReadSnapshotStatusPreservesFlatMetadataAndAddsIdentityRecords
         --require TestInspectSnapshotDistinguishesStrictFoundationSourceSentinel
         --require TestInspectSnapshotRequiresValidGeneratedPairAndNeverFallsBack
         --require TestInspectSnapshotWaitsForSourceToGeneratedTransition
-        --require TestFoundationCompatibilityWorkflowPinsIndependentIdentityEvidence
       - >-
         go run ./cmd/mss test evidence --directory . --package ./internal/mss/app
         --run '^(TestUpgradeApplicationDefersRootModuleIdentityToManifest|TestWriteUpgradeStatusPreservesFlatJSONAndReportsFourIdentities)$'
@@ -1009,10 +1013,13 @@ spec:
       contracts and run the complete three-database, browser, external-app, and Blueprint 0.1-to-0.2
       upgrade matrices on one candidate commit. The canonical-email checkpoint must retain its
       fail-closed server schema readiness and rerun both real database integrations from that
-      exact commit with both DSNs and zero skip. The same exact commit must complete a real
-      foundation-compatibility.yml run that records all four identities and digests, upgrades a
-      customized Blueprint 0.1 downstream to 0.2, and proves the second upgrade is empty; the
-      checkpoint's static workflow test is not release evidence. Do not start a second generated domain until this
+      exact commit with both DSNs and zero skip. The same exact tracked-clean commit must complete
+      `mss verify --all`, including standalone next-Foundation generation and upgrade, all four
+      identities and digests, CLI/MCP/doctor parity, deterministic conflict output, preserved
+      customization, an empty second upgrade, and evals. An external review or release ledger must
+      record the full commit, `trackedClean=true`, exact command, report digest, and result; this
+      exact-clean local evidence replaces the retired foundation-compatibility workflow but does not
+      authorize publication by itself. Do not start a second generated domain until this
       slice is complete. If target public APIs require a breaking change, make a truthful SemVer
       decision without changing the target generated structure.
     rollback: >-

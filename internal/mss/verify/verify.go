@@ -113,7 +113,7 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			add(strictAgentDoctor(ctx.Root), "full local verification validates the Agent environment contract before release preparation")
 			add(strictBackendDoctor(ctx.Root), "full local verification validates the Admin environment contract before release preparation")
 			add(skillContractValidation(ctx.Root), "full local verification validates every checked-in Agent skill")
-			add(foundationCompatibility(ctx.Root), "full local verification qualifies standalone package-first generation and upgrade behavior")
+			add(foundationCompatibility(ctx.Root), "full local verification qualifies standalone next-Foundation upgrades, identity parity, conflict safety, and Agent evals")
 			add(frameworkReleaseQualification(ctx.Root), "full local verification includes Framework race, coverage, vet, tidy, and independent-module checks")
 			add(backendReleaseQualification(ctx.Root), "full local verification includes Admin race, coverage, vet, module metadata, external consumer, and build checks")
 			add(presentationThinHostContract(ctx.Root), "full verification qualifies the fixed core-plus-business presentation contract through external Go and npm consumers")
@@ -145,6 +145,12 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			}
 			if releaseWorkflowContractSensitive(path) {
 				add(releaseWorkflowContractTest(ctx.Root), path+" affects release policy or workflow contracts")
+			}
+			if foundationCompatibilitySensitive(path) {
+				add(foundationCompatibility(ctx.Root), path+" affects standalone next-Foundation qualification")
+			}
+			if frontendQualificationSensitive(path) {
+				add(frontendQualification(ctx.Root), path+" affects local browser qualification")
 			}
 			if presentationThinHostContractSensitive(path) {
 				add(
@@ -669,11 +675,11 @@ func skillContractValidation(root string) command.Spec {
 func foundationCompatibility(root string) command.Spec {
 	return command.Spec{
 		ID:          "foundation-compatibility",
-		Description: "qualify standalone package-first generation and upgrade behavior",
+		Description: "qualify next-Foundation upgrades, CLI/MCP/doctor identity parity, conflict safety, external consumers, and Agent evals",
 		Directory:   root,
-		Args:        []string{"bash", "tools/compatibility/test-standalone-mss-consumer.sh", "--upgrade"},
+		Args:        []string{"make", "compatibility-foundation-next"},
 		Environment: map[string]string{"CI": "true"},
-		Timeout:     60 * time.Minute,
+		Timeout:     90 * time.Minute,
 	}
 }
 
@@ -777,8 +783,12 @@ func backendReleaseQualification(root string) command.Spec {
 		Description: "run Admin race, coverage, vet, module metadata, external consumer, and build qualification",
 		Directory:   root,
 		Args:        []string{"make", "verify-admin-preview"},
-		Environment: map[string]string{"CI": "true"},
-		Timeout:     60 * time.Minute,
+		Environment: map[string]string{
+			"CI":      "true",
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 60 * time.Minute,
 	}
 }
 
@@ -821,8 +831,12 @@ func frontendQualification(root string) command.Spec {
 		Description: "qualify dependency policy, lint, unit behavior, release build, delivery, and browser behavior for Ant Design 6",
 		Directory:   root,
 		Args:        []string{"make", "web-v6-qualify"},
-		Environment: map[string]string{"CI": "true"},
-		Timeout:     60 * time.Minute,
+		Environment: map[string]string{
+			"CI":      "true",
+			"GOFLAGS": "-mod=readonly",
+			"GOWORK":  filepath.Join(root, "go.work"),
+		},
+		Timeout: 60 * time.Minute,
 	}
 }
 
@@ -1056,11 +1070,20 @@ func presentationThinHostContractSensitive(path string) bool {
 func releaseWorkflowContractSensitive(path string) bool {
 	return strings.HasPrefix(path, ".github/workflows/") ||
 		strings.HasPrefix(path, "tools/release/") ||
+		strings.HasPrefix(path, "tools/verification/") ||
 		path == ".mss/release-policy.yaml" ||
 		path == ".mss/release-qualification.json" ||
 		path == ".mss/commands.yaml" ||
 		path == ".agents/skills/mss-release/SKILL.md" ||
 		path == "Makefile"
+}
+
+func foundationCompatibilitySensitive(path string) bool {
+	return path == "tools/compatibility/test-standalone-mss-consumer.sh"
+}
+
+func frontendQualificationSensitive(path string) bool {
+	return path == "tools/verification/run-frontend-e2e.sh"
 }
 
 func isFrontend(path string) bool {

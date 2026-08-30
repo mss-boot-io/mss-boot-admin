@@ -49,10 +49,10 @@ awk -v module="${framework_module}" -v version="${framework_version}" '
 # its metadata against the exact repository Framework candidate.
 (
   cd "${admin_dir}"
-  GOWORK=off go mod edit -modfile="${temporary_mod}" \
+  GOWORK=off GOFLAGS= go mod edit -modfile="${temporary_mod}" \
     -replace="${framework_module}@${framework_version}=${framework_dir}"
-  GOWORK=off go mod tidy -modfile="${temporary_mod}"
-  GOWORK=off go mod edit -modfile="${temporary_mod}" \
+  GOWORK=off GOFLAGS= go mod tidy -modfile="${temporary_mod}"
+  GOWORK=off GOFLAGS= go mod edit -modfile="${temporary_mod}" \
     -dropreplace="${framework_module}@${framework_version}"
 )
 

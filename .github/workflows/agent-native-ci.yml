@@ -210,9 +210,6 @@ jobs:
           GOWORK: 'off'
         run: go build ./cmd/mss ./cmd/mss-mcp
 
-      - name: Qualify standalone package-first generation and upgrade
-        run: bash tools/compatibility/test-standalone-mss-consumer.sh --upgrade
-
       - name: Load project context
         run: go run ./cmd/mss context --format json > "${RUNNER_TEMP}/mss-context.json"
 
@@ -348,9 +345,3 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tools/install/test-install-mss.ps1
-
-  foundation-compatibility:
-    needs:
-      - contracts-and-go
-      - cross-platform-agent-tools
-    uses: ./.github/workflows/foundation-compatibility.yml
