@@ -148,7 +148,7 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	files, manifest, err := buildDesired(ctx, root, blueprint, options.Application, options.FrontendRegistryURL)
+	files, manifest, err := buildDesired(ctx, root, blueprint, options.Application, options.FrontendRegistryURL, true)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -172,10 +172,10 @@ func Generate(ctx context.Context, options Options) (Plan, error) {
 
 // BuildDesired renders all tracked foundation files in memory without touching the destination.
 func BuildDesired(ctx context.Context, root string, blueprint *Document, application Application) (map[string]desiredFile, Manifest, error) {
-	return buildDesired(ctx, root, blueprint, application, "")
+	return buildDesired(ctx, root, blueprint, application, "", true)
 }
 
-func buildDesired(ctx context.Context, root string, blueprint *Document, application Application, frontendRegistryURL string) (map[string]desiredFile, Manifest, error) {
+func buildDesired(ctx context.Context, root string, blueprint *Document, application Application, frontendRegistryURL string, requirePresentationParity bool) (map[string]desiredFile, Manifest, error) {
 	application = normalizeApplication(application)
 	if err := ValidateApplication(application); err != nil {
 		return nil, Manifest{}, err
@@ -183,6 +183,11 @@ func buildDesired(ctx context.Context, root string, blueprint *Document, applica
 	source, err := loadCommittedFoundation(ctx, root, blueprint)
 	if err != nil {
 		return nil, Manifest{}, err
+	}
+	if requirePresentationParity {
+		if err := validateNewApplicationPresentationSource(source.Presentation); err != nil {
+			return nil, Manifest{}, err
+		}
 	}
 	blueprint = source.Blueprint
 	selected := make([]selectedCommittedFile, 0, len(source.Entries))

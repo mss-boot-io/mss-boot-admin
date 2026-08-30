@@ -38,6 +38,18 @@ func GenerateEmbedded(ctx context.Context, workingDirectory string, options Opti
 	if err != nil {
 		return Plan{}, err
 	}
+	return generateEmbeddedFromSource(ctx, base, options, source)
+}
+
+func generateEmbeddedFromSource(
+	ctx context.Context,
+	base string,
+	options Options,
+	source embeddedFoundation,
+) (Plan, error) {
+	if err := validateNewApplicationPresentationSource(source.Presentation); err != nil {
+		return Plan{}, err
+	}
 	frontendPackage, err := resolveFrontendPackageForSource(ctx, options.FrontendRegistryURL, source.Blueprint, source.Files)
 	if err != nil {
 		return Plan{}, err

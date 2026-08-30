@@ -500,3 +500,35 @@ func TestAdminDistributionUpgradeFailsClosedOnPackagedFrontendIdentityDrift(t *t
 		t.Fatal("failed-closed packaged frontend plan changed downstream files")
 	}
 }
+
+func TestApplicationGenerationFailsClosedOnPackagedFrontendIdentityDrift(t *testing.T) {
+	foundationRoot := writeThinHostBlueprintFixture(t)
+	installPresentationFixture(t, foundationRoot, []presentationFixturePage{{sourceName: "user-list.yaml"}})
+	frontendPath := filepath.Join(foundationRoot, filepath.FromSlash(presentationFrontendRegistryPath))
+	frontendData, err := os.ReadFile(frontendPath)
+	if err != nil {
+		t.Fatalf("read packaged frontend fixture: %v", err)
+	}
+	frontendData = bytes.Replace(frontendData, []byte(`"definitionVersion": "2"`), []byte(`"definitionVersion": "999"`), 1)
+	writeFixtureFile(t, foundationRoot, presentationFrontendRegistryPath, string(frontendData))
+	runGit(t, foundationRoot, "add", presentationFrontendRegistryPath)
+	runGit(t, foundationRoot, "commit", "-m", "test: drift fresh-generation presentation identity")
+
+	destination := filepath.Join(t.TempDir(), "frontend-drift-new-admin")
+	_, err = Generate(context.Background(), Options{
+		FoundationRoot: foundationRoot,
+		Destination:    destination,
+		Application: Application{
+			Name:       "frontend-drift-new-admin",
+			Module:     "github.com/acme/frontend-drift-new-admin",
+			Repository: "acme/frontend-drift-new-admin",
+		},
+		Write: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "refusing to generate a new application from a one-sided Distribution source") {
+		t.Fatalf("fresh generation identity drift error = %v", err)
+	}
+	if _, statErr := os.Stat(destination); !os.IsNotExist(statErr) {
+		t.Fatalf("failed-closed fresh generation created destination: %v", statErr)
+	}
+}

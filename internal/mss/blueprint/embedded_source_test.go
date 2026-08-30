@@ -230,6 +230,30 @@ func TestGenerateEmbeddedRejectsIncompleteBuildProvenance(t *testing.T) {
 	}
 }
 
+func TestGenerateEmbeddedFailsClosedOnPresentationIdentityDrift(t *testing.T) {
+	setEmbeddedReleaseBuild(t)
+	source, err := loadEmbeddedFoundation("")
+	if err != nil {
+		t.Fatalf("load embedded Foundation: %v", err)
+	}
+	source.Presentation.BackendFrontendInventoriesMatch = false
+	destination := filepath.Join(t.TempDir(), "embedded-presentation-drift")
+	_, err = generateEmbeddedFromSource(context.Background(), t.TempDir(), Options{
+		Destination: destination,
+		Application: Application{
+			Name:       "embedded-presentation-drift",
+			Module:     "github.com/acme/embedded-presentation-drift",
+			Repository: "acme/embedded-presentation-drift",
+		},
+	}, source)
+	if err == nil || !strings.Contains(err.Error(), "refusing to generate a new application from a one-sided Distribution source") {
+		t.Fatalf("embedded generation identity drift error = %v", err)
+	}
+	if _, statErr := os.Stat(destination); !os.IsNotExist(statErr) {
+		t.Fatalf("failed-closed embedded generation created destination: %v", statErr)
+	}
+}
+
 func TestUpgradeEmbeddedUsesMatchingSourceAndPreservesBusinessFiles(t *testing.T) {
 	setEmbeddedReleaseBuild(t)
 	working := t.TempDir()

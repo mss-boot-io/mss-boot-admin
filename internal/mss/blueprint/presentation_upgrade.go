@@ -110,6 +110,15 @@ type presentationInventoryIdentity struct {
 
 type presentationSourceReader func(path string) ([]byte, bool, error)
 
+func validateNewApplicationPresentationSource(snapshot presentationSnapshot) error {
+	if snapshot.APIVersion == "" || snapshot.BackendFrontendInventoriesMatch {
+		return nil
+	}
+	return errors.New(
+		"Admin presentation backend/frontend inventories do not match; refusing to generate a new application from a one-sided Distribution source",
+	)
+}
+
 func loadPresentationSourceSnapshot(read presentationSourceReader) (presentationSnapshot, error) {
 	inventoryData, inventoryExists, err := read(presentationPageInventoryPath)
 	if err != nil {

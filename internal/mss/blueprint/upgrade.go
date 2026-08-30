@@ -102,7 +102,7 @@ func Upgrade(ctx context.Context, options UpgradeOptions) (UpgradePlan, error) {
 	if err != nil {
 		return UpgradePlan{}, err
 	}
-	desired, newManifest, err := buildDesired(ctx, foundationRoot, newBlueprint, prepared.Options.Application, prepared.Options.FrontendRegistryURL)
+	desired, newManifest, err := buildDesired(ctx, foundationRoot, newBlueprint, prepared.Options.Application, prepared.Options.FrontendRegistryURL, false)
 	if err != nil {
 		return UpgradePlan{}, err
 	}
