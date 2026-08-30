@@ -271,8 +271,8 @@ spec:
         frontendHash: sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2
     - id: task-list
       displayName:
-        zh-CN: 任务管理
-        en-US: Tasks
+        zh-CN: 任务调度
+        en-US: Task scheduler
       disposition: included
       eligibility: limited
       pageKey: task.list
@@ -296,8 +296,8 @@ spec:
       runtimeConsumer: web/antd-v6/src/pages/Operations/index.tsx
       definitionIdentity:
         state: matching
-        backendHash: sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255
-        frontendHash: sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255
+        backendHash: sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4
+        frontendHash: sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4
     - id: notice-list
       displayName:
         zh-CN: 通知中心
@@ -358,8 +358,8 @@ spec:
         frontendHash: sha256:ff7b315dad5e7dfac8d49dce8c861bfb7bedf53917bc4e349f30d40c3fee7e15
     - id: option-list
       displayName:
-        zh-CN: 选项管理
-        en-US: Options
+        zh-CN: 选项字典管理
+        en-US: Option dictionaries
       disposition: included
       eligibility: limited
       pageKey: option.list
@@ -383,8 +383,8 @@ spec:
       runtimeConsumer: web/antd-v6/src/pages/Option/index.tsx
       definitionIdentity:
         state: matching
-        backendHash: sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39
-        frontendHash: sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39
+        backendHash: sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b
+        frontendHash: sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b
     - id: system-config-list
       displayName:
         zh-CN: 系统配置

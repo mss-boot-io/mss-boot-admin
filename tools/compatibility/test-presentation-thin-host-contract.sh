@@ -191,11 +191,11 @@ expected_core_entries = [
     ("menu.list", "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"),
     ("notice.list", "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"),
     ("online-session.list", "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"),
-    ("option.list", "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"),
+    ("option.list", "sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b"),
     ("post.list", "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"),
     ("role.list", "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"),
     ("system-config.list", "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"),
-    ("task.list", "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"),
+    ("task.list", "sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4"),
     ("user.list", "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"),
 ]
 expected_business_entry = (
@@ -372,11 +372,11 @@ var expectedCoreIdentities = []coreIdentity{
 	{PageKey: "menu.list", DefinitionHash: "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"},
 	{PageKey: "notice.list", DefinitionHash: "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"},
 	{PageKey: "online-session.list", DefinitionHash: "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"},
-	{PageKey: "option.list", DefinitionHash: "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"},
+	{PageKey: "option.list", DefinitionHash: "sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b"},
 	{PageKey: "post.list", DefinitionHash: "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"},
 	{PageKey: "role.list", DefinitionHash: "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"},
 	{PageKey: "system-config.list", DefinitionHash: "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"},
-	{PageKey: "task.list", DefinitionHash: "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"},
+	{PageKey: "task.list", DefinitionHash: "sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4"},
 	{PageKey: "user.list", DefinitionHash: "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"},
 }
 
@@ -689,11 +689,11 @@ const expectedCoreEntries = [
   ['menu.list', 'sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273'],
   ['notice.list', 'sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32'],
   ['online-session.list', 'sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599'],
-  ['option.list', 'sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39'],
+  ['option.list', 'sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b'],
   ['post.list', 'sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2'],
   ['role.list', 'sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3'],
   ['system-config.list', 'sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d'],
-  ['task.list', 'sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255'],
+  ['task.list', 'sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4'],
   ['user.list', 'sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f'],
 ] as const;
 
@@ -797,11 +797,11 @@ expected_core_entries = [
     ("menu.list", "sha256:fccb8f0274fca51f53f2a9275b37c437f34bd5a488405584163b1cd5d1047273"),
     ("notice.list", "sha256:9c6008eee24d6723210dbe1a673fc89639484db1a200475e046f91de2ee88f32"),
     ("online-session.list", "sha256:9d63e964add45526f33909cc1967f3c3000e98dc2c8482ab317923ece0c5f599"),
-    ("option.list", "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39"),
+    ("option.list", "sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b"),
     ("post.list", "sha256:538e929e7939343e0a367385ee504069d991e0ecb9de46721dea7f1549cb28a2"),
     ("role.list", "sha256:2c45710008671e2553efaf940df1964486366f8dc0e769958558c592f8a053b3"),
     ("system-config.list", "sha256:9cec42c9129b5f0e509d46ee286cfdf76805c2fec4929b9927cf0a800a73e24d"),
-    ("task.list", "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255"),
+    ("task.list", "sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4"),
     ("user.list", "sha256:2a114a21ae575eabbb8b91f7ee3b0c288549985e6eeee9473eecdda91267e33f"),
 ]
 consumer_bindings = {

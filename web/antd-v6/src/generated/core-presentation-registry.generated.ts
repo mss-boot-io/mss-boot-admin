@@ -3121,11 +3121,11 @@ export const corePresentationRegistry = {
     } as const,
   },
   "option.list": {
-    definitionHash: "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39",
+    definitionHash: "sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b",
     definition: {
       "pageKey": "option.list",
       "definitionVersion": "2",
-      "definitionHash": "sha256:380b3bf8aa3db294e058afc80a5107dca2562a6641a46110e22c2c508fa48e39",
+      "definitionHash": "sha256:4a7f22ec4f1d67f77ca47fe43ad01b733a5ccab355a5aaa26e70c1008836ea1b",
       "components": [
         {
           "id": "code"
@@ -3399,8 +3399,8 @@ export const corePresentationRegistry = {
       "actions": [],
       "defaultPresentation": {
         "title": {
-          "zh-CN": "选项管理",
-          "en-US": "Options"
+          "zh-CN": "选项字典管理",
+          "en-US": "Option dictionaries"
         },
         "dataSource": "option.list",
         "list": {
@@ -4424,11 +4424,11 @@ export const corePresentationRegistry = {
     } as const,
   },
   "task.list": {
-    definitionHash: "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255",
+    definitionHash: "sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4",
     definition: {
       "pageKey": "task.list",
       "definitionVersion": "2",
-      "definitionHash": "sha256:d6819fec2857c753b98891ec20df66af3299a097cda8c378f8ed0585daf8e255",
+      "definitionHash": "sha256:26d1b40ec2fb58041f3f64e361ffb069b128e16a216a6ee82e8333cd5dd4a3a4",
       "components": [
         {
           "id": "code"
@@ -4716,8 +4716,8 @@ export const corePresentationRegistry = {
       "actions": [],
       "defaultPresentation": {
         "title": {
-          "zh-CN": "任务管理",
-          "en-US": "Tasks"
+          "zh-CN": "任务调度",
+          "en-US": "Task scheduler"
         },
         "dataSource": "task.list",
         "list": {

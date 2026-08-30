@@ -1,5 +1,6 @@
+import type { InputProps, InputRef, RefSelectProps, SelectProps, SwitchProps } from 'antd';
 import { Input, Select, Switch, Tag, Typography } from 'antd';
-import type { ReactNode } from 'react';
+import { type AriaAttributes, type ForwardedRef, forwardRef, type ReactNode } from 'react';
 
 export interface PresentationSelectOption {
   value: string;
@@ -52,7 +53,7 @@ export function renderPresentationValue({
   }
 }
 
-interface PresentationFieldControlProps {
+interface PresentationFieldControlProps extends AriaAttributes {
   component: string;
   options?: readonly PresentationSelectOption[];
   placeholder?: string;
@@ -60,49 +61,99 @@ interface PresentationFieldControlProps {
   allLabel: ReactNode;
   enabledLabel: ReactNode;
   disabledLabel: ReactNode;
+  id?: string;
+  value?: unknown;
+  checked?: boolean;
+  disabled?: boolean;
+  name?: string;
+  onBlur?: (...args: unknown[]) => void;
+  onChange?: (...args: unknown[]) => void;
 }
 
-export function PresentationFieldControl({
-  component,
-  options = [],
-  placeholder,
-  maxLength,
-  allLabel,
-  enabledLabel,
-  disabledLabel,
-}: PresentationFieldControlProps) {
-  switch (component) {
-    case 'input':
-      return (
-        <Input allowClear autoComplete="off" maxLength={maxLength} placeholder={placeholder} />
-      );
-    case 'email-input':
-      return (
-        <Input
-          allowClear
-          autoComplete="email"
-          maxLength={maxLength}
-          placeholder={placeholder}
-          type="email"
-        />
-      );
-    case 'select':
-      return <Select options={[...options]} placeholder={placeholder} virtual={false} />;
-    case 'boolean-filter':
-      return (
-        <Select
-          options={[
-            { value: 'all', label: allLabel },
-            { value: 'true', label: enabledLabel },
-            { value: 'false', label: disabledLabel },
-          ]}
-          placeholder={placeholder}
-          virtual={false}
-        />
-      );
-    case 'switch':
-      return <Switch />;
-    default:
-      return null;
-  }
-}
+export type PresentationFieldControlRef = InputRef | RefSelectProps | HTMLButtonElement;
+
+/**
+ * Keeps the trusted presentation component registry inside the compiled
+ * bundle while preserving Ant Design Form.Item's custom-control contract.
+ * Form.Item clones its direct child with id, value/checked, handlers, aria
+ * state, and a focus ref; every supported concrete control must receive them.
+ */
+export const PresentationFieldControl = forwardRef<
+  PresentationFieldControlRef,
+  PresentationFieldControlProps
+>(
+  (
+    {
+      component,
+      options = [],
+      placeholder,
+      maxLength,
+      allLabel,
+      enabledLabel,
+      disabledLabel,
+      ...controlProps
+    },
+    ref,
+  ) => {
+    switch (component) {
+      case 'input':
+        return (
+          <Input
+            {...(controlProps as unknown as InputProps)}
+            allowClear
+            autoComplete="off"
+            maxLength={maxLength}
+            placeholder={placeholder}
+            ref={ref as ForwardedRef<InputRef>}
+          />
+        );
+      case 'email-input':
+        return (
+          <Input
+            {...(controlProps as unknown as InputProps)}
+            allowClear
+            autoComplete="email"
+            maxLength={maxLength}
+            placeholder={placeholder}
+            ref={ref as ForwardedRef<InputRef>}
+            type="email"
+          />
+        );
+      case 'select':
+        return (
+          <Select
+            {...(controlProps as unknown as SelectProps<string>)}
+            options={[...options]}
+            placeholder={placeholder}
+            ref={ref as ForwardedRef<RefSelectProps>}
+            virtual={false}
+          />
+        );
+      case 'boolean-filter':
+        return (
+          <Select
+            {...(controlProps as unknown as SelectProps<string>)}
+            options={[
+              { value: 'all', label: allLabel },
+              { value: 'true', label: enabledLabel },
+              { value: 'false', label: disabledLabel },
+            ]}
+            placeholder={placeholder}
+            ref={ref as ForwardedRef<RefSelectProps>}
+            virtual={false}
+          />
+        );
+      case 'switch':
+        return (
+          <Switch
+            {...(controlProps as unknown as SwitchProps)}
+            ref={ref as ForwardedRef<HTMLButtonElement>}
+          />
+        );
+      default:
+        return null;
+    }
+  },
+);
+
+PresentationFieldControl.displayName = 'PresentationFieldControl';

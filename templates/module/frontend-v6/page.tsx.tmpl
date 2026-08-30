@@ -221,6 +221,11 @@ export default function {{ .ModelName }}Page() {
       setSearchExpanded(!presentation.search.collapsedByDefault);
     }
   }, [presentation.search.collapsedByDefault, presentationRuntime.source]);
+  useEffect(() => {
+    if (!editorOpen) return;
+    editorForm.resetFields();
+    editorForm.setFieldsValue(editorRecord ?? createDefaults);
+  }, [editorForm, editorOpen, editorRecord]);
 {{- end }}
   const list = use{{ .ModelName }}Page(
     params,

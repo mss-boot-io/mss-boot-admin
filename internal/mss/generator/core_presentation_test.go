@@ -72,10 +72,31 @@ func TestCorePresentationTrackedOutputsMatchCanonicalInventory(t *testing.T) {
 		"department.list", "language.list", "log.audit", "log.login", "log.runtime", "menu.list", "notice.list",
 		"online-session.list", "option.list", "post.list", "role.list", "system-config.list", "task.list", "user.list",
 	}
+	wantTitles := map[string][2]string{
+		"department.list":     {"部门管理", "Departments"},
+		"language.list":       {"语言管理", "Languages"},
+		"log.audit":           {"审计日志", "Audit logs"},
+		"log.login":           {"登录日志", "Login logs"},
+		"log.runtime":         {"运行日志", "Runtime logs"},
+		"menu.list":           {"菜单管理", "Menus"},
+		"notice.list":         {"通知中心", "Notices"},
+		"online-session.list": {"在线会话", "Online sessions"},
+		"option.list":         {"选项字典管理", "Option dictionaries"},
+		"post.list":           {"岗位管理", "Posts"},
+		"role.list":           {"角色管理", "Roles"},
+		"system-config.list":  {"系统配置", "System configuration"},
+		"task.list":           {"任务调度", "Task scheduler"},
+		"user.list":           {"用户管理", "Users"},
+	}
 	for index := range snapshot.Manifests {
 		projection := &snapshot.Manifests[index]
 		if projection.PageKey != wantPageKeys[index] {
 			t.Fatalf("manifest page %d = %q, want %q", index, projection.PageKey, wantPageKeys[index])
+		}
+		wantTitle := wantTitles[projection.PageKey]
+		if projection.DefaultPresentation.Title.ZhCN == nil || *projection.DefaultPresentation.Title.ZhCN != wantTitle[0] ||
+			projection.DefaultPresentation.Title.EnUS == nil || *projection.DefaultPresentation.Title.EnUS != wantTitle[1] {
+			t.Errorf("core projection %s title = %#v, want zh-CN=%q en-US=%q", projection.PageKey, projection.DefaultPresentation.Title, wantTitle[0], wantTitle[1])
 		}
 		canonical, canonicalErr := canonicalPresentationProjection(projection)
 		if canonicalErr != nil {

@@ -5,9 +5,19 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 evidence_root="$(mktemp -d)"
 cleanup() {
-  rm -rf -- "${evidence_root}"
+  status=$?
+  trap - EXIT HUP INT TERM
+  if [[ "${status}" -eq 0 ]]; then
+    rm -rf -- "${evidence_root}"
+  else
+    echo "Frontend E2E evidence preserved at ${evidence_root}" >&2
+  fi
+  exit "${status}"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 umask 077
 export MSS_E2E_PASSWORD="MssE2E-A1-$(openssl rand -hex 24)"

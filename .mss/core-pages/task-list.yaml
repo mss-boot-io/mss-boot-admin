@@ -7,8 +7,8 @@ spec:
   pageKey: task.list
   definitionVersion: "2"
   title:
-    zh-CN: 任务管理
-    en-US: Tasks
+    zh-CN: 任务调度
+    en-US: Task scheduler
   list:
     density: large
     pageSize: 20

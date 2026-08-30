@@ -7,8 +7,8 @@ spec:
   pageKey: option.list
   definitionVersion: "2"
   title:
-    zh-CN: 选项管理
-    en-US: Options
+    zh-CN: 选项字典管理
+    en-US: Option dictionaries
   list:
     density: large
     pageSize: 20

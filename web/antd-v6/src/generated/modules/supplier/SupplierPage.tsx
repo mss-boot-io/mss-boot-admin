@@ -176,6 +176,11 @@ export default function SupplierPage() {
       setSearchExpanded(!presentation.search.collapsedByDefault);
     }
   }, [presentation.search.collapsedByDefault, presentationRuntime.source]);
+  useEffect(() => {
+    if (!editorOpen) return;
+    editorForm.resetFields();
+    editorForm.setFieldsValue(editorRecord ?? createDefaults);
+  }, [editorForm, editorOpen, editorRecord]);
   const list = useSupplierPage(
     params,
     capabilities.canList && presentation.status === 'ready',
