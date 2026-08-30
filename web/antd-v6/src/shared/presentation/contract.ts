@@ -367,6 +367,24 @@ const predicateOperators = new Set<PresentationPredicateOperator>([
   'lt',
   'lte',
 ]);
+
+function isProfileFieldIdentifier(value: string): boolean {
+  return (
+    value.length >= 1 &&
+    value.length <= 120 &&
+    (identifierPattern.test(value) || fieldIdentifierPattern.test(value))
+  );
+}
+
+function validateProfileFieldIdentifier(
+  value: string,
+  path: string,
+  issues: PresentationIssue[],
+): boolean {
+  if (isProfileFieldIdentifier(value)) return true;
+  addIssue(issues, 'invalid-identifier', path, 'Value must be a stable field identifier');
+  return false;
+}
 const forbiddenProfileKeys = new Set([
   'permission',
   'permissions',
@@ -538,6 +556,7 @@ function validateCondition(
     validateCondition(condition.not, fields, `${path}.not`, issues, depth + 1);
     return;
   }
+  if (!validateProfileFieldIdentifier(condition.field, `${path}.field`, issues)) return;
   if (!fields.has(condition.field)) {
     addIssue(
       issues,
@@ -611,6 +630,7 @@ function validateFieldCollection(
   }
   fields.forEach((field, index) => {
     const fieldPath = `${path}[${index}]`;
+    if (!validateProfileFieldIdentifier(field.field, `${fieldPath}.field`, issues)) return;
     const definition = fieldDefinitions.get(field.field);
     if (!definition) {
       addIssue(issues, 'unknown-field', `${fieldPath}.field`, `Unknown field ${field.field}`);
@@ -681,14 +701,7 @@ function validateFieldCollection(
     validateLocalizedText(field.label, `${fieldPath}.label`, issues);
     validateLocalizedText(field.placeholder, `${fieldPath}.placeholder`, issues);
     validateLocalizedText(field.help, `${fieldPath}.help`, issues);
-    if (field.visibleWhen !== undefined && isLimitedTablePresentationCapability(capability)) {
-      addIssue(
-        issues,
-        'unsupported-limited-condition',
-        `${fieldPath}.visibleWhen`,
-        'Limited table capabilities do not support visibility conditions',
-      );
-    } else {
+    if (!isLimitedTablePresentationCapability(capability)) {
       validateCondition(
         field.visibleWhen,
         new Set(fieldDefinitions.keys()),
@@ -1515,6 +1528,53 @@ export function validatePagePresentationProfile(
 ): PresentationIssue[] {
   const issues: PresentationIssue[] = [];
   inspectForbiddenKeys(profile, '$', issues);
+  if (isLimitedTablePresentationCapability(capability)) {
+    for (const surface of ['dataSource', 'form', 'detail', 'actions'] as const) {
+      if (Object.hasOwn(profile.spec, surface)) {
+        addIssue(
+          issues,
+          'unsupported-limited-surface',
+          `spec.${surface}`,
+          `Limited table capabilities do not support spec.${surface}`,
+        );
+      }
+    }
+    if (profile.spec.list && Object.hasOwn(profile.spec.list, 'defaultSort')) {
+      addIssue(
+        issues,
+        'unsupported-limited-surface',
+        'spec.list.defaultSort',
+        'Limited table capabilities do not support spec.list.defaultSort',
+      );
+    }
+    const validateLimitedFields = (
+      fields: readonly PageFieldPresentationPatch[] | undefined,
+      path: string,
+      allowedProperties: ReadonlySet<string>,
+    ) => {
+      fields?.forEach((field, index) => {
+        for (const property of Object.keys(field)) {
+          if (allowedProperties.has(property)) continue;
+          addIssue(
+            issues,
+            'unsupported-limited-surface',
+            `${path}[${index}].${property}`,
+            `Limited table capabilities do not support ${property} on ${path}`,
+          );
+        }
+      });
+    };
+    validateLimitedFields(
+      profile.spec.list?.columns,
+      'spec.list.columns',
+      new Set(['field', 'label', 'order', 'hidden', 'width']),
+    );
+    validateLimitedFields(
+      profile.spec.search?.fields,
+      'spec.search.fields',
+      new Set(['field', 'label', 'order', 'hidden']),
+    );
+  }
   if (profile.apiVersion !== ADMIN_PRESENTATION_API_VERSION) {
     addIssue(
       issues,
@@ -1603,19 +1663,16 @@ export function validatePagePresentationProfile(
   }
   const fieldDefinitions = new Map(capability.fields.map((field) => [field.id, field]));
   profile.spec.list?.defaultSort?.forEach((sort, index) => {
+    const sortFieldPath = `spec.list.defaultSort[${index}].field`;
+    if (!validateProfileFieldIdentifier(sort.field, sortFieldPath, issues)) return;
     const definition = fieldDefinitions.get(sort.field);
     if (!definition) {
-      addIssue(
-        issues,
-        'unknown-sort-field',
-        `spec.list.defaultSort[${index}].field`,
-        `Unknown sort field ${sort.field}`,
-      );
+      addIssue(issues, 'unknown-sort-field', sortFieldPath, `Unknown sort field ${sort.field}`);
     } else if (!definition.sortable) {
       addIssue(
         issues,
         'unsupported-sort-field',
-        `spec.list.defaultSort[${index}].field`,
+        sortFieldPath,
         `Field ${sort.field} is not sortable`,
       );
     }

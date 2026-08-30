@@ -205,11 +205,11 @@
         },
         "disposition": {
           "type": "string",
-          "enum": ["included", "excluded"]
+          "enum": ["included", "extension-example", "excluded"]
         },
         "eligibility": {
           "type": "string",
-          "enum": ["full", "limited", "protected", "non-management"]
+          "enum": ["full", "limited", "external", "protected", "non-management"]
         },
         "pageKey": {
           "type": "string",
@@ -355,8 +355,63 @@
                 "enum": ["full-table", "limited-table"]
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "extension-example"
+              }
+            },
+            "required": ["disposition"]
           },
-          "else": {
+          "then": {
+            "required": [
+              "pageKey",
+              "sourcePath",
+              "targetSourcePath",
+              "binding",
+              "pageKind",
+              "requiredPermissions",
+              "runtimeConsumer",
+              "definitionIdentity"
+            ],
+            "properties": {
+              "eligibility": {
+                "const": "external"
+              },
+              "sourceKind": {
+                "const": "admin-module"
+              },
+              "implementationState": {
+                "const": "generated"
+              },
+              "adoptionState": {
+                "const": "not-applicable"
+              },
+              "acceptanceState": {
+                "const": "not-applicable"
+              },
+              "rolloutWave": {
+                "const": "excluded"
+              },
+              "facetPolicy": {
+                "const": "full-table"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "excluded"
+              }
+            },
+            "required": ["disposition"]
+          },
+          "then": {
             "required": ["exclusionReason"],
             "properties": {
               "eligibility": {
@@ -472,7 +527,7 @@
         },
         "disposition": {
           "type": "string",
-          "enum": ["included", "excluded", "redirect", "exception"]
+          "enum": ["included", "extension-example", "excluded", "redirect", "exception"]
         },
         "pageIDs": {
           "type": "array",

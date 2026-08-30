@@ -14,8 +14,22 @@ presentation:
   recoveryMode: false
   # disabled returns compiled defaults; shadow validates stored layers without
   # applying them; active applies only pages listed in activePages.
-  adoptionMode: disabled
-  activePages: []
+  adoptionMode: active
+  activePages:
+    - user.list
+    - role.list
+    - menu.list
+    - department.list
+    - post.list
+    - task.list
+    - notice.list
+    - language.list
+    - option.list
+    - system-config.list
+    - online-session.list
+    - log.login
+    - log.audit
+    - log.runtime
 application:
   mode: dev
   origin: http://127.0.0.1:8080

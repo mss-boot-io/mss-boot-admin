@@ -295,26 +295,28 @@ function FieldEditor({
           />
         </div>
         <Row gutter={[12, 12]}>
-          <Col xs={24} md={12} xl={6}>
-            <Space orientation="vertical" size={2} className="w-full">
-              <Typography.Text>
-                {intl.formatMessage({ id: 'presentation.visual.component' })}
-              </Typography.Text>
-              <Select
-                allowClear
-                aria-label={`${field.id} ${intl.formatMessage({ id: 'presentation.visual.component' })}`}
-                className="w-full"
-                options={components.map((component) => ({ value: component, label: component }))}
-                placeholder={`${intl.formatMessage({ id: 'presentation.visual.inherit' })}: ${fallback?.component ?? '—'}`}
-                value={stringValue(propertyValue('component'))}
-                onChange={(value: string | undefined) =>
-                  onChange(
-                    setPresentationFieldOverride(document, surface, field.id, 'component', value),
-                  )
-                }
-              />
-            </Space>
-          </Col>
+          {!limitedCapability ? (
+            <Col xs={24} md={12} xl={6}>
+              <Space orientation="vertical" size={2} className="w-full">
+                <Typography.Text>
+                  {intl.formatMessage({ id: 'presentation.visual.component' })}
+                </Typography.Text>
+                <Select
+                  allowClear
+                  aria-label={`${field.id} ${intl.formatMessage({ id: 'presentation.visual.component' })}`}
+                  className="w-full"
+                  options={components.map((component) => ({ value: component, label: component }))}
+                  placeholder={`${intl.formatMessage({ id: 'presentation.visual.inherit' })}: ${fallback?.component ?? '—'}`}
+                  value={stringValue(propertyValue('component'))}
+                  onChange={(value: string | undefined) =>
+                    onChange(
+                      setPresentationFieldOverride(document, surface, field.id, 'component', value),
+                    )
+                  }
+                />
+              </Space>
+            </Col>
+          ) : null}
           <Col xs={24} md={12} xl={6}>
             <Space orientation="vertical" size={2} className="w-full">
               <Typography.Text>
@@ -392,7 +394,7 @@ function FieldEditor({
             </Col>
           ) : null}
         </Row>
-        {surface === 'search' || surface === 'form' ? (
+        {!limitedCapability && (surface === 'search' || surface === 'form') ? (
           <>
             <div>
               <Typography.Text strong>
@@ -461,7 +463,9 @@ function FieldEditor({
                 : intl.formatMessage({ id: 'presentation.visual.condition.required.disabled' })}
           </Typography.Text>
         )}
-        {inheritedLabel(intl.formatMessage, !patch, fallback?.component)}
+        {!limitedCapability
+          ? inheritedLabel(intl.formatMessage, !patch, fallback?.component)
+          : null}
       </Space>
     </Card>
   );
@@ -587,6 +591,7 @@ function SurfaceEditor({
 }: PresentationVisualEditorProps & { surface: FieldSurface }) {
   const intl = usePresentationIntl();
   const definition = capability.definition;
+  const limitedCapability = isLimitedTablePresentationCapability(definition);
   const section = presentationDraftSection(document, surface);
   const fields = definition.fields
     .filter((field) => field.surfaces.includes(surface))
@@ -599,7 +604,7 @@ function SurfaceEditor({
   const defaultSection = definition.defaultPresentation[surface];
   const spec = presentationDraftSpec(document);
   const dataSourceID =
-    typeof spec.dataSource === 'string'
+    !limitedCapability && typeof spec.dataSource === 'string'
       ? spec.dataSource
       : definition.defaultPresentation.dataSource;
   const dataSource = definition.dataSources.find((source) => source.id === dataSourceID);
@@ -658,7 +663,9 @@ function SurfaceEditor({
                 </Space>
               </Col>
             </Row>
-            <SortEditor capability={capability} document={document} onChange={onChange} />
+            {!limitedCapability ? (
+              <SortEditor capability={capability} document={document} onChange={onChange} />
+            ) : null}
           </Space>
         </Card>
       ) : null}
@@ -893,6 +900,7 @@ function ActionEditor({
 function GeneralEditor({ capability, document, onChange }: PresentationVisualEditorProps) {
   const intl = usePresentationIntl();
   const spec = presentationDraftSpec(document);
+  const limitedCapability = isLimitedTablePresentationCapability(capability.definition);
   return (
     <Space orientation="vertical" size="middle" className="w-full">
       <Card size="small" title={intl.formatMessage({ id: 'presentation.visual.title' })}>
@@ -904,22 +912,24 @@ function GeneralEditor({ capability, document, onChange }: PresentationVisualEdi
           }
         />
       </Card>
-      <Card size="small" title={intl.formatMessage({ id: 'presentation.visual.dataSource' })}>
-        <Select
-          allowClear
-          aria-label={intl.formatMessage({ id: 'presentation.visual.dataSource' })}
-          className="w-full"
-          options={capability.definition.dataSources.map((source) => ({
-            value: source.id,
-            label: source.id,
-          }))}
-          placeholder={`${intl.formatMessage({ id: 'presentation.visual.inherit' })}: ${capability.definition.defaultPresentation.dataSource}`}
-          value={typeof spec.dataSource === 'string' ? spec.dataSource : undefined}
-          onChange={(value) =>
-            onChange(setPresentationSpecOverride(document, undefined, 'dataSource', value))
-          }
-        />
-      </Card>
+      {!limitedCapability ? (
+        <Card size="small" title={intl.formatMessage({ id: 'presentation.visual.dataSource' })}>
+          <Select
+            allowClear
+            aria-label={intl.formatMessage({ id: 'presentation.visual.dataSource' })}
+            className="w-full"
+            options={capability.definition.dataSources.map((source) => ({
+              value: source.id,
+              label: source.id,
+            }))}
+            placeholder={`${intl.formatMessage({ id: 'presentation.visual.inherit' })}: ${capability.definition.defaultPresentation.dataSource}`}
+            value={typeof spec.dataSource === 'string' ? spec.dataSource : undefined}
+            onChange={(value) =>
+              onChange(setPresentationSpecOverride(document, undefined, 'dataSource', value))
+            }
+          />
+        </Card>
+      ) : null}
     </Space>
   );
 }
@@ -927,6 +937,10 @@ function GeneralEditor({ capability, document, onChange }: PresentationVisualEdi
 export default function PresentationVisualEditor(props: PresentationVisualEditorProps) {
   const intl = usePresentationIntl();
   const { capability, document, onChange } = props;
+  const limitedCapability = isLimitedTablePresentationCapability(capability.definition);
+  const editableSurfaces = limitedCapability
+    ? surfaces.filter((surface) => surface === 'list' || surface === 'search')
+    : surfaces;
   return (
     <Tabs
       destroyOnHidden={false}
@@ -936,7 +950,7 @@ export default function PresentationVisualEditor(props: PresentationVisualEditor
           label: intl.formatMessage({ id: 'presentation.visual.general' }),
           children: <GeneralEditor {...props} />,
         },
-        ...surfaces.map((surface) => ({
+        ...editableSurfaces.map((surface) => ({
           key: surface,
           label: intl.formatMessage({ id: `presentation.visual.${surface}` }),
           children: (
@@ -948,23 +962,27 @@ export default function PresentationVisualEditor(props: PresentationVisualEditor
             />
           ),
         })),
-        {
-          key: 'actions',
-          label: intl.formatMessage({ id: 'presentation.visual.actions' }),
-          children: (
-            <Space orientation="vertical" size="middle" className="w-full">
-              {capability.definition.actions.map((action) => (
-                <ActionEditor
-                  action={action}
-                  capability={capability}
-                  document={document}
-                  key={action.id}
-                  onChange={onChange}
-                />
-              ))}
-            </Space>
-          ),
-        },
+        ...(limitedCapability
+          ? []
+          : [
+              {
+                key: 'actions',
+                label: intl.formatMessage({ id: 'presentation.visual.actions' }),
+                children: (
+                  <Space orientation="vertical" size="middle" className="w-full">
+                    {capability.definition.actions.map((action) => (
+                      <ActionEditor
+                        action={action}
+                        capability={capability}
+                        document={document}
+                        key={action.id}
+                        onChange={onChange}
+                      />
+                    ))}
+                  </Space>
+                ),
+              },
+            ]),
       ]}
     />
   );

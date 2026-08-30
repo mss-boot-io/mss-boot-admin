@@ -106,10 +106,92 @@ func TestPresentationPublishRejectsLimitedTableVisibilityConditions(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, created.DraftValid)
 	require.False(t, *created.DraftValid)
-	require.Contains(t, presentationIssueCodes(created.Draft.Issues), "unsupported-limited-condition")
+	require.Contains(t, presentationIssueCodes(created.Draft.Issues), "unsupported-limited-surface")
 
 	_, err = service.Publish(ctx, created.ID, created.Version, "publish-limited-condition", "publisher")
 	require.ErrorIs(t, err, ErrPresentationInvalidDocument)
+}
+
+func TestPresentationPublishRejectsLimitedTableUnsupportedSurface(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		mutate   func(*presentation.Profile)
+		wantPath string
+	}{
+		{
+			name: "data source",
+			mutate: func(profile *presentation.Profile) {
+				dataSource := "orders.list"
+				profile.Spec.DataSource = &dataSource
+			},
+			wantPath: "spec.dataSource",
+		},
+		{
+			name: "form",
+			mutate: func(profile *presentation.Profile) {
+				columns := 1
+				profile.Spec.Form = &presentation.FormPatch{Columns: &columns}
+			},
+			wantPath: "spec.form",
+		},
+		{
+			name: "list component",
+			mutate: func(profile *presentation.Profile) {
+				component := "text"
+				fields := []presentation.FieldPatch{{Field: "status", Component: &component}}
+				profile.Spec.List = &presentation.ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].component",
+		},
+		{
+			name: "default sort",
+			mutate: func(profile *presentation.Profile) {
+				sorts := []presentation.Sort{{Field: "status", Direction: "asc"}}
+				profile.Spec.List = &presentation.ListPatch{DefaultSort: &sorts}
+			},
+			wantPath: "spec.list.defaultSort",
+		},
+		{
+			name: "search help",
+			mutate: func(profile *presentation.Profile) {
+				help := presentationText("状态帮助", "Status help")
+				fields := []presentation.FieldPatch{{Field: "status", Help: &help}}
+				profile.Spec.Search = &presentation.SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].help",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			capability := servicePresentationCapability(t)
+			capability.Fields[0].Surfaces = []presentation.Surface{presentation.SurfaceList, presentation.SurfaceSearch}
+			capability.Actions = []presentation.CapabilityAction{}
+			capability.DefaultPresentation.Form.Fields = []presentation.CompleteField{}
+			capability.DefaultPresentation.Detail.Fields = []presentation.CompleteField{}
+			capability.DefaultPresentation.Actions = []presentation.CompleteAction{}
+			capability.DefaultPresentation.List.DefaultSort = []presentation.Sort{}
+			var err error
+			capability.DefinitionHash, err = presentation.ComputeDefinitionHash(&capability)
+			require.NoError(t, err)
+			require.Empty(t, presentation.ValidateCapability(&capability))
+
+			service, _, ctx := newPresentationServiceForCapability(t, capability)
+			raw := presentationProfileJSON(t, capability, presentation.Scope{Kind: presentation.ScopeApplication}, testCase.mutate)
+			created, err := service.CreateDraft(ctx, dto.PresentationProfileIdentity{
+				Scope: presentation.ScopeApplication, PageKey: capability.PageKey,
+			}, raw, "author")
+			require.NoError(t, err)
+			require.NotNil(t, created.DraftValid)
+			require.False(t, *created.DraftValid)
+			require.Equal(t, []string{"unsupported-limited-surface"}, presentationIssueCodes(created.Draft.Issues))
+			require.Equal(t, testCase.wantPath, created.Draft.Issues[0].Path)
+
+			_, err = service.Publish(ctx, created.ID, created.Version, "publish-limited-surface", "publisher")
+			require.ErrorIs(t, err, ErrPresentationInvalidDocument)
+			current, getErr := service.Get(ctx, created.ID)
+			require.NoError(t, getErr)
+			require.Zero(t, current.PublishedRevision)
+		})
+	}
 }
 
 func TestPresentationConcurrentPublicationCommitsExactlyOneRevision(t *testing.T) {

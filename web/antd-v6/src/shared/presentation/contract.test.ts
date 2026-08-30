@@ -305,7 +305,7 @@ describe('Admin page presentation contract', () => {
     expect(validatePagePresentationProfile(limitedUserDefinition, conditionalProfile)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: 'unsupported-limited-condition',
+          code: 'unsupported-limited-surface',
           path: 'spec.search.fields[0].visibleWhen',
         }),
       ]),
@@ -323,6 +323,205 @@ describe('Admin page presentation contract', () => {
     expect(resolution.presentation.search.fields).toEqual(
       limitedUserDefinition.defaultPresentation.search.fields,
     );
+  });
+
+  it('rejects profile-owned data source and unsupported surfaces on limited core tables', () => {
+    const restrictedSpecs: readonly (readonly [PagePresentationSpec, string])[] = [
+      [{ dataSource: '' }, 'spec.dataSource'],
+      [{ form: { columns: 2 } }, 'spec.form'],
+      [{ detail: { columns: 2 } }, 'spec.detail'],
+      [{ actions: [] }, 'spec.actions'],
+    ];
+
+    for (const [spec, path] of restrictedSpecs) {
+      const restrictedProfile: AdminPagePresentationProfile = {
+        apiVersion: ADMIN_PRESENTATION_API_VERSION,
+        kind: ADMIN_PRESENTATION_KIND,
+        metadata: {
+          name: 'user-application',
+          pageKey: limitedUserDefinition.pageKey,
+          definitionHash: limitedUserDefinition.definitionHash,
+          scope: { kind: 'application' },
+        },
+        spec,
+      };
+
+      expect(validatePagePresentationProfile(limitedUserDefinition, restrictedProfile)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'unsupported-limited-surface', path }),
+        ]),
+      );
+    }
+  });
+
+  it('enforces the limited list and search field-property whitelists by property presence', () => {
+    const restrictedProfile: AdminPagePresentationProfile = {
+      apiVersion: ADMIN_PRESENTATION_API_VERSION,
+      kind: ADMIN_PRESENTATION_KIND,
+      metadata: {
+        name: 'user-application',
+        pageKey: limitedUserDefinition.pageKey,
+        definitionHash: limitedUserDefinition.definitionHash,
+        scope: { kind: 'application' },
+      },
+      spec: {
+        list: {
+          defaultSort: [],
+          columns: [
+            {
+              field: 'email',
+              component: '',
+              span: 0,
+              placeholder: {},
+              help: {},
+              visibleWhen: { field: 'status', operator: 'exists' },
+            },
+          ],
+        },
+        search: {
+          fields: [
+            {
+              field: 'name',
+              component: '',
+              width: 0,
+              span: 0,
+              placeholder: {},
+              help: false,
+              visibleWhen: false,
+            },
+          ],
+        },
+      } as unknown as PagePresentationSpec,
+    };
+
+    const issues = validatePagePresentationProfile(limitedUserDefinition, restrictedProfile);
+    for (const path of [
+      'spec.list.defaultSort',
+      'spec.list.columns[0].component',
+      'spec.list.columns[0].span',
+      'spec.list.columns[0].placeholder',
+      'spec.list.columns[0].help',
+      'spec.list.columns[0].visibleWhen',
+      'spec.search.fields[0].component',
+      'spec.search.fields[0].width',
+      'spec.search.fields[0].span',
+      'spec.search.fields[0].placeholder',
+      'spec.search.fields[0].help',
+      'spec.search.fields[0].visibleWhen',
+    ]) {
+      expect(issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'unsupported-limited-surface', path }),
+        ]),
+      );
+    }
+  });
+
+  it('retains full presentation facets for the external Supplier extension capability', () => {
+    const externalProfile = profile(
+      'supplier-full-table',
+      { kind: 'application' },
+      {
+        dataSource: 'supplier.list',
+        list: {
+          columns: [
+            {
+              field: 'contactEmail',
+              component: 'text',
+              span: 12,
+              placeholder: { 'en-US': 'Contact email' },
+              help: { 'en-US': 'Business contact' },
+              visibleWhen: { field: 'enabled', operator: 'eq', value: true },
+            },
+          ],
+          defaultSort: [{ field: 'code', direction: 'asc' }],
+        },
+        search: {
+          fields: [
+            {
+              field: 'name',
+              component: 'input',
+              width: 160,
+              span: 12,
+              placeholder: { 'en-US': 'Supplier name' },
+              help: { 'en-US': 'Search by name' },
+              visibleWhen: { field: 'enabled', operator: 'eq', value: true },
+            },
+          ],
+        },
+      },
+    );
+
+    expect(
+      validatePagePresentationProfile(supplierPresentationCapability, externalProfile).filter(
+        (issue) => issue.code === 'unsupported-limited-surface',
+      ),
+    ).toEqual([]);
+  });
+
+  it('accepts lower-camel field references in patches, sorts, and conditions', () => {
+    const capability = validV2Capability();
+    capability.fields = capability.fields.map((field) =>
+      field.id === 'contactEmail' ? { ...field, sortable: true } : field,
+    );
+    const camelCaseProfile = profile(
+      'camel-case-fields',
+      { kind: 'application' },
+      {
+        dataSource: 'supplier.list',
+        list: {
+          columns: [{ field: 'contactEmail', component: 'text' }],
+          defaultSort: [{ field: 'contactEmail', direction: 'asc' }],
+        },
+        detail: {
+          fields: [
+            {
+              field: 'contactEmail',
+              component: 'text',
+              visibleWhen: { field: 'creditLevel', operator: 'eq', value: 'a' },
+            },
+          ],
+        },
+        actions: [{ action: 'supplier.read', placement: 'row' }],
+      },
+    );
+
+    expect(validatePagePresentationProfile(capability, camelCaseProfile)).toEqual([]);
+  });
+
+  it('rejects malformed field references at patch, sort, and condition positions', () => {
+    const invalidReferences: readonly (readonly [PagePresentationSpec, string])[] = [
+      [{ list: { columns: [{ field: 'ContactEmail' }] } }, 'spec.list.columns[0].field'],
+      [
+        { list: { defaultSort: [{ field: 'contact@email', direction: 'asc' }] } },
+        'spec.list.defaultSort[0].field',
+      ],
+      [{ search: { fields: [{ field: 'contact_name' }] } }, 'spec.search.fields[0].field'],
+      [
+        {
+          detail: {
+            fields: [
+              {
+                field: 'contactEmail',
+                visibleWhen: { field: 'contact:email', operator: 'exists' },
+              },
+            ],
+          },
+        },
+        'spec.detail.fields[0].visibleWhen.field',
+      ],
+    ];
+
+    for (const [spec, path] of invalidReferences) {
+      expect(
+        validatePagePresentationProfile(
+          supplierPresentationCapability,
+          profile('invalid-field-reference', { kind: 'application' }, spec),
+        ),
+      ).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: 'invalid-identifier', path })]),
+      );
+    }
   });
 
   it('requires bounded page-size and sort metadata for every version 2 data source', () => {

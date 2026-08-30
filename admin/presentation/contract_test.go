@@ -194,7 +194,7 @@ func TestLimitedTablePresentationRejectsConditionsThatRuntimeCannotEvaluate(t *t
 	require.Empty(t, issues)
 	document.Profile.Metadata.DefinitionHash = limited.DefinitionHash
 	issues = ValidateProfile(&limited, document.Profile)
-	require.Equal(t, []string{"unsupported-limited-condition", "unsupported-limited-condition"}, issueCodes(issues))
+	require.Equal(t, []string{"unsupported-limited-surface", "unsupported-limited-surface"}, issueCodes(issues))
 	require.Equal(t, "spec.list.columns[0].visibleWhen", issues[0].Path)
 	require.Equal(t, "spec.search.fields[0].visibleWhen", issues[1].Path)
 
@@ -205,7 +205,346 @@ func TestLimitedTablePresentationRejectsConditionsThatRuntimeCannotEvaluate(t *t
 
 	full := validCapabilityV2(t)
 	document.Profile.Metadata.DefinitionHash = full.DefinitionHash
-	require.NotContains(t, issueCodes(ValidateProfile(&full, document.Profile)), "unsupported-limited-condition")
+	require.NotContains(t, issueCodes(ValidateProfile(&full, document.Profile)), "unsupported-limited-surface")
+}
+
+func TestLimitedTablePresentationRejectsUnsupportedProfileSurfaces(t *testing.T) {
+	limited := validCapabilityV2(t)
+	limited.Actions = []CapabilityAction{}
+	limited.DefaultPresentation.Form.Fields = []CompleteField{}
+	limited.DefaultPresentation.Detail.Fields = []CompleteField{}
+	limited.DefaultPresentation.Actions = []CompleteAction{}
+	var err error
+	limited.DefinitionHash, err = ComputeDefinitionHash(&limited)
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		name     string
+		spec     string
+		wantPath string
+		wantCode string
+	}{
+		{name: "data source", spec: `{"dataSource":"orders.list"}`, wantPath: "spec.dataSource", wantCode: "unsupported-limited-surface"},
+		{name: "form", spec: `{"form":{"columns":1}}`, wantPath: "spec.form", wantCode: "unsupported-limited-surface"},
+		{name: "detail", spec: `{"detail":{"columns":1}}`, wantPath: "spec.detail", wantCode: "unsupported-limited-surface"},
+		{name: "actions", spec: `{"actions":[]}`, wantPath: "spec.actions", wantCode: "unsupported-limited-surface"},
+		{name: "default sort", spec: `{"list":{"defaultSort":[{"field":"status","direction":"asc"}]}}`, wantPath: "spec.list.defaultSort", wantCode: "unsupported-limited-surface"},
+		{name: "list component", spec: `{"list":{"columns":[{"field":"status","component":"text"}]}}`, wantPath: "spec.list.columns[0].component", wantCode: "unsupported-limited-surface"},
+		{name: "list span", spec: `{"list":{"columns":[{"field":"status","span":1}]}}`, wantPath: "spec.list.columns[0].span", wantCode: "unsupported-limited-surface"},
+		{name: "list placeholder", spec: `{"list":{"columns":[{"field":"status","placeholder":{"en-US":"Status"}}]}}`, wantPath: "spec.list.columns[0].placeholder", wantCode: "unsupported-limited-surface"},
+		{name: "list help", spec: `{"list":{"columns":[{"field":"status","help":{"en-US":"Status help"}}]}}`, wantPath: "spec.list.columns[0].help", wantCode: "unsupported-limited-surface"},
+		{name: "list condition with false value", spec: `{"list":{"columns":[{"field":"status","visibleWhen":{"field":"status","operator":"eq","value":false}}]}}`, wantPath: "spec.list.columns[0].visibleWhen", wantCode: "unsupported-limited-surface"},
+		{name: "search component", spec: `{"search":{"fields":[{"field":"status","component":"select"}]}}`, wantPath: "spec.search.fields[0].component", wantCode: "unsupported-limited-surface"},
+		{name: "search width", spec: `{"search":{"fields":[{"field":"status","width":120}]}}`, wantPath: "spec.search.fields[0].width", wantCode: "unsupported-limited-surface"},
+		{name: "search span", spec: `{"search":{"fields":[{"field":"status","span":1}]}}`, wantPath: "spec.search.fields[0].span", wantCode: "unsupported-limited-surface"},
+		{name: "search placeholder", spec: `{"search":{"fields":[{"field":"status","placeholder":{"en-US":"Status"}}]}}`, wantPath: "spec.search.fields[0].placeholder", wantCode: "unsupported-limited-surface"},
+		{name: "search help", spec: `{"search":{"fields":[{"field":"status","help":{"en-US":"Status help"}}]}}`, wantPath: "spec.search.fields[0].help", wantCode: "unsupported-limited-surface"},
+		{name: "search condition", spec: `{"search":{"fields":[{"field":"status","visibleWhen":{"field":"status","operator":"eq","value":"open"}}]}}`, wantPath: "spec.search.fields[0].visibleWhen", wantCode: "unsupported-limited-surface"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			document, parseIssues := ParseDocument([]byte(validProfileJSON(testCase.spec)))
+			require.Empty(t, parseIssues)
+			document.Profile.Metadata.DefinitionHash = limited.DefinitionHash
+
+			issues := ValidateProfile(&limited, document.Profile)
+			require.Equal(t, []string{testCase.wantCode}, issueCodes(issues))
+			require.Equal(t, testCase.wantPath, issues[0].Path)
+
+			full := validCapabilityV2(t)
+			document.Profile.Metadata.DefinitionHash = full.DefinitionHash
+			require.Empty(t, ValidateProfile(&full, document.Profile))
+		})
+	}
+}
+
+func TestLimitedTablePresentationAllowsOnlyWhitelistedListAndSearchProperties(t *testing.T) {
+	limited := validCapabilityV2(t)
+	limited.Actions = []CapabilityAction{}
+	limited.DefaultPresentation.Form.Fields = []CompleteField{}
+	limited.DefaultPresentation.Detail.Fields = []CompleteField{}
+	limited.DefaultPresentation.Actions = []CompleteAction{}
+	var err error
+	limited.DefinitionHash, err = ComputeDefinitionHash(&limited)
+	require.NoError(t, err)
+
+	document, parseIssues := ParseDocument([]byte(validProfileJSON(`{
+  "title":{"en-US":"Orders"},
+  "list":{
+    "columns":[{"field":"status","label":{"en-US":"Status"},"order":0,"hidden":false,"width":60}],
+    "density":"compact",
+    "pageSize":20
+  },
+  "search":{
+    "fields":[{"field":"status","label":{"en-US":"Status"},"order":0,"hidden":false}],
+    "collapsedByDefault":false
+  }
+}`)))
+	require.Empty(t, parseIssues)
+	document.Profile.Metadata.DefinitionHash = limited.DefinitionHash
+	require.Empty(t, ValidateProfile(&limited, document.Profile))
+}
+
+func TestLimitedTablePresentationRejectsForbiddenPropertiesByPresence(t *testing.T) {
+	limited := validCapabilityV2(t)
+	limited.Actions = []CapabilityAction{}
+	limited.DefaultPresentation.Form.Fields = []CompleteField{}
+	limited.DefaultPresentation.Detail.Fields = []CompleteField{}
+	limited.DefaultPresentation.Actions = []CompleteAction{}
+	var err error
+	limited.DefinitionHash, err = ComputeDefinitionHash(&limited)
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		name     string
+		mutate   func(*Profile)
+		wantPath string
+		wantCode string
+	}{
+		{
+			name: "empty data source",
+			mutate: func(profile *Profile) {
+				empty := ""
+				profile.Spec.DataSource = &empty
+			},
+			wantPath: "spec.dataSource", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty default sort",
+			mutate: func(profile *Profile) {
+				empty := []Sort{}
+				profile.Spec.List = &ListPatch{DefaultSort: &empty}
+			},
+			wantPath: "spec.list.defaultSort", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty list component",
+			mutate: func(profile *Profile) {
+				empty := ""
+				fields := []FieldPatch{{Field: "status", Component: &empty}}
+				profile.Spec.List = &ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].component", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "zero list span",
+			mutate: func(profile *Profile) {
+				zero := 0
+				fields := []FieldPatch{{Field: "status", Span: &zero}}
+				profile.Spec.List = &ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].span", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty list placeholder",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", Placeholder: &LocalizedText{}}}
+				profile.Spec.List = &ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].placeholder", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty list help",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", Help: &LocalizedText{}}}
+				profile.Spec.List = &ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].help", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty list condition",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", VisibleWhen: &Condition{}}}
+				profile.Spec.List = &ListPatch{Columns: &fields}
+			},
+			wantPath: "spec.list.columns[0].visibleWhen", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty search component",
+			mutate: func(profile *Profile) {
+				empty := ""
+				fields := []FieldPatch{{Field: "status", Component: &empty}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].component", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "zero search width",
+			mutate: func(profile *Profile) {
+				zero := 0
+				fields := []FieldPatch{{Field: "status", Width: &zero}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].width", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "zero search span",
+			mutate: func(profile *Profile) {
+				zero := 0
+				fields := []FieldPatch{{Field: "status", Span: &zero}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].span", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty search placeholder",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", Placeholder: &LocalizedText{}}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].placeholder", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty search help",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", Help: &LocalizedText{}}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].help", wantCode: "unsupported-limited-surface",
+		},
+		{
+			name: "empty search condition",
+			mutate: func(profile *Profile) {
+				fields := []FieldPatch{{Field: "status", VisibleWhen: &Condition{}}}
+				profile.Spec.Search = &SearchPatch{Fields: &fields}
+			},
+			wantPath: "spec.search.fields[0].visibleWhen", wantCode: "unsupported-limited-surface",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			document, parseIssues := ParseDocument([]byte(validProfileJSON(`{"title":{"en-US":"Orders"}}`)))
+			require.Empty(t, parseIssues)
+			document.Profile.Metadata.DefinitionHash = limited.DefinitionHash
+			testCase.mutate(document.Profile)
+
+			issues := ValidateProfile(&limited, document.Profile)
+			found := false
+			for _, current := range issues {
+				if current.Code == testCase.wantCode && current.Path == testCase.wantPath {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "issues = %#v", issues)
+		})
+	}
+}
+
+func TestProfileFieldReferencesAcceptVersionTwoLowerCamelIdentifiers(t *testing.T) {
+	capability := validCapabilityV2(t)
+	fieldTemplate := capability.Fields[0]
+	capability.Fields = make([]CapabilityField, 0, 5)
+	for _, fieldSpec := range []struct {
+		id        string
+		surface   Surface
+		component string
+	}{
+		{id: "contactEmail", surface: SurfaceList, component: "text"},
+		{id: "contactName", surface: SurfaceSearch, component: "select"},
+		{id: "creditLevel", surface: SurfaceForm, component: "select"},
+		{id: "createdAt", surface: SurfaceDetail, component: "text"},
+		{id: "updatedAt", surface: SurfaceList, component: "text"},
+	} {
+		field := fieldTemplate
+		field.ID = fieldSpec.id
+		field.Surfaces = []Surface{fieldSpec.surface}
+		field.Components = []string{fieldSpec.component}
+		field.SurfaceComponents = []CapabilitySurfaceComponents{{
+			Surface: fieldSpec.surface, Components: []string{fieldSpec.component},
+		}}
+		field.Searchable = fieldSpec.surface == SurfaceSearch
+		field.Sortable = fieldSpec.id == "updatedAt"
+		field.Filterable = false
+		capability.Fields = append(capability.Fields, field)
+	}
+	listColumn := capability.DefaultPresentation.List.Columns[0]
+	listColumn.Field = "contactEmail"
+	updatedAtColumn := listColumn
+	updatedAtColumn.Field = "updatedAt"
+	updatedAtColumn.Order = 20
+	capability.DefaultPresentation.List.Columns = []CompleteField{listColumn, updatedAtColumn}
+	capability.DefaultPresentation.List.DefaultSort[0].Field = "updatedAt"
+	capability.DefaultPresentation.Search.Fields[0].Field = "contactName"
+	capability.DefaultPresentation.Form.Fields[0].Field = "creditLevel"
+	capability.DefaultPresentation.Detail.Fields[0].Field = "createdAt"
+	var err error
+	capability.DefinitionHash, err = ComputeDefinitionHash(&capability)
+	require.NoError(t, err)
+	require.Empty(t, ValidateCapability(&capability))
+
+	document, parseIssues := ParseDocument([]byte(validProfileJSON(`{
+  "dataSource":"orders.list",
+  "list":{
+    "columns":[{"field":"contactEmail","component":"text","visibleWhen":{"field":"contactName","operator":"eq","value":"open"}}],
+    "defaultSort":[{"field":"updatedAt","direction":"asc"}]
+  },
+  "search":{"fields":[{"field":"contactName","component":"select"}]},
+  "form":{"fields":[{"field":"creditLevel","component":"select"}]},
+  "detail":{"fields":[{"field":"createdAt","component":"text"}]},
+  "actions":[{"action":"orders.read","placement":"row"}]
+}`)))
+	require.Empty(t, parseIssues)
+	document.Profile.Metadata.DefinitionHash = capability.DefinitionHash
+	require.Empty(t, ValidateProfile(&capability, document.Profile))
+
+	unknownDocument, parseIssues := ParseDocument([]byte(validProfileJSON(`{
+  "list":{"columns":[{"field":"unknownField"}]}
+}`)))
+	require.Empty(t, parseIssues)
+	unknownDocument.Profile.Metadata.DefinitionHash = capability.DefinitionHash
+	semanticIssues := ValidateProfile(&capability, unknownDocument.Profile)
+	require.Contains(t, issueCodes(semanticIssues), "unknown-field")
+	require.NotContains(t, issueCodes(semanticIssues), "invalid-identifier")
+}
+
+func TestProfileFieldReferencesRejectInvalidIdentifiersAtEverySurface(t *testing.T) {
+	_, issues := ParseDocument([]byte(validProfileJSON(`{
+  "list":{
+    "columns":[
+      {"field":"ContactEmail"},
+      {"field":"status","visibleWhen":{"field":"contact:email","operator":"eq","value":"open"}}
+    ],
+    "defaultSort":[{"field":"contact@email","direction":"asc"}]
+  },
+  "search":{"fields":[{"field":"contact_name"}]},
+  "form":{"fields":[{"field":"contact/name"}]},
+  "detail":{"fields":[{"field":"contact name"}]}
+}`)))
+	require.Len(t, issues, 6)
+	paths := make([]string, 0, len(issues))
+	for _, current := range issues {
+		require.Equal(t, "invalid-identifier", current.Code)
+		paths = append(paths, current.Path)
+	}
+	require.ElementsMatch(t, []string{
+		"spec.list.columns[0].field",
+		"spec.list.columns[1].visibleWhen.field",
+		"spec.list.defaultSort[0].field",
+		"spec.search.fields[0].field",
+		"spec.form.fields[0].field",
+		"spec.detail.fields[0].field",
+	}, paths)
+}
+
+func TestProfileCamelCaseFieldSupportDoesNotRelaxOtherIdentifiers(t *testing.T) {
+	raw := validProfileJSON(`{
+  "dataSource":"Orders.list",
+  "list":{"columns":[{"field":"contactEmail","component":"TextInput"}]},
+  "actions":[{"action":"orders.Read"}]
+}`)
+	raw = strings.Replace(raw, `"pageKey":"orders.list"`, `"pageKey":"Orders.list"`, 1)
+	_, issues := ParseDocument([]byte(raw))
+	require.Len(t, issues, 4)
+	paths := make([]string, 0, len(issues))
+	for _, current := range issues {
+		require.Equal(t, "invalid-identifier", current.Code)
+		paths = append(paths, current.Path)
+	}
+	require.ElementsMatch(t, []string{
+		"metadata.pageKey",
+		"spec.dataSource",
+		"spec.list.columns[0].component",
+		"spec.actions[0].action",
+	}, paths)
 }
 
 func TestDefinitionHashCoversCompatibilityButNotDefaultPresentation(t *testing.T) {

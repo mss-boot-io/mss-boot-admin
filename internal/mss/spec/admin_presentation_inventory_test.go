@@ -56,11 +56,27 @@ func TestAdminPresentationPageInventorySchemaIsValidClosedAndAligned(t *testing.
 			t.Errorf("inventory page does not require %q", required)
 		}
 	}
+	pageProperties := jsonObject(t, page["properties"], "$defs.page.properties")
+	pageDispositions := jsonStrings(t, jsonObject(t, pageProperties["disposition"], "$defs.page.properties.disposition")["enum"], "$defs.page.properties.disposition.enum")
+	for _, disposition := range []string{"included", "extension-example", "excluded"} {
+		if !slices.Contains(pageDispositions, disposition) {
+			t.Errorf("inventory page disposition does not allow %q", disposition)
+		}
+	}
+	pageEligibility := jsonStrings(t, jsonObject(t, pageProperties["eligibility"], "$defs.page.properties.eligibility")["enum"], "$defs.page.properties.eligibility.enum")
+	if !slices.Contains(pageEligibility, "external") {
+		t.Error("inventory page eligibility does not allow external extensions")
+	}
 	route := jsonObject(t, definitions["route"], "$defs.route")
 	for _, required := range []string{"id", "path", "routeKind", "disposition", "pageIDs", "reason"} {
 		if !slices.Contains(jsonStrings(t, route["required"], "$defs.route.required"), required) {
 			t.Errorf("inventory route does not require %q", required)
 		}
+	}
+	routeProperties := jsonObject(t, route["properties"], "$defs.route.properties")
+	routeDispositions := jsonStrings(t, jsonObject(t, routeProperties["disposition"], "$defs.route.properties.disposition")["enum"], "$defs.route.properties.disposition.enum")
+	if !slices.Contains(routeDispositions, "extension-example") {
+		t.Error("inventory route disposition does not allow extension-example")
 	}
 	walkClosedObjectSchemas(t, schema, "$")
 }
@@ -70,7 +86,6 @@ func TestAdminPresentationPageInventoryHasExactProductScope(t *testing.T) {
 	inventory := loadRepositoryAdminPresentationInventory(t, repositoryRoot)
 
 	wantPageKeys := map[string]bool{
-		"supplier.list":       true,
 		"user.list":           true,
 		"role.list":           true,
 		"menu.list":           true,
@@ -115,17 +130,23 @@ func TestAdminPresentationPageInventoryHasExactProductScope(t *testing.T) {
 	}
 
 	included := map[string]AdminPresentationPageInventoryPage{}
+	extensions := map[string]AdminPresentationPageInventoryPage{}
 	excluded := map[string]AdminPresentationPageInventoryPage{}
 	for _, page := range inventory.Spec.Pages {
 		switch page.Disposition {
 		case "included":
 			included[page.PageKey] = page
+		case "extension-example":
+			extensions[page.PageKey] = page
 		case "excluded":
 			excluded[page.ID] = page
 		}
 	}
-	if len(included) != 15 {
-		t.Fatalf("included page count = %d, want 15", len(included))
+	if len(included) != 14 {
+		t.Fatalf("included page count = %d, want 14", len(included))
+	}
+	if len(extensions) != 1 {
+		t.Fatalf("extension-example page count = %d, want 1", len(extensions))
 	}
 	if len(excluded) != 7 {
 		t.Fatalf("excluded page count = %d, want 7", len(excluded))
@@ -151,15 +172,15 @@ func TestAdminPresentationPageInventoryHasExactProductScope(t *testing.T) {
 		}
 	}
 
-	supplier := included["supplier.list"]
-	if supplier.SourceKind != "admin-module" || supplier.FacetPolicy != "full-table" || supplier.TargetSourcePath != ".mss/modules/example-supplier.yaml" {
-		t.Fatalf("Supplier must remain the sole full AdminModule reference: %#v", supplier)
+	supplier := extensions["supplier.list"]
+	if supplier.Disposition != "extension-example" || supplier.Eligibility != "external" || supplier.SourceKind != "admin-module" || supplier.FacetPolicy != "full-table" || supplier.TargetSourcePath != ".mss/modules/example-supplier.yaml" {
+		t.Fatalf("Supplier must remain the sole external full AdminModule example: %#v", supplier)
+	}
+	if supplier.ImplementationState != "generated" || supplier.AdoptionState != "not-applicable" || supplier.AcceptanceState != "not-applicable" || supplier.RolloutWave != "excluded" {
+		t.Fatalf("Supplier extension lifecycle must remain outside built-in adoption and acceptance: %#v", supplier)
 	}
 	coreCount := 0
 	for pageKey, page := range included {
-		if pageKey == "supplier.list" {
-			continue
-		}
 		coreCount++
 		if page.SourceKind != "foundation-core" || page.FacetPolicy != "limited-table" {
 			t.Errorf("core page %s escaped the limited Foundation boundary: %#v", pageKey, page)
@@ -243,20 +264,44 @@ func TestAdminPresentationPageInventoryMatchesGeneratedDefinitionsAndConsumers(t
 			t.Errorf("%s runtime consumer %q: %v", page.PageKey, page.RuntimeConsumer, err)
 		}
 		wantHash := coreHashes[page.PageKey]
-		if page.PageKey == "supplier.list" {
-			wantHash = supplierManifest.Manifest.DefinitionHash
-			if supplierFrontendHash != wantHash {
-				t.Errorf("Supplier generated backend/frontend identities = %q/%q", wantHash, supplierFrontendHash)
-			}
-		} else if frontendHashes[page.PageKey] != wantHash {
+		if frontendHashes[page.PageKey] != wantHash {
 			t.Errorf("%s generated backend/frontend identities = %q/%q", page.PageKey, wantHash, frontendHashes[page.PageKey])
 		}
 		if wantHash == "" || page.DefinitionIdentity.BackendHash != wantHash || page.DefinitionIdentity.FrontendHash != wantHash {
 			t.Errorf("%s inventory identity = %q/%q, generated = %q", page.PageKey, page.DefinitionIdentity.BackendHash, page.DefinitionIdentity.FrontendHash, wantHash)
 		}
 	}
-	if len(seen) != 15 {
-		t.Fatalf("generated included page identity count = %d, want 15", len(seen))
+	if len(seen) != 14 {
+		t.Fatalf("generated included page identity count = %d, want 14", len(seen))
+	}
+
+	var supplier AdminPresentationPageInventoryPage
+	for _, page := range inventory.Spec.Pages {
+		if page.Disposition == "extension-example" {
+			if supplier.PageKey != "" {
+				t.Fatalf("multiple extension examples found: %q and %q", supplier.PageKey, page.PageKey)
+			}
+			supplier = page
+		}
+	}
+	if supplier.PageKey != "supplier.list" {
+		t.Fatalf("extension example page key = %q, want supplier.list", supplier.PageKey)
+	}
+	if supplier.ImplementationState != "generated" || supplier.DefinitionIdentity.State != "matching" {
+		t.Fatalf("Supplier extension lifecycle = %s/%s, want generated/matching", supplier.ImplementationState, supplier.DefinitionIdentity.State)
+	}
+	if supplier.SourcePath != supplier.TargetSourcePath {
+		t.Fatalf("Supplier extension source identity = %q/%q", supplier.SourcePath, supplier.TargetSourcePath)
+	}
+	if _, err := os.Stat(filepath.Join(repositoryRoot, filepath.FromSlash(supplier.RuntimeConsumer))); err != nil {
+		t.Fatalf("Supplier extension runtime consumer %q: %v", supplier.RuntimeConsumer, err)
+	}
+	wantSupplierHash := supplierManifest.Manifest.DefinitionHash
+	if supplierFrontendHash != wantSupplierHash {
+		t.Errorf("Supplier generated backend/frontend identities = %q/%q", wantSupplierHash, supplierFrontendHash)
+	}
+	if wantSupplierHash == "" || supplier.DefinitionIdentity.BackendHash != wantSupplierHash || supplier.DefinitionIdentity.FrontendHash != wantSupplierHash {
+		t.Errorf("Supplier extension inventory identity = %q/%q, generated = %q", supplier.DefinitionIdentity.BackendHash, supplier.DefinitionIdentity.FrontendHash, wantSupplierHash)
 	}
 }
 
@@ -320,7 +365,7 @@ func TestAdminPresentationPageInventoryClosesCompiledRouteDeclarations(t *testin
 		fmt.Fprintf(&routeIdentities, "%s|%s|%s|%s|%s\n", route.ID, route.Path, route.RouteKind, route.Disposition, strings.Join(route.PageIDs, ","))
 	}
 	routeIdentityHash := fmt.Sprintf("%x", sha256.Sum256([]byte(routeIdentities.String())))
-	const wantRouteIdentityHash = "f497785b750660c8216258e3dca126764bb30895167977e61097b6a9710c22d5"
+	const wantRouteIdentityHash = "d3c4d7a512ea420b78ad85228404a574200d0676de29bcbd88f9a2ea844e6d57"
 	if routeIdentityHash != wantRouteIdentityHash {
 		t.Fatalf("route classification identity changed: got %s, want %s", routeIdentityHash, wantRouteIdentityHash)
 	}
@@ -371,9 +416,27 @@ func TestAdminPresentationPageInventoryParserFailsClosed(t *testing.T) {
 		},
 		{
 			name:       "active page lacks acceptance",
-			old:        "adoptionState: disabled",
-			new:        "adoptionState: active",
+			old:        "adoptionState: active\n      acceptanceState: passed",
+			new:        "adoptionState: active\n      acceptanceState: pending",
 			wantSubstr: "active adoption requires passed acceptance",
+		},
+		{
+			name:       "extension example cannot be active",
+			old:        "      adoptionState: not-applicable\n      acceptanceState: not-applicable\n      rolloutWave: excluded\n",
+			new:        "      adoptionState: active\n      acceptanceState: not-applicable\n      rolloutWave: excluded\n",
+			wantSubstr: "adoptionState must equal not-applicable for extension-example pages",
+		},
+		{
+			name:       "extension example cannot pass built-in acceptance",
+			old:        "      adoptionState: not-applicable\n      acceptanceState: not-applicable\n      rolloutWave: excluded\n",
+			new:        "      adoptionState: not-applicable\n      acceptanceState: passed\n      rolloutWave: excluded\n",
+			wantSubstr: "acceptanceState must equal not-applicable for extension-example pages",
+		},
+		{
+			name:       "extension route cannot be classified as included",
+			old:        "    - id: generated-suppliers\n      path: /suppliers\n      routeKind: page\n      disposition: extension-example\n",
+			new:        "    - id: generated-suppliers\n      path: /suppliers\n      routeKind: page\n      disposition: included\n",
+			wantSubstr: "disposition must equal extension-example for extension-example page supplier-list",
 		},
 	}
 	for _, test := range tests {
@@ -404,7 +467,7 @@ func TestValidateFileDispatchesAdminPresentationPageInventory(t *testing.T) {
 	if document.Kind != AdminPresentationPageInventoryKind || document.Name != "admin-presentation-pages" {
 		t.Fatalf("validated inventory identity = %q/%q", document.Kind, document.Name)
 	}
-	if document.Summary["includedPages"] != 15 || document.Summary["excludedPages"] != 7 {
+	if document.Summary["includedPages"] != 14 || document.Summary["extensionPages"] != 1 || document.Summary["excludedPages"] != 7 {
 		t.Fatalf("validated inventory summary = %#v", document.Summary)
 	}
 }

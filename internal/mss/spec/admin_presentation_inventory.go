@@ -233,6 +233,12 @@ func (inventory *AdminPresentationPageInventory) Validate() error {
 			if !contains(page.RoutePatterns, route.Path) {
 				add(location + ".path is not declared by page " + pageID)
 			}
+			if page.Disposition == "extension-example" && route.Disposition != "extension-example" {
+				add(location + ".disposition must equal extension-example for extension-example page " + pageID)
+			}
+			if route.Disposition == "extension-example" && page.Disposition != "extension-example" {
+				add(location + ".disposition can reference only extension-example pages")
+			}
 			if coveredPatterns[pageID] == nil {
 				coveredPatterns[pageID] = map[string]bool{}
 			}
@@ -258,21 +264,25 @@ func (inventory *AdminPresentationPageInventory) Validate() error {
 // Summary returns stable inventory counts for CLI and MCP callers.
 func (inventory *AdminPresentationPageInventory) Summary() map[string]any {
 	included := 0
+	extensions := 0
 	excluded := 0
 	for _, page := range inventory.Spec.Pages {
 		if page.Disposition == "included" {
 			included++
+		} else if page.Disposition == "extension-example" {
+			extensions++
 		} else if page.Disposition == "excluded" {
 			excluded++
 		}
 	}
 	return map[string]any{
-		"name":          inventory.Metadata.Name,
-		"revision":      inventory.Metadata.Revision,
-		"pages":         len(inventory.Spec.Pages),
-		"includedPages": included,
-		"excludedPages": excluded,
-		"routes":        len(inventory.Spec.Routes),
+		"name":           inventory.Metadata.Name,
+		"revision":       inventory.Metadata.Revision,
+		"pages":          len(inventory.Spec.Pages),
+		"includedPages":  included,
+		"extensionPages": extensions,
+		"excludedPages":  excluded,
+		"routes":         len(inventory.Spec.Routes),
 	}
 }
 
@@ -293,15 +303,25 @@ func validateInventoryPage(location string, page AdminPresentationPageInventoryP
 	if len(page.ProtectedCapabilities) == 0 {
 		add(location + ".protectedCapabilities must contain at least one boundary")
 	}
-	if page.Disposition == "included" {
-		if !contains([]string{"full", "limited"}, page.Eligibility) {
-			add(location + ".eligibility must be full or limited")
+	if page.Disposition == "included" || page.Disposition == "extension-example" {
+		extensionExample := page.Disposition == "extension-example"
+		if extensionExample {
+			if page.Eligibility != "external" {
+				add(location + ".eligibility must equal external for extension-example pages")
+			}
+			if page.SourceKind != "admin-module" {
+				add(location + ".sourceKind must equal admin-module for extension-example pages")
+			}
+		} else {
+			if !contains([]string{"full", "limited"}, page.Eligibility) {
+				add(location + ".eligibility must be full or limited")
+			}
+			if !contains([]string{"admin-module", "foundation-core"}, page.SourceKind) {
+				add(location + ".sourceKind must be admin-module or foundation-core")
+			}
 		}
 		if !adminPresentationPageKeyPattern.MatchString(page.PageKey) {
 			add(location + ".pageKey is invalid")
-		}
-		if !contains([]string{"admin-module", "foundation-core"}, page.SourceKind) {
-			add(location + ".sourceKind must be admin-module or foundation-core")
 		}
 		if !safeInventoryRepositoryPath(page.TargetSourcePath) {
 			add(location + ".targetSourcePath is unsafe or missing")
@@ -318,24 +338,42 @@ func validateInventoryPage(location string, page AdminPresentationPageInventoryP
 		if page.RequiredPermissions == nil {
 			add(location + ".requiredPermissions must be explicit")
 		}
-		if !contains([]string{"planned", "generated"}, page.ImplementationState) {
-			add(location + ".implementationState must be planned or generated")
-		}
-		if !contains([]string{"disabled", "shadow", "active"}, page.AdoptionState) {
-			add(location + ".adoptionState is unsupported")
-		}
-		if !contains([]string{"pending", "passed"}, page.AcceptanceState) {
-			add(location + ".acceptanceState is unsupported")
-		}
-		if page.RolloutWave == "excluded" || !adminPresentationRolloutWave.MatchString(page.RolloutWave) {
-			add(location + ".rolloutWave must be wave-0 through wave-5")
-		}
-		wantFacetPolicy := "limited-table"
-		if page.Eligibility == "full" {
-			wantFacetPolicy = "full-table"
-		}
-		if page.FacetPolicy != wantFacetPolicy {
-			add(location + ".facetPolicy must equal " + wantFacetPolicy)
+		if extensionExample {
+			if page.ImplementationState != "generated" {
+				add(location + ".implementationState must equal generated for extension-example pages")
+			}
+			if page.AdoptionState != "not-applicable" {
+				add(location + ".adoptionState must equal not-applicable for extension-example pages")
+			}
+			if page.AcceptanceState != "not-applicable" {
+				add(location + ".acceptanceState must equal not-applicable for extension-example pages")
+			}
+			if page.RolloutWave != "excluded" {
+				add(location + ".rolloutWave must equal excluded for extension-example pages")
+			}
+			if page.FacetPolicy != "full-table" {
+				add(location + ".facetPolicy must equal full-table for extension-example pages")
+			}
+		} else {
+			if !contains([]string{"planned", "generated"}, page.ImplementationState) {
+				add(location + ".implementationState must be planned or generated")
+			}
+			if !contains([]string{"disabled", "shadow", "active"}, page.AdoptionState) {
+				add(location + ".adoptionState is unsupported")
+			}
+			if !contains([]string{"pending", "passed"}, page.AcceptanceState) {
+				add(location + ".acceptanceState is unsupported")
+			}
+			if page.RolloutWave == "excluded" || !adminPresentationRolloutWave.MatchString(page.RolloutWave) {
+				add(location + ".rolloutWave must be wave-0 through wave-5")
+			}
+			wantFacetPolicy := "limited-table"
+			if page.Eligibility == "full" {
+				wantFacetPolicy = "full-table"
+			}
+			if page.FacetPolicy != wantFacetPolicy {
+				add(location + ".facetPolicy must equal " + wantFacetPolicy)
+			}
 		}
 		validateDefinitionIdentity(location+".definitionIdentity", page.DefinitionIdentity, add)
 		switch page.ImplementationState {
@@ -357,11 +395,13 @@ func validateInventoryPage(location string, page AdminPresentationPageInventoryP
 				add(location + ".definitionIdentity.state must equal planned for a planned page")
 			}
 		}
-		if page.AdoptionState != "disabled" && page.ImplementationState != "generated" {
-			add(location + " shadow or active adoption requires a generated implementation")
-		}
-		if page.AdoptionState == "active" && page.AcceptanceState != "passed" {
-			add(location + " active adoption requires passed acceptance")
+		if !extensionExample {
+			if page.AdoptionState != "disabled" && page.ImplementationState != "generated" {
+				add(location + " shadow or active adoption requires a generated implementation")
+			}
+			if page.AdoptionState == "active" && page.AcceptanceState != "passed" {
+				add(location + " active adoption requires passed acceptance")
+			}
 		}
 		if page.ExclusionReason != "" {
 			add(location + ".exclusionReason is only valid for excluded pages")
@@ -369,7 +409,7 @@ func validateInventoryPage(location string, page AdminPresentationPageInventoryP
 		return
 	}
 	if page.Disposition != "excluded" {
-		add(location + ".disposition must be included or excluded")
+		add(location + ".disposition must be included, extension-example, or excluded")
 		return
 	}
 	if !contains([]string{"protected", "non-management"}, page.Eligibility) {
@@ -416,7 +456,7 @@ func validateInventoryRoute(location string, route AdminPresentationPageInventor
 	if !contains([]string{"layout", "page", "subroute", "redirect", "fallback"}, route.RouteKind) {
 		add(location + ".routeKind is unsupported")
 	}
-	if !contains([]string{"included", "excluded", "redirect", "exception"}, route.Disposition) {
+	if !contains([]string{"included", "extension-example", "excluded", "redirect", "exception"}, route.Disposition) {
 		add(location + ".disposition is unsupported")
 	}
 	if len(route.PageIDs) == 0 {

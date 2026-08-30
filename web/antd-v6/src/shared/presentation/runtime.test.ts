@@ -258,6 +258,107 @@ describe('effective presentation runtime', () => {
     });
   });
 
+  it('parses lower-camel field, sort, and nested condition references from effective layers', () => {
+    const response = effective('active', {
+      application: profile({
+        dataSource: 'supplier.list',
+        list: {
+          columns: [{ field: 'contactEmail', component: 'text' }],
+          defaultSort: [{ field: 'createdAt', direction: 'desc' }],
+        },
+        detail: {
+          fields: [
+            {
+              field: 'updatedAt',
+              component: 'date-time',
+              visibleWhen: {
+                all: [
+                  { field: 'creditLevel', operator: 'eq', value: 'a' },
+                  { field: 'contactName', operator: 'exists' },
+                ],
+              },
+            },
+          ],
+        },
+        actions: [{ action: 'supplier.read', placement: 'row' }],
+      }),
+    });
+
+    expect(response.layers.application?.spec.list?.columns?.[0]?.field).toBe('contactEmail');
+    expect(response.layers.application?.spec.list?.defaultSort?.[0]?.field).toBe('createdAt');
+    expect(response.layers.application?.spec.detail?.fields?.[0]?.visibleWhen).toEqual({
+      all: [
+        { field: 'creditLevel', operator: 'eq', value: 'a' },
+        { field: 'contactName', operator: 'exists' },
+      ],
+    });
+
+    const runtime = resolveEffectivePagePresentation({
+      entry,
+      locale: 'en-US',
+      user: user(),
+      response: effective('active', {
+        application: profile({
+          list: { columns: [{ field: 'contactEmail', hidden: true }] },
+          detail: {
+            fields: [
+              {
+                field: 'updatedAt',
+                visibleWhen: { field: 'creditLevel', operator: 'eq', value: 'a' },
+              },
+            ],
+          },
+        }),
+      }),
+      settled: true,
+    });
+    expect(runtime.source).toBe('active');
+    expect(runtime.model.list.columns.map((field) => field.field)).not.toContain('contactEmail');
+    expect(runtime.model.detail.fields.find((field) => field.field === 'updatedAt')).toMatchObject({
+      visibleWhen: { field: 'creditLevel', operator: 'eq', value: 'a' },
+    });
+  });
+
+  it('rejects malformed profile field references without relaxing other identifiers', () => {
+    const invalidSpecs: readonly AdminPagePresentationProfile['spec'][] = [
+      { list: { columns: [{ field: 'ContactEmail' }] } },
+      { list: { defaultSort: [{ field: 'contact@email', direction: 'asc' }] } },
+      {
+        detail: {
+          fields: [
+            {
+              field: 'contactEmail',
+              visibleWhen: { field: 'contact:email', operator: 'exists' },
+            },
+          ],
+        },
+      },
+      { dataSource: 'supplierList' },
+      { list: { columns: [{ field: 'contactEmail', component: 'Text' }] } },
+      { actions: [{ action: 'supplier.Read' }] },
+    ];
+
+    for (const spec of invalidSpecs) {
+      expect(() => effective('active', { application: profile(spec) })).toThrow(
+        'Invalid effective presentation response',
+      );
+    }
+    expect(() =>
+      parseEffectivePresentationResponse({
+        pageKey: 'supplierList',
+        definitionHash: definition.definitionHash,
+        adoption: {
+          mode: 'active',
+          state: 'active',
+          resolveLayers: true,
+          applyLayers: true,
+        },
+        layers: {},
+        diagnostics: [],
+      }),
+    ).toThrow('Invalid effective presentation response');
+  });
+
   it('rejects impossible adoption decisions', () => {
     expect(() =>
       parseEffectivePresentationResponse({

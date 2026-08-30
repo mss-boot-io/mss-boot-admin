@@ -1,6 +1,6 @@
 # ADR: Classify all Admin routes and adopt every table management page
 
-- Status: Proposed successor scope; implementation and exact-Head acceptance are incomplete
+- Status: Accepted; exactly fourteen Foundation built-ins are exact-allowlisted active and passed
 - Date: 2026-08-30
 - Evaluated branch: `codex/page-presentation-complete-design`
 - Evaluated baseline commit: `1b855d0b71e2884d7b743d49edc73f4dcd853787`
@@ -12,17 +12,20 @@
 
 ## Context
 
-The predecessor design established the production presentation architecture and implemented two deliberate
-pilots:
+The predecessor design established the presentation architecture and implemented two deliberate proofs:
 
-- generated business page `supplier.list`, with complete list, search, form, detail, and action
-  presentation;
+- external generated business page `supplier.list`, with complete list, search, form, detail, and action
+  presentation in an AdminModule and Thin Host;
 - Foundation core page `user.list`, with a separately reviewed limited list and search surface.
 
-Those pilots prove the architecture but do not satisfy the product objective that all existing
-table-oriented Admin management pages can be adjusted at runtime. The current generated business registry
-contains only Supplier, the current Foundation core registry contains only user management, and the first
-core-page source and binding are intentionally specific to user management.
+Those proofs establish both supported source kinds, but the Supplier proof never made Supplier an
+mss-boot-admin built-in page. This decision supersedes any ambiguous predecessor wording: Foundation owns
+exactly fourteen built-in table-management page keys, while `supplier.list` remains an explicitly composed
+external business-extension example in the reference Admin and in eligible Thin Hosts. Supplier does not
+participate in Foundation built-in activation,
+Browser acceptance, completion, or rollout. The first Foundation core-page source and binding were
+intentionally specific to user management; this successor generalizes that core mechanism to the other
+thirteen built-ins.
 
 The repository also has more route shapes than one CRUD table:
 
@@ -69,13 +72,12 @@ two user-visible routes.
 Any missing, extra, duplicated, or newly unclassified declaration fails. An excluded route is complete
 only when it has a durable reason; it is not counted as missing implementation.
 
-### 2. Include every table-oriented management page
+### 2. Include exactly fourteen Foundation table-management pages
 
-The successor target contains these fifteen stable page keys:
+The successor Foundation target contains these fourteen stable page keys, all with a limited surface:
 
 | Page key | Route | Scope |
 | --- | --- | --- |
-| `supplier.list` | `/suppliers` | Full reference |
 | `user.list` | `/users` | Limited |
 | `role.list` | `/role` | Limited |
 | `menu.list` | `/menu` | Limited |
@@ -91,7 +93,23 @@ The successor target contains these fifteen stable page keys:
 | `log.audit` | `/log` | Limited audit dataset |
 | `log.runtime` | `/log` | Limited runtime dataset |
 
-Supplier remains the only full surface in this successor:
+Every Foundation built-in exposes only:
+
+- localized title;
+- safe registered list columns and labels;
+- list order, visibility, width, density, and compiled page size;
+- safe registered search fields and labels;
+- search order, visibility, and initial collapse.
+
+Built-in pages do not expose forms, details, actions, mutations, privileged dialogs, route behavior,
+transport, query encoding, component implementations, conditions, or sensitive fields.
+
+### 2.1 Preserve Supplier as external business-extension evidence
+
+`supplier.list` remains a full-surface AdminModule and Thin Host example outside the Foundation built-in
+inventory and core registries. The reference Admin explicitly composes this business module and exposes its
+generated `/suppliers` route; eligible Thin Hosts may compose it as well. Its separately owned extension
+contract may expose:
 
 - title;
 - list, search, form, and detail fields;
@@ -100,16 +118,10 @@ Supplier remains the only full surface in this successor:
 - registered action visibility, order, placement, labels, and confirmation;
 - bounded reviewed conditions.
 
-Every other page exposes only:
-
-- localized title;
-- safe registered list columns and labels;
-- list order, visibility, width, density, and compiled page size;
-- safe registered search fields and labels;
-- search order, visibility, and initial collapse.
-
-Limited pages do not expose forms, details, actions, mutations, privileged dialogs, route behavior,
-transport, query encoding, component implementations, or sensitive fields.
+This retains generator and downstream-extension evidence without adding Supplier to Foundation
+`activePages`, the built-in Browser matrix, built-in acceptance state, the completion count, or any rollout
+wave. External Supplier qualification may run independently, but it cannot substitute for or block the
+fourteen-page Foundation decision.
 
 ### 3. Preserve sensitive subflows in compiled code
 
@@ -131,9 +143,11 @@ creates data, changes a query encoder, or replaces a mutation.
 
 ### 4. Use one reviewed source and one identity per page
 
-Supplier continues to use its AdminModule source. Each handwritten core page receives one source under
-`.mss/core-pages/` and one closed Foundation binding. The source contains presentation defaults only;
-trusted permissions, transport, component implementations, and handlers remain compiled.
+Each of the fourteen built-in pages receives one source under `.mss/core-pages/` and one closed Foundation
+binding. The source contains presentation defaults only; trusted permissions, transport, component
+implementations, and handlers remain compiled. Supplier continues to use its external AdminModule source.
+The reference Admin explicitly composes it after Foundation core capabilities, and a downstream business
+host may make the same explicit choice.
 
 One normalizer and canonical hash pipeline must produce:
 
@@ -143,9 +157,10 @@ One normalizer and canonical hash pipeline must produce:
 - backend registry entry;
 - frontend static registry entry.
 
-Backend and frontend inventories must contain the same fifteen page keys and equal versions and hashes.
-Independent handwritten Go and TypeScript definitions are prohibited. Thin Hosts consume packaged core
-definitions and do not copy Foundation source files.
+Foundation backend and frontend core inventories must contain the same fourteen page keys and equal
+versions and hashes. Independent handwritten Go and TypeScript definitions are prohibited. Thin Hosts
+consume packaged core definitions without copying Foundation source files and may separately generate and
+compose their owned Supplier extension.
 
 ### 5. Require real runtime consumption
 
@@ -180,47 +195,61 @@ profile is invalid, adoption is disabled, or recovery mode is active.
 
 ### 7. Roll out by exact page key
 
-All pages default to disabled.
+All fourteen Foundation built-in pages started disabled and advanced through isolated shadow evidence
+before exact activation. The accepted state now has all fourteen page keys in the exact active allowlist
+with inventory acceptance passed.
 
 1. Wave 0 validates route closure and fresh or upgraded governance.
-2. Wave 1 requalifies Supplier and user management.
+2. Wave 1 qualifies `user.list` as the first Foundation built-in.
 3. Wave 2 adds department, post, language, and option.
 4. Wave 3 adds limited role, menu, task, notice, system configuration, and online sessions.
 5. Wave 4 adds login, audit, and runtime log identities.
 6. Wave 5 advances each accepted page through isolated shadow to exact allowlisted active.
 
+Supplier is absent from every Foundation wave. Its compiled route remains available in the reference Admin;
+any presentation activation or qualification for that business extension, whether in the reference Admin or
+a downstream host, follows a separate non-blocking lifecycle.
+
 Wildcard, empty-means-all, database-controlled, and newly-generated automatic activation are prohibited.
-Recovery mode overrides every page. Removing one page key from the allowlist restores its compiled
+Recovery mode overrides every Foundation built-in page. Removing one page key from the allowlist restores its compiled
 defaults without deleting profiles or history.
 
-## Acceptance consequences
+## Acceptance record
 
-The feature is not complete when files merely exist or unit tests are green. Completion requires:
+Files or green unit tests alone do not establish completion. The accepted record satisfies these gates:
 
 - strict inventory schema and semantic validation;
 - compiled route closure;
-- one source and paired generation for every page;
+- one source and paired generation for every one of the fourteen Foundation built-in pages;
 - equal backend and frontend inventory and hashes;
-- runtime-consumer tests for every included page;
+- runtime-consumer tests for every one of the fourteen Foundation built-in pages;
 - direct positive and negative authorization and row-scope tests;
 - whole-layer failure and recovery tests;
 - fresh and upgrade-path governance-console acceptance;
-- external Thin Host qualification;
+- external Thin Host qualification for packaged Foundation consumption; any Supplier extension evidence is
+  recorded separately and does not define built-in completion;
 - built-in Browser evidence on one final unchanged remote Head.
 
-The Browser record must cover direct navigation, menu navigation, hard refresh, compiled defaults,
-published application presentation, role and user precedence where applicable, rollback, disabled,
-shadow, exact active allowlist, recovery, timeout or failure fallback, desktop, mobile, zh-CN, en-US,
-page states, console errors, deprecation warnings, and failed requests.
+The final Browser record covered all fourteen page keys across twelve real routes using visible titles,
+table rows, or an exact empty state. `/users`, `/task`, `/language`, `/security/online-sessions`, and `/log`
+retained published presentation after reload. User and log pages remained usable at 390x844. The limited
+editor exposed only general, list, and search workspaces; hid data source, component, default sort, search
+placeholder, and help controls; and rejected raw `spec.dataSource` as `unsupported-limited-surface`.
+Supplier published presentation did not apply and its reference-Admin route retained compiled defaults.
+Browser console warnings and errors were both zero.
 
-If the remote Head changes during acceptance, the browser record is invalid.
+The screenshots and browser record remain outside the repository in the system-temporary evidence bundle
+`mss-presentation-acceptance-20260830`; no screenshot, console log, or request log is committed here.
+
+If the accepted Head, page identities, definition hashes, route set, limited surface, or exact active
+allowlist changes, the affected Browser evidence must be rerun rather than inferred from this record.
 
 ## Consequences
 
 ### Positive
 
 - Product coverage becomes measurable and cannot silently omit a legacy route.
-- All table management pages receive meaningful runtime display adjustment without creating a low-code
+- All fourteen Foundation table-management pages receive meaningful runtime display adjustment without creating a low-code
   runtime or weakening backend authority.
 - Sensitive page families can participate through narrow list presentation while their privileged
   subflows remain compiled.
@@ -230,14 +259,15 @@ If the remote Head changes during acceptance, the browser record is invalid.
 ### Cost
 
 - Foundation must generalize the user-specific core-page source and binding mechanism.
-- Fifteen page identities require source, generation, registry, runtime, permission, and browser evidence.
+- Fourteen Foundation built-in page identities require source, generation, registry, runtime, permission,
+  and browser evidence.
 - The `/log` route needs three independent definition identities even though the current UI uses one
   compiled Tabs component.
 - Route closure and page acceptance add maintained machine contracts and CI work.
 
 ## Rejected alternatives
 
-### Treat Supplier and user management as all-page completion
+### Treat external Supplier and user management as all-page completion
 
 Rejected because the registries and runtime consumers would still omit most shipped management pages.
 
@@ -246,7 +276,7 @@ Rejected because the registries and runtime consumers would still omit most ship
 Rejected because it creates unstable identities, executable discovery, dual authority, and an
 unreviewable security boundary.
 
-### Give every page the full Supplier contract
+### Give every built-in page the external Supplier full-surface contract
 
 Rejected because role authorization, menu API binding, task execution, configuration content, session
 revocation, and log internals are not routine display choices.
@@ -263,8 +293,8 @@ optional feature it controls.
 
 ## Next executable step
 
-Implement and validate the inventory parser and compiled-route closure test first. Completion of that
-step is measurable when every current route declaration matches one inventory record and an added
-unclassified fixture route fails deterministically. Page binding and runtime work then proceeds in the
-declared waves; no page becomes active before its own identity, permission, fallback, and exact-Head
-browser gates pass.
+Submit this accepted contract and its machine-state synchronization through the normal pull-request path.
+Keep the historical disabled, shadow, fallback, and recovery tests as regression gates. Any later Head,
+definition, route, surface, or allowlist change must rerun its affected exact-Head checks before preserving
+`acceptanceState=passed`. Supplier remains outside Foundation rollout as optional business-extension
+evidence in the reference Admin or a downstream host.

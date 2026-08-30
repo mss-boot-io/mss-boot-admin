@@ -46,6 +46,7 @@ export class EffectivePresentationContractError extends Error {
 }
 
 const identifierPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const fieldIdentifierPattern = /^[a-z][A-Za-z0-9]*$/;
 const hashPattern = /^sha256:[0-9a-f]{64}$/;
 const diagnosticCodePattern = /^[a-z][a-z0-9-]{0,119}$/;
 
@@ -80,6 +81,83 @@ function requiredBoolean(value: Record<string, unknown>, key: string): boolean {
   const candidate = value[key];
   if (typeof candidate !== 'boolean') return invalid();
   return candidate;
+}
+
+function requiredReference(
+  value: Record<string, unknown>,
+  key: string,
+  fieldReference = false,
+): string {
+  const candidate = requiredString(value, key, 120);
+  const valid = fieldReference
+    ? identifierPattern.test(candidate) || fieldIdentifierPattern.test(candidate)
+    : identifierPattern.test(candidate);
+  if (!valid) return invalid();
+  return candidate;
+}
+
+function optionalRecord(
+  value: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  const candidate = value[key];
+  if (candidate === undefined || candidate === null) return undefined;
+  if (!isRecord(candidate)) return invalid();
+  return candidate;
+}
+
+function optionalRecordArray(
+  value: Record<string, unknown> | undefined,
+  key: string,
+  maximum: number,
+): Record<string, unknown>[] {
+  if (!value || value[key] === undefined || value[key] === null) return [];
+  const candidate = value[key];
+  if (!Array.isArray(candidate) || candidate.length > maximum) return invalid();
+  return candidate.map((entry) => {
+    if (!isRecord(entry)) return invalid();
+    return entry;
+  });
+}
+
+function validateConditionReferences(condition: unknown, depth = 0) {
+  if (condition === undefined || condition === null) return;
+  if (depth > 20 || !isRecord(condition)) return invalid();
+  for (const group of ['all', 'any'] as const) {
+    if (condition[group] === undefined) continue;
+    const children = condition[group];
+    if (!Array.isArray(children)) return invalid();
+    for (const child of children) validateConditionReferences(child, depth + 1);
+  }
+  if (condition.not !== undefined) validateConditionReferences(condition.not, depth + 1);
+  if (condition.field !== undefined) requiredReference(condition, 'field', true);
+}
+
+function validateFieldPatchReferences(section: Record<string, unknown> | undefined, key: string) {
+  for (const field of optionalRecordArray(section, key, 100)) {
+    requiredReference(field, 'field', true);
+    if (field.component !== undefined) requiredReference(field, 'component');
+    validateConditionReferences(field.visibleWhen);
+  }
+}
+
+function validateProfileReferences(spec: Record<string, unknown>) {
+  if (spec.dataSource !== undefined) requiredReference(spec, 'dataSource');
+  const list = optionalRecord(spec, 'list');
+  const search = optionalRecord(spec, 'search');
+  const form = optionalRecord(spec, 'form');
+  const detail = optionalRecord(spec, 'detail');
+  validateFieldPatchReferences(list, 'columns');
+  validateFieldPatchReferences(search, 'fields');
+  validateFieldPatchReferences(form, 'fields');
+  validateFieldPatchReferences(detail, 'fields');
+  for (const sort of optionalRecordArray(list, 'defaultSort', 3)) {
+    requiredReference(sort, 'field', true);
+  }
+  for (const action of optionalRecordArray(spec, 'actions', 64)) {
+    requiredReference(action, 'action');
+    validateConditionReferences(action.visibleWhen);
+  }
 }
 
 function sanitizeJSON(value: unknown, depth = 0): unknown {
@@ -122,6 +200,7 @@ function parseProfile(value: unknown): AdminPagePresentationProfile {
   const scope = requiredString(sanitized.metadata.scope, 'kind', 16);
   if (scope !== 'application' && scope !== 'role' && scope !== 'user') return invalid();
   if (scope !== 'application') requiredString(sanitized.metadata.scope, 'subject', 160);
+  validateProfileReferences(sanitized.spec);
   return sanitized as unknown as AdminPagePresentationProfile;
 }
 

@@ -195,17 +195,29 @@ spec:
       guidance: >-
         P0 defines strict data-only sparse profiles over compiled capabilities and P1 owns draft,
         publication, history, rollback, adoption, and recovery. The machine route inventory classifies
-        every compiled Admin route. Supplier remains the only full list/search/form/detail/action
-        reference; the fourteen reviewed handwritten table pages expose only title, safe list and search
-        presentation, density, and compiled page-size choices from one source under .mss/core-pages.
-        The deterministic generator owns their Go and TypeScript definitions, canonical hashes, manifest,
-        and registries; handwritten projections are forbidden. Runtime adapters may only select and arrange
-        exact compiled renderers, while actions, forms, details, routes, APIs, queries, permissions, row
-        scope, secrets, task execution facts, raw logs, configuration content, and session controls remain
-        compiled and backend-authorized. Adoption proceeds through disabled, shadow, and an exact reviewed
-        allowlist; recovery always wins and newly generated pages are never activated implicitly. Thin Hosts
-        consume the packaged Foundation registry without copying it. Never add scripts, HTML, SQL, transport,
-        imports, permissions, runtime models, virtual CRUD, remote components, or browser code generation.
+        every compiled Admin route. Foundation owns exactly fourteen built-in table-management page keys:
+        user.list, role.list, menu.list, department.list, post.list, task.list, notice.list, language.list,
+        option.list, system-config.list, online-session.list, log.login, log.audit, and log.runtime. All
+        fourteen expose only title, safe list and search presentation, density, and compiled page-size
+        choices from one source under .mss/core-pages. Supplier is a separate external business-extension
+        AdminModule and the full list/search/form/detail/action Thin Host example. It is not a Foundation
+        built-in page and never enters the Foundation core registry, built-in activePages, built-in Browser
+        acceptance matrix, completion count, or rollout waves. The deterministic generator owns the Go and
+        TypeScript definitions, canonical hashes, manifest, and registries for each source kind; handwritten
+        projections are forbidden. Runtime adapters may only select and arrange exact compiled renderers,
+        while actions, forms, details, routes, APIs, queries, permissions, row scope, secrets, task execution
+        facts, raw logs, configuration content, and session controls remain compiled and backend-authorized.
+        The exact fourteen Foundation built-ins have completed disabled and isolated-shadow qualification
+        and are now exact-allowlisted active with acceptance passed. Browser acceptance covered all fourteen
+        page keys across twelve routes, reload persistence, 390x844 user and log layouts, limited-editor
+        enforcement, Supplier compiled-default isolation, and a clean console; its screenshots remain in a
+        system temporary directory rather than the repository. Recovery always wins and newly generated
+        pages are never activated implicitly.
+        The reference Admin explicitly composes Supplier as an external business module and exposes its
+        generated route; Thin Hosts consume the packaged Foundation core registry without copying it and
+        may explicitly compose the same separately owned extension evidence. Never add scripts, HTML, SQL,
+        transport, imports, permissions, runtime models, virtual CRUD, remote components, or browser code
+        generation.
 
     - id: platform.cache-lock-queue
       displayName: Legacy Cache, Distributed Lock, and Queue Adapters

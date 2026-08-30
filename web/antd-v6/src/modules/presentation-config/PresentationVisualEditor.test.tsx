@@ -1,4 +1,5 @@
 import { corePresentationRegistry } from '@mss-admin-core/generated/core-presentation-registry.generated';
+import { supplierPresentationDefinition } from '@mss-admin-core/generated/modules/supplier/presentation.generated';
 import type { PageCapabilityDefinition } from '@mss-admin-core/shared/presentation/contract';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
@@ -173,6 +174,21 @@ const limitedDocument = parsePresentationDraftAST(
     spec: {},
   }),
 );
+const supplierDefinition = supplierPresentationDefinition as PageCapabilityDefinition;
+const supplierCapability = editorCapability(supplierDefinition);
+const supplierDocument = parsePresentationDraftAST(
+  JSON.stringify({
+    apiVersion: 'mss.io/v1alpha1',
+    kind: 'AdminPagePresentation',
+    metadata: {
+      name: 'supplier-application',
+      pageKey: supplierDefinition.pageKey,
+      definitionHash: supplierDefinition.definitionHash,
+      scope: { kind: 'application' },
+    },
+    spec: {},
+  }),
+);
 
 function Harness() {
   const [document, setDocument] = useState<PresentationDraftAST>(initialDocument);
@@ -193,6 +209,17 @@ function LimitedHarness() {
   return (
     <PresentationVisualEditor
       capability={limitedCapability}
+      document={document}
+      onChange={setDocument}
+    />
+  );
+}
+
+function SupplierHarness() {
+  const [document, setDocument] = useState<PresentationDraftAST>(supplierDocument);
+  return (
+    <PresentationVisualEditor
+      capability={supplierCapability}
       document={document}
       onChange={setDocument}
     />
@@ -243,13 +270,48 @@ describe('presentation visual editor', () => {
     expect(screen.getByText('presentation.visual.condition.add')).toBeTruthy();
   });
 
-  it('does not offer visibility conditions for limited core table capabilities', () => {
+  it('only exposes general, list, and search tabs for limited core table capabilities', () => {
     render(<LimitedHarness />);
+    expect(screen.getByText('presentation.visual.general')).toBeTruthy();
+    expect(screen.getByText('presentation.visual.list')).toBeTruthy();
+    expect(screen.getByText('presentation.visual.search')).toBeTruthy();
+    expect(screen.queryByText('presentation.visual.form')).toBeNull();
+    expect(screen.queryByText('presentation.visual.detail')).toBeNull();
+    expect(screen.queryByText('presentation.visual.actions')).toBeNull();
+    expect(screen.queryByText('presentation.visual.dataSource')).toBeNull();
+
+    fireEvent.click(screen.getByText('presentation.visual.list'));
+    expect(screen.queryByText('presentation.visual.defaultSort')).toBeNull();
+    expect(screen.queryByLabelText('email presentation.visual.component')).toBeNull();
+
     fireEvent.click(screen.getByText('presentation.visual.search'));
 
+    expect(screen.queryByLabelText('name presentation.visual.component')).toBeNull();
+    expect(screen.queryByText('presentation.visual.placeholder')).toBeNull();
+    expect(screen.queryByText('presentation.visual.help')).toBeNull();
     expect(
       screen.getAllByText('presentation.visual.condition.limited.disabled').length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText('presentation.visual.condition.add')).toBeNull();
+  });
+
+  it('keeps every presentation tab for the external Supplier extension capability', () => {
+    render(<SupplierHarness />);
+
+    for (const tab of ['general', 'list', 'search', 'form', 'detail', 'actions']) {
+      expect(screen.getByText(`presentation.visual.${tab}`)).toBeTruthy();
+    }
+
+    expect(screen.getByText('presentation.visual.dataSource')).toBeTruthy();
+    fireEvent.click(screen.getByText('presentation.visual.list'));
+    expect(screen.getByText('presentation.visual.defaultSort')).toBeTruthy();
+    expect(screen.getByLabelText('code presentation.visual.component')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('presentation.visual.search'));
+    expect(screen.getAllByLabelText('code presentation.visual.component').length).toBeGreaterThan(
+      1,
+    );
+    expect(screen.getAllByText('presentation.visual.placeholder').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('presentation.visual.help').length).toBeGreaterThan(0);
   });
 });

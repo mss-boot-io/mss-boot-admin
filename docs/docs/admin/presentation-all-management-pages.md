@@ -10,11 +10,13 @@ keywords: [admin presentation runtime all management pages route inventory accep
 
 # 全部后台管理页面运行时展示配置
 
-:::warning
-状态：15 个纳入页面均已生成双端定义并接入运行时，当前仍是等待最终验收和激活的实现候选。
-机器清单以 `main` 的 `6de7ef4b9bc5de48d95c6e6fefeaf0035aa8852c` 为开发基线；最终结论必须
-绑定未变化的远端 PR Head。自动化测试、Thin Host 和内置浏览器矩阵全部完成前，不能把
-`acceptanceState=pending` 表述为稳定上线。
+:::info
+状态：Foundation 恰好 14 个内置表格管理页已按精确 `activePages` 激活，机器清单中的
+`adoptionState=active`、`acceptanceState=passed`。最终内置浏览器记录在同一未变化 Head 上覆盖了
+14 个 pageKey、12 个路由、关键 reload、390x844 移动端、受限编辑器安全边界和零控制台错误/警告。
+`supplier.list` 仍是 reference Admin 显式组合的外部业务 AdminModule 示例，不计入 Foundation 内置
+激活、浏览器验收、完成度或 rollout；对 Supplier 发布的展示配置未应用，页面保持编译默认值。
+截图和浏览器记录只保存在系统临时证据包 `mss-presentation-acceptance-20260830`，没有提交到仓库。
 :::
 
 ## 产品目标
@@ -26,7 +28,7 @@ keywords: [admin presentation runtime all management pages route inventory accep
 
 1. 所有编译路由百分之百进入机器清单；
 2. 所有表格型管理页面都有明确稳定的 `pageKey`；
-3. 所有纳入页面都有唯一机器源、双端一致定义、真实运行时消费和浏览器证据；
+3. 14 个 Foundation 内置页面都有唯一机器源、双端一致定义、真实运行时消费和浏览器证据；
 4. 所有不纳入页面都有明确、持久、可审查的排除原因；
 5. 任何配置都不能创建业务能力、改变接口、扩大权限或接管敏感流程。
 
@@ -42,7 +44,7 @@ keywords: [admin presentation runtime all management pages route inventory accep
 
 ### 可以调整
 
-所有纳入页面都至少允许：
+14 个 Foundation 内置页面都至少允许：
 
 - 中英文页面标题；
 - 已注册安全列表列的标题；
@@ -53,7 +55,9 @@ keywords: [admin presentation runtime all management pages route inventory accep
 - 搜索项顺序、显示、隐藏；
 - 搜索区域初始展开或收起。
 
-Supplier 是唯一完整参考，还允许：
+Foundation 的 14 个内置页面全部是受限展示面，不提供表单、详情、动作或条件配置。
+
+外部业务扩展示例 `supplier.list` 提供完整参考，允许：
 
 - 列表组件、默认排序；
 - 表单字段、组件、顺序、跨度和列数；
@@ -61,7 +65,9 @@ Supplier 是唯一完整参考，还允许：
 - 已注册动作的显示、顺序、位置、文案和确认文案；
 - 已审查、强类型、有界的可见条件。
 
-受限页面不提供可见条件。治理编辑器、前端合同和后端发布校验会对称拒绝受限页面中的
+Supplier 的完整面只证明 AdminModule 生成器和 Thin Host 可以承载外部业务扩展，不会把 Supplier
+加入 Foundation 内置 registry、`activePages`、内置浏览器矩阵、完成度或 rollout。受限内置页面不
+提供可见条件。治理编辑器、前端合同和后端发布校验会对称拒绝受限页面中的
 `visibleWhen`，避免出现“发布成功但运行时无法执行”的配置。
 
 ### 不能调整
@@ -79,25 +85,34 @@ Supplier 是唯一完整参考，还允许：
 
 ## 页面覆盖
 
-### 纳入页面
+### Foundation 内置页面（恰好 14 个）
 
 | 页面 | pageKey | 实现状态 | 目标范围 | 上线波次 |
 | --- | --- | --- | --- | --- |
-| 供应商 | `supplier.list` | 已生成，待最终验收 | 完整 | Wave 1 |
-| 用户 | `user.list` | 已生成，待最终验收 | 受限 | Wave 1 |
-| 部门 | `department.list` | 已生成，待最终验收 | 受限 | Wave 2 |
-| 岗位 | `post.list` | 已生成，待最终验收 | 受限 | Wave 2 |
-| 语言 | `language.list` | 已生成，待最终验收 | 受限 | Wave 2 |
-| 选项 | `option.list` | 已生成，待最终验收 | 受限 | Wave 2 |
-| 角色 | `role.list` | 已生成，待最终验收 | 受限 | Wave 3 |
-| 菜单 | `menu.list` | 已生成，待最终验收 | 受限 | Wave 3 |
-| 任务 | `task.list` | 已生成，待最终验收 | 受限 | Wave 3 |
-| 通知 | `notice.list` | 已生成，待最终验收 | 受限 | Wave 3 |
-| 系统配置 | `system-config.list` | 已生成，待最终验收 | 仅脱敏列表元数据 | Wave 3 |
-| 在线会话 | `online-session.list` | 已生成，待最终验收 | 受限、仅 root | Wave 3 |
-| 登录日志 | `log.login` | 已生成，待最终验收 | 受限只读 | Wave 4 |
-| 审计日志 | `log.audit` | 已生成，待最终验收 | 受限只读 | Wave 4 |
-| 运行日志 | `log.runtime` | 已生成，待最终验收 | 受限只读 | Wave 4 |
+| 用户 | `user.list` | active / passed | 受限 | Wave 1 |
+| 部门 | `department.list` | active / passed | 受限 | Wave 2 |
+| 岗位 | `post.list` | active / passed | 受限 | Wave 2 |
+| 语言 | `language.list` | active / passed | 受限 | Wave 2 |
+| 选项 | `option.list` | active / passed | 受限 | Wave 2 |
+| 角色 | `role.list` | active / passed | 受限 | Wave 3 |
+| 菜单 | `menu.list` | active / passed | 受限 | Wave 3 |
+| 任务 | `task.list` | active / passed | 受限 | Wave 3 |
+| 通知 | `notice.list` | active / passed | 受限 | Wave 3 |
+| 系统配置 | `system-config.list` | active / passed | 仅脱敏列表元数据 | Wave 3 |
+| 在线会话 | `online-session.list` | active / passed | 受限、仅 root | Wave 3 |
+| 登录日志 | `log.login` | active / passed | 受限只读 | Wave 4 |
+| 审计日志 | `log.audit` | active / passed | 受限只读 | Wave 4 |
+| 运行日志 | `log.runtime` | active / passed | 受限只读 | Wave 4 |
+
+### 外部业务扩展示例（不计入内置覆盖）
+
+| 页面 | pageKey | 所有权 | 证明范围 | Foundation rollout |
+| --- | --- | --- | --- | --- |
+| 供应商 | `supplier.list` | 外部业务 AdminModule / Thin Host | 完整列表、搜索、表单、详情、动作和条件 | 不参与 |
+
+Supplier 的源规格、生成器投影和示例模块继续保留。reference Admin 会通过业务模块显式组合它并提供
+默认 `/suppliers` generated route；下游 Thin Host 也可以作出同样的显式组合。它不属于
+mss-boot-admin 的 Foundation core，不参与内置页面的激活、验收状态或完成度计算。
 
 一个路由可以承载多个页面身份。`/log` 当前由一个编译 Tabs 组件承载三个数据集，但三种数据有
 不同字段、过滤和权限，因此必须使用三个独立 `pageKey`，不能把它们混成一份配置。
@@ -232,7 +247,7 @@ Supplier 是唯一完整参考，还允许：
 
 ## 运行时行为
 
-每个纳入页面只对同一页面身份发起一次有界有效层读取：
+每个 Foundation 内置页面只对同一页面身份发起一次有界有效层读取：
 
     编译默认值
       < 已发布应用层
@@ -284,6 +299,9 @@ Supplier 是唯一完整参考，还允许：
 
 文档、测试名称或待执行命令不能把 pending 改成 passed。
 
+当前 `passed` 不是由本文声明产生，而是机器清单与最终内置浏览器记录的已执行证据结果；若验收 Head
+变化，必须重新执行受影响矩阵。
+
 ## 产品验收门
 
 ### 机器合同
@@ -291,7 +309,7 @@ Supplier 是唯一完整参考，还允许：
 - 页面清单通过严格 JSON Schema；
 - page id、pageKey、route id 唯一；
 - 所有 route 的 pageIDs 都存在；
-- 所有纳入 pageKey 都有唯一来源；
+- 14 个 Foundation 内置 pageKey 都有唯一来源；
 - 所有排除页面都有原因；
 - 所有当前编译路由与清单一一闭合。
 
@@ -300,15 +318,18 @@ Supplier 是唯一完整参考，还允许：
 
 ### 生成与一致性
 
-- 每个纳入页面只有一个机器源；
+- 每个 Foundation 内置页面只有一个机器源；
 - Go、TypeScript、manifest 和注册表从同一标准化对象生成；
-- 后端和前端恰好包含 15 个纳入 pageKey；
+- Foundation 后端和前端 core registry 恰好包含 14 个内置 pageKey；
 - 每个 pageKey 的版本和 hash 相同；
 - 任何缺失、重复、手改、旧产物或单边产物都失败。
 
+reference Admin 已从业务 AdminModule 源显式组合 `supplier.list`，外部 Thin Host 也可以作出同样选择；
+该业务扩展 registry 和证据不得改变 Foundation 的 14 项内置清单或内置完成判定。
+
 ### 运行时
 
-- 每个纳入页面真实调用共享 runtime；
+- 每个 Foundation 内置页面真实调用共享 runtime；
 - 每个排除页面不依赖 presentation endpoint；
 - 已发布配置硬刷新可见；
 - no-profile 与接入前行为等价；
@@ -360,7 +381,24 @@ Supplier 是唯一完整参考，还允许：
 | B12 Responsive/locale | 桌面、约 390px、双语 | 内容完整、布局可用、文案同步 |
 | B13 Console/network | 检查每个关键状态 | 无意外错误、警告、失败请求 |
 
-对每个纳入 pageKey 至少执行一次黄金路径：
+### 最终验收结果
+
+- `application.yml` 使用恰好 14 个内置 pageKey 的精确 active allowlist；机器清单对这 14 项记录
+  `adoptionState=active` 与 `acceptanceState=passed`。
+- 14 个 pageKey 在 12 个真实路由上通过可见标题、表格行或精确空态检查；`/log` 的三个 pageKey
+  继续共享同一编译路由但保持独立身份。
+- `/users`、`/task`、`/language`、`/security/online-sessions` 和 `/log` 在浏览器 reload 后仍应用
+  已发布展示。
+- 390x844 的用户页和日志页布局正常。
+- 受限页编辑器只显示常规、列表和搜索工作区，并隐藏 dataSource、component、defaultSort、搜索
+  placeholder 与 help；raw `spec.dataSource` 被 UI 以 `unsupported-limited-surface` 拒绝。
+- 对 Supplier 发布的配置没有应用；reference Admin 的 `/suppliers` 保持编译默认展示，证明外部示例
+  不进入 Foundation built-in `activePages`。
+- 浏览器控制台 warning/error 均为 0。
+- 关键截图保存在系统临时证据包 `mss-presentation-acceptance-20260830`；截图、控制台记录和日志均未
+  提交到仓库。
+
+对 14 个 Foundation 内置 pageKey 中的每一个至少执行一次黄金路径：
 
 1. 记录编译默认页面；
 2. 修改至少一个标题、一个列表项、一个搜索项、密度或页大小；
@@ -373,11 +411,15 @@ Supplier 是唯一完整参考，还允许：
 9. 保存截图；
 10. 检查控制台和失败请求。
 
-Supplier 还要覆盖表单、详情、动作和条件。其他页面必须证明这些未纳入能力仍保持编译行为。
+14 个内置页面必须证明表单、详情、动作和条件这些未纳入能力仍保持编译行为。Supplier 若由外部
+Thin Host 单独验收，则还应覆盖表单、详情、动作和条件；该外部证据不替代也不阻断内置页面验收。
 
 验收开始和结束都重新读取远端 PR Head。如果 Head 变化，全部浏览器证据立即失效。
 
-## 分批上线
+## 历史分批上线
+
+以下波次记录从 disabled、独立 shadow 到精确 active allowlist 的推进顺序。当前 14 个 Foundation
+内置 pageKey 已全部到达 `active / passed`；这些历史阶段继续作为回退和后续变更的回归合同。
 
 ### Wave 0：闭包和治理
 
@@ -386,11 +428,10 @@ Supplier 还要覆盖表单、详情、动作和条件。其他页面必须证�
 - 修复 fresh DB 与升级 DB 治理入口；
 - 建立统一证据格式。
 
-### Wave 1：复验两个参考
+### Wave 1：首个 Foundation 内置页
 
-- Supplier 完整能力；
 - user.list 受限能力；
-- 重新执行权限、fallback、浏览器和 Thin Host。
+- 重新执行权限、fallback 和内置浏览器。
 
 ### Wave 2：低风险公共表格
 
@@ -445,22 +486,23 @@ Supplier 还要覆盖表单、详情、动作和条件。其他页面必须证�
 
 ## 完成定义
 
-只有同时满足以下条件，才能对外表述“全部后台管理表格页面支持运行时展示配置”：
+除本次状态同步仍需通过正常 PR 合入主线外，当前 14 个 Foundation 内置表格管理页已经满足以下产品
+验收条件：
 
 - 当前编译路由百分之百闭包；
-- 15 个纳入 pageKey 全部有唯一源；
+- 14 个 Foundation 内置 pageKey 全部有唯一源；
 - 后端和前端 inventory/hash 全部一致；
-- 15 个页面全部真实消费 runtime；
+- 14 个内置页面全部真实消费 runtime；
 - 权限、数据范围和敏感排除全部通过；
 - fresh DB、升级 DB、fallback、recovery 全部通过；
 - Thin Host 通过；
 - 每页 acceptanceState 均为 passed；
 - 最终远端 Head 前后一致；
 - 内置浏览器截图、控制台和请求证据完整；
-- 变更通过 PR 合并到 main。
+- 本次状态同步通过 PR 合并到 main 后，主线文档与机器状态保持一致。
 
 ## 下一步
 
-冻结实现候选后，先通过完整 Thin Host 和自动化门禁，再在内置浏览器按 15 个 pageKey 执行发布、
-硬刷新、回滚、权限、移动端、双语、控制台和失败请求矩阵。只有最终远端 Head 前后一致且全部证据
-通过，才能把各页切换为 `acceptanceState=passed`，以精确 allowlist 激活并经 PR 合并到 `main`。
+保持精确 14 项 allowlist、机器清单的 `active / passed` 状态和外部证据目录可追溯；本次文档/合同同步
+仍按正常 PR 流程合入。后续若 Head、页面定义哈希、路由、受限展示面或 active allowlist 变化，重新运行
+受影响的自动化与内置浏览器矩阵，不能复用当前截图直接授权新的候选。

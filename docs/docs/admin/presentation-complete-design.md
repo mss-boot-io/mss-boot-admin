@@ -11,10 +11,11 @@ keywords: [admin presentation configuration generator visual editor drift recove
 # 页面展示配置完整设计
 
 :::warning
-当前状态：D0 设计已获得维护者确认，当前开发分支正在实现并验收真实页面运行时。Supplier 是首个
-生成业务页面；维护者又明确授权 `user.list` 作为第二个、单独审查的 Foundation Core Page
-Presentation 试点。本文记录当前实现目标，不把尚未执行或尚未基于最终精确 Head 的命令、内置浏览器、
-Thin Host 或安全检查写成已通过证据。
+当前状态：本文保留早期完整设计上下文；当前权威边界由[全部后台管理页面运行时展示配置]
+(/admin/presentation-all-management-pages)及其后继 ADR 决定。Foundation 恰好有 14 个内置受限页面，
+`supplier.list` 是外部业务 AdminModule 的完整展示面与 Thin Host 示例，不是内置页面，也不参与内置
+激活、浏览器验收、完成度或 rollout。当前 14 个内置页已经精确 allowlist 激活，机器清单状态为
+`active / passed`，最终内置浏览器证据已满足；Supplier 的可选外部验收仍与该完成判定分离。
 :::
 
 ## 目标
@@ -118,7 +119,7 @@ P1 校验/发布/有效层 ──► 浏览器解析器与渲染器
 定义。该机器规格进入同一个标准化与规范哈希流水线，由生成器产出 Go 定义、TypeScript 定义、唯一
 哈希、标准化 manifest 和两端注册表条目。
 
-下面只展示 Supplier 的结构片段。P2A 提交的 AdminModule 必须完整列出与当前生产页面等价的默认项，
+下面只展示外部 Supplier 的结构片段。P2A 提交的 AdminModule 必须完整列出与该业务页面等价的默认项，
 本片段中省略的字段不代表存在隐式默认值。
 
 ```yaml
@@ -201,7 +202,7 @@ spec:
 关键规则：
 
 - `pageKey` 必须显式声明、全局唯一并长期稳定，不从路由、文件名、表名或显示名称推导；
-- `definitionVersion` 只在定义合同不兼容时升级；首个生产生成合同使用 `2`，因为测试用 P0
+- `definitionVersion` 只在定义合同不兼容时升级；首个外部业务生成合同使用 `2`，因为测试用 P0
   的 `1` 未把完整默认展示纳入哈希，不能静默沿用；
 - 字段引用必须来自当前模块实体；
 - 数据源来自当前模块已生成的 API 和查询适配器；
@@ -341,7 +342,7 @@ pageKey -> {
 的 `tag` 样式，不会改变列表 API；隐藏“删除”按钮也不会改变删除接口权限；配置不能把任意 URL
 变成数据源。
 
-条件的上下文按页面表面固定。首个生产合同不允许列表列和 toolbar 动作使用条件，因为它们没有唯一
+条件的上下文按页面表面固定。首个外部业务合同不允许列表列和 toolbar 动作使用条件，因为它们没有唯一
 记录上下文；搜索字段读取当前过滤草稿；表单字段和 form 动作读取表单草稿；详情字段和 detail 动作
 读取已加载记录；row 动作读取当前行。只能读取编译 adapter 为该上下文显式开放的字段。missing 与
 `null` 不同，属性存在且值为 `null` 时 `exists=true`；missing 上的比较为 false；相等和集合判断不做
@@ -486,9 +487,12 @@ Thin Host 升级继续使用受管理快照和三方比较：
 - 不允许后端和前端展示定义混用不同版本；
 - 持久化配置和历史不删除，是否可应用由新哈希判断。
 
-## Supplier 首个生产试点
+## Supplier 外部业务扩展示例（历史设计上下文）
 
-Supplier 保留稳定页面键 `supplier.list`。当前手写 P0 原型只证明过 resolver，不是生产等价默认值；
+早期设计使用 Supplier 证明完整 AdminModule 展示面；reference Admin 会显式组合这一外部业务模块并
+提供默认 `/suppliers` generated route，Thin Host 也可以作出同样选择。当前决策明确 Supplier 不会进入
+mss-boot-admin Foundation core registry、`activePages`、内置浏览器矩阵、完成度或 rollout。
+Supplier 保留稳定页面键 `supplier.list`。手写 P0 原型只证明过 resolver，不是外部业务页的等价默认值；
 它会被版本 `2` 生成器产物替代，源头移动到 `.mss/modules/example-supplier.yaml`。生成默认必须匹配
 当前页面：large 密度、20 条分页且选项为 `[20, 50, 100]`、初始不排序、搜索始终展开并包含关键词/
 国家或地区/信用等级/三态启用状态、表单和详情单列、详情包含只读 ID 与创建/更新时间、toolbar 先导出
@@ -506,22 +510,23 @@ Supplier 保留稳定页面键 `supplier.list`。当前手写 P0 原型只证明
 - 中英文文案合同；
 - 加载、空、错误、无权限和冲突状态。
 
-验收顺序：
+reference Admin 或外部 Thin Host 可以独立采用以下验收顺序；这些证据仅用于业务扩展、生成器和
+Thin Host 兼容性，不是 Foundation 内置页面的激活或完成门禁：
 
 1. **Disabled：** 能力已生成并注册，页面仍完全使用当前默认代码。
 2. **Shadow：** 发布的应用/角色/用户层被解析和观测，页面仍显示默认值。
-3. **Active 白名单：** 只有 `supplier.list` 应用配置。
+3. **外部宿主 Active 白名单：** 仅由该业务宿主显式组合并允许 `supplier.list` 应用配置。
 4. **正常矩阵：** 列表、搜索、分页、排序、表单、详情、动作、导出、条件和多语言。
 5. **异常矩阵：** 无配置、错误草稿、旧哈希、未知引用、数据库异常、请求超时和恢复模式。
 6. **权限矩阵：** 前端按钮与后端直接 API 正负权限。
 7. **Thin Host：** 外部生成、构建、启动、升级、幂等和自有文件保留。
 
-Supplier 的证据不能自动授权其他页面。维护者已经明确授权 `user.list` 作为下一个隔离试点，但它必须
-独立完成自己的合同、生成、权限边界和内置浏览器验收。
+Supplier 的外部证据不能自动授权、替代或阻断任何 Foundation 内置页面。`user.list` 是首个单独审查
+的 Foundation Core Page Presentation 试点，必须独立完成自己的合同、生成、权限边界和内置浏览器验收。
 
 ## 用户管理 Foundation 核心页试点
 
-`user.list` 是当前开发分支获准接入的第二个页面，也是本阶段唯一允许配置的手写 Foundation 核心页。
+`user.list` 是首个获准接入的 Foundation 核心页；后继设计将同一单源机制扩展到恰好 14 个内置页面。
 “核心页”只表示所有权，不表示可以绕过生成：`.mss/core-pages/user-list.yaml` 是唯一源头，生成器必须
 从它产出一致的 Go 定义、TypeScript 定义、规范定义哈希、标准化 manifest 和两端注册表条目。不得为
 现有用户管理伪造 `AdminModule`，也不得分别手写 Go/TypeScript 能力定义。
@@ -557,8 +562,9 @@ registry。采用顺序必须按页面隔离执行：先 `disabled`，再进入�
 `shadow`，最后只有在自己的测试和内置浏览器证据完成后，才允许精确白名单中的 `user.list` 进入
 `active`。`recoveryMode` 始终优先。Thin Host 只消费 Admin Go/npm 包内的核心能力，不复制源规格或产物。
 
-当前只表示实现与验收正在进行。最终 Head 的生成器、后端、前端、安全、Thin Host、刷新、控制台和
-失败网络请求检查尚未实际记录前，都不能写成已通过。
+当前后继合同已接受 14 个 Foundation 内置 pageKey。最终浏览器记录覆盖 12 个真实路由、关键 reload、
+390x844 用户与日志页面、受限编辑器能力隐藏和 raw `spec.dataSource` 拒绝、Supplier 编译默认隔离，且
+控制台 warning/error 为 0。历史 disabled、独立 shadow、fallback 和 Recovery 顺序继续作为回归合同。
 
 ## 开发检查点
 
@@ -572,14 +578,14 @@ registry。采用顺序必须按页面隔离执行：先 `disabled`，再进入�
 | D0 | 本文、FeatureSpec、ADR | 远端提交确认；规格校验；文档构建；维护者确认 |
 | P2A | AdminModule Schema、语义校验、标准化清单、哈希、Go/TS 生成 | Schema、golden、跨语言一致、清理、路径限制、两次生成零差异 |
 | P2B | 后端模块原子注册、应用级注册表、采用配置、有效层诊断 | 后端、权限、并发、异常、恢复测试 |
-| P2C | 前端静态注册表、共享 Hook/解析/渲染、Supplier 适配、Disabled/Shadow | lint、tsc、单测、集成、默认行为一致 |
-| P2D | Supplier Active 白名单 | 内置浏览器、API 权限、漂移、故障、恢复、Thin Host 全矩阵 |
+| P2C | 历史：前端静态注册表、共享 Hook/解析/渲染，并以外部 Supplier 适配验证 Disabled/Shadow | lint、tsc、单测、集成、默认行为一致；不计入内置完成度 |
+| P2D | 历史：外部 Supplier 宿主的 Active 资格 | 可选 Thin Host、API 权限、漂移、故障和恢复证据；已被后继设计从 Foundation rollout 中排除 |
 | P3 | 可视化编辑器 | AST 无损往返、冲突、发布、历史、回滚、浏览器验收 |
-| P4 | 先接入单独审查并生成的 `user.list` Foundation 核心页，再逐页接入其他生成业务页 | 核心单源生成/哈希/注册表一致；敏感面排除；status 精确过滤；独立 disabled/shadow/active 浏览器证据；每个后续页面另行验收 |
+| P4 | 先接入单独审查并生成的 `user.list` Foundation 核心页；后继设计负责扩展至恰好 14 个内置页 | 核心单源生成/哈希/注册表一致；敏感面排除；status 精确过滤；每个内置页独立 disabled/shadow/active 浏览器证据 |
 
 ## 验收原则
 
-完整功能最终必须证明：
+已接受功能的证据满足以下原则；后续变更仍必须继续证明：
 
 - Go/TypeScript 页面键、清单和哈希完全一致；
 - 无配置和所有失败路径均保持编译默认行为；
@@ -599,13 +605,13 @@ registry。采用顺序必须按页面隔离执行：先 `disabled`，再进入�
 
 ## 当前实现与证据边界
 
-D0 曾经只落盘设计；该历史检查点已经结束。当前开发分支正在实现并验收生成器、运行时、可视化编辑器
-以及 `user.list` 核心页试点。本文描述目标合同，不等于实现已经完成。
+D0 曾经只落盘设计；该历史检查点已经结束。后继设计已经把同一生成器、运行时和可视化编辑器扩展到
+恰好 14 个 Foundation 内置页，并完成 `active / passed` 验收。Supplier 仅保留为外部扩展证据。
 
-每项证据必须写明实际执行的命令、结果和精确 Head。内置浏览器证据必须真实访问运行中的页面、刷新、
-检查可见内容、控制台和失败网络请求，并保存关键截图；Thin Host 必须证明消费包内核心能力而不是复制。
-若最终 Head 变化，之前的证据不能用于 PASS。本文更新本身不创建 PR、不合并 `main`、不打标签或发布
-制品。
+内置浏览器证据已真实访问运行中的页面、刷新、检查可见内容和控制台。关键截图保存在系统临时证据包
+`mss-presentation-acceptance-20260830`，未提交到仓库。若 Head、页面
+定义、路由、受限面或精确 allowlist 变化，当前证据不能直接用于新的 PASS。本文更新本身不创建 PR、
+不合并 `main`、不打标签或发布制品。
 
 ## 设计证据
 
@@ -614,6 +620,7 @@ D0 曾经只落盘设计；该历史检查点已经结束。当前开发分支�
 - P0 ADR：`docs/adr/2026-08-24-governed-admin-presentation-configuration.md`
 - P1 ADR：`docs/adr/2026-08-24-admin-presentation-publication-workflow.md`
 - 现有发布治理说明：`docs/docs/admin/presentation-configuration.md`
+- 当前页面覆盖决策：`docs/adr/2026-08-30-all-management-page-presentation-coverage.md`
 
-当前下一项是完成 `user.list` 单源生成、后端精确 status 过滤、前后端静态组合、安全排除测试和独立
-disabled/shadow/active 内置浏览器验收；在这些证据完成前，不能宣称该第二页面已经验收通过。
+下一项是把这次已接受的合同与机器状态同步通过正常 PR 路径合入，并继续保留 disabled、shadow、
+fallback 和 Recovery 回归门。Supplier 的外部 Thin Host 证据仍不计入 Foundation 内置完成判定。

@@ -93,8 +93,8 @@ spec:
       displayName:
         zh-CN: 供应商管理
         en-US: Suppliers
-      disposition: included
-      eligibility: full
+      disposition: extension-example
+      eligibility: external
       pageKey: supplier.list
       routePatterns: [/suppliers]
       sourceKind: admin-module
@@ -106,9 +106,9 @@ spec:
       rootOnly: false
       requiredPermissions: [/suppliers]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
-      rolloutWave: wave-1
+      adoptionState: not-applicable
+      acceptanceState: not-applicable
+      rolloutWave: excluded
       facetPolicy: full-table
       protectedCapabilities:
         - Routes, API operations, query encoding, permission requirements, component implementations, and action handlers remain compiled.
@@ -118,7 +118,7 @@ spec:
         state: matching
         backendHash: sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7
         frontendHash: sha256:20979dbd25719ae69c07e383627849910d8a7fb8beb95b023362d56a4c4d72c7
-      notes: Existing complete generated reference; exact-Head browser acceptance is still required.
+      notes: External business-extension example retained for generator, runtime, and Thin Host compatibility; it is not an included Admin page or an activation and acceptance target.
     - id: user-list
       displayName:
         zh-CN: 用户管理
@@ -140,8 +140,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/users]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-1
       facetPolicy: limited-table
       protectedCapabilities:
@@ -170,8 +170,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/role]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -199,8 +199,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/menu]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -228,8 +228,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/departments]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-2
       facetPolicy: limited-table
       protectedCapabilities:
@@ -257,8 +257,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/posts]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-2
       facetPolicy: limited-table
       protectedCapabilities:
@@ -286,8 +286,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/task]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -315,8 +315,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/notice]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -344,8 +344,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/language]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-2
       facetPolicy: limited-table
       protectedCapabilities:
@@ -373,8 +373,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/option]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-2
       facetPolicy: limited-table
       protectedCapabilities:
@@ -402,8 +402,8 @@ spec:
       rootOnly: true
       requiredPermissions: [/system-config]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -431,8 +431,8 @@ spec:
       rootOnly: true
       requiredPermissions: []
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-3
       facetPolicy: limited-table
       protectedCapabilities:
@@ -460,8 +460,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/log]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-4
       facetPolicy: limited-table
       protectedCapabilities:
@@ -489,8 +489,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/log]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-4
       facetPolicy: limited-table
       protectedCapabilities:
@@ -518,8 +518,8 @@ spec:
       rootOnly: false
       requiredPermissions: [/log]
       implementationState: generated
-      adoptionState: disabled
-      acceptanceState: pending
+      adoptionState: active
+      acceptanceState: passed
       rolloutWave: wave-4
       facetPolicy: limited-table
       protectedCapabilities:
@@ -948,9 +948,9 @@ spec:
     - id: generated-suppliers
       path: /suppliers
       routeKind: page
-      disposition: included
+      disposition: extension-example
       pageIDs: [supplier-list]
-      reason: Complete generated presentation reference.
+      reason: External generated business-extension example retained for compatibility evidence.
     - id: fallback-forbidden
       path: /403
       routeKind: fallback

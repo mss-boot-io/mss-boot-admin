@@ -210,7 +210,7 @@ func validateFieldPatches(fields []FieldPatch, path string, issues *[]Issue) {
 	for index := range fields {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
 		field := &fields[index]
-		validateIdentifier(field.Field, currentPath+".field", issues)
+		validateFieldReferenceIdentifier(field.Field, currentPath+".field", issues)
 		validateLocalizedText(field.Label, currentPath+".label", issues)
 		validateLocalizedText(field.Placeholder, currentPath+".placeholder", issues)
 		validateLocalizedText(field.Help, currentPath+".help", issues)
@@ -250,7 +250,7 @@ func validateSorts(sorts []Sort, path string, issues *[]Issue) {
 	seen := make(map[string]struct{}, len(sorts))
 	for index := range sorts {
 		currentPath := fmt.Sprintf("%s[%d]", path, index)
-		validateIdentifier(sorts[index].Field, currentPath+".field", issues)
+		validateFieldReferenceIdentifier(sorts[index].Field, currentPath+".field", issues)
 		if _, ok := allowedDirections[sorts[index].Direction]; !ok {
 			addIssue(issues, "invalid-sort-direction", currentPath+".direction", "sort direction must be asc or desc")
 		}
@@ -321,7 +321,7 @@ func validateConditionShape(condition *Condition, path string, issues *[]Issue, 
 	if condition.Field == nil {
 		addIssue(issues, "missing-condition-field", path+".field", "predicate field is required")
 	} else {
-		validateIdentifier(*condition.Field, path+".field", issues)
+		validateFieldReferenceIdentifier(*condition.Field, path+".field", issues)
 	}
 	if condition.Operator == nil {
 		addIssue(issues, "missing-condition-operator", path+".operator", "predicate operator is required")
@@ -412,7 +412,7 @@ func ValidateProfile(capability *CapabilityDefinition, profile *Profile) []Issue
 		addIssue(&issues, "definition-drift", "metadata.definitionHash", "profile definition hash does not match the current capability")
 	}
 	if capabilityUsesLimitedTablePresentation(capability) {
-		validateLimitedPresentationConditions(&profile.Spec, &issues)
+		validateLimitedPresentationProfile(&profile.Spec, &issues)
 	}
 	fieldDefinitions := make(map[string]CapabilityField, len(capability.Fields))
 	for _, field := range capability.Fields {
@@ -471,40 +471,55 @@ func capabilityUsesLimitedTablePresentation(capability *CapabilityDefinition) bo
 		len(capability.DefaultPresentation.Actions) == 0
 }
 
-func validateLimitedPresentationConditions(spec *ProfileSpec, issues *[]Issue) {
-	collections := []struct {
-		path   string
-		fields *[]FieldPatch
-	}{
-		{path: "spec.list.columns", fields: fieldPatches(spec.List, func(patch *ListPatch) *[]FieldPatch { return patch.Columns })},
-		{path: "spec.search.fields", fields: fieldPatches(spec.Search, func(patch *SearchPatch) *[]FieldPatch { return patch.Fields })},
-		{path: "spec.form.fields", fields: fieldPatches(spec.Form, func(patch *FormPatch) *[]FieldPatch { return patch.Fields })},
-		{path: "spec.detail.fields", fields: fieldPatches(spec.Detail, func(patch *DetailPatch) *[]FieldPatch { return patch.Fields })},
+func validateLimitedPresentationProfile(spec *ProfileSpec, issues *[]Issue) {
+	const unsupportedSurfaceMessage = "property is not supported by limited table pages"
+	if spec.DataSource != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.dataSource", unsupportedSurfaceMessage)
 	}
-	for _, collection := range collections {
-		if collection.fields == nil {
-			continue
-		}
-		for index, field := range *collection.fields {
-			if field.VisibleWhen != nil {
-				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("%s[%d].visibleWhen", collection.path, index), "visibility conditions are not supported by limited table pages")
-			}
-		}
+	if spec.Form != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.form", unsupportedSurfaceMessage)
+	}
+	if spec.Detail != nil {
+		addIssue(issues, "unsupported-limited-surface", "spec.detail", unsupportedSurfaceMessage)
 	}
 	if spec.Actions != nil {
-		for index, action := range *spec.Actions {
-			if action.VisibleWhen != nil {
-				addIssue(issues, "unsupported-limited-condition", fmt.Sprintf("spec.actions[%d].visibleWhen", index), "visibility conditions are not supported by limited table pages")
-			}
+		addIssue(issues, "unsupported-limited-surface", "spec.actions", unsupportedSurfaceMessage)
+	}
+	if spec.List != nil {
+		if spec.List.DefaultSort != nil {
+			addIssue(issues, "unsupported-limited-surface", "spec.list.defaultSort", unsupportedSurfaceMessage)
 		}
+		validateLimitedFieldPatches(spec.List.Columns, "spec.list.columns", true, issues)
+	}
+	if spec.Search != nil {
+		validateLimitedFieldPatches(spec.Search.Fields, "spec.search.fields", false, issues)
 	}
 }
 
-func fieldPatches[T any](patch *T, selectFields func(*T) *[]FieldPatch) *[]FieldPatch {
-	if patch == nil {
-		return nil
+func validateLimitedFieldPatches(fields *[]FieldPatch, path string, allowWidth bool, issues *[]Issue) {
+	if fields == nil {
+		return
 	}
-	return selectFields(patch)
+	for index, field := range *fields {
+		fieldPath := fmt.Sprintf("%s[%d]", path, index)
+		for _, property := range []struct {
+			name    string
+			present bool
+		}{
+			{name: "component", present: field.Component != nil},
+			{name: "span", present: field.Span != nil},
+			{name: "placeholder", present: field.Placeholder != nil},
+			{name: "help", present: field.Help != nil},
+			{name: "width", present: !allowWidth && field.Width != nil},
+		} {
+			if property.present {
+				addIssue(issues, "unsupported-limited-surface", fieldPath+"."+property.name, "property is not supported by limited table pages")
+			}
+		}
+		if field.VisibleWhen != nil {
+			addIssue(issues, "unsupported-limited-surface", fieldPath+".visibleWhen", "property is not supported by limited table pages")
+		}
+	}
 }
 
 func validateSemanticFields(fields []FieldPatch, surface Surface, path string, definitions map[string]CapabilityField, components map[string]struct{}, strictSurfaceComponents bool, issues *[]Issue) {
@@ -1125,6 +1140,12 @@ func isCapabilityPatternHex(value byte) bool {
 func validateIdentifier(value, path string, issues *[]Issue) {
 	if len(value) < 2 || len(value) > 120 || !identifierPattern.MatchString(value) {
 		addIssue(issues, "invalid-identifier", path, "value must be a stable lowercase identifier")
+	}
+}
+
+func validateFieldReferenceIdentifier(value, path string, issues *[]Issue) {
+	if len(value) < 1 || len(value) > 120 || (!identifierPattern.MatchString(value) && !fieldIdentifierPattern.MatchString(value)) {
+		addIssue(issues, "invalid-identifier", path, "value must be a stable field identifier")
 	}
 }
 
