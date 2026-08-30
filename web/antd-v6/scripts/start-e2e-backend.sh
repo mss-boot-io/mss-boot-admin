@@ -63,12 +63,12 @@ if content.count('127.0.0.1:18080') != 1:
     raise SystemExit('expected exactly one backend address in the E2E configuration')
 if content.count('http://127.0.0.1:18001') != 2:
     raise SystemExit('expected exactly two frontend origins in the E2E configuration')
-database_line = "  source: '../.mss/run/antd-v6-e2e/admin.db?_busy_timeout=30000&_journal_mode=WAL'"
+database_line = "  source: '../.mss/run/antd-v6-e2e/admin.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate'"
 if content.count(database_line) != 1:
     raise SystemExit('expected exactly one E2E database source')
 content = content.replace('127.0.0.1:18080', f'127.0.0.1:{backend_port}')
 content = content.replace('http://127.0.0.1:18001', f'http://127.0.0.1:{web_port}')
-database_dsn = f'{database_path}?_busy_timeout=30000&_journal_mode=WAL'
+database_dsn = f'{database_path}?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate'
 content = content.replace(database_line, f'  source: {json.dumps(database_dsn)}')
 target.write_text(content, encoding='utf-8')
 PY

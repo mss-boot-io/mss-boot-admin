@@ -82,7 +82,7 @@ logger:
 #    interval: 5s
 database:
   driver: sqlite
-  source: 'mss-boot-admin-local.db'
+  source: 'mss-boot-admin-local.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate'
   name: mss-boot-admin-local
   config:
     disableForeignKeyConstraintWhenMigrating: true

@@ -23,7 +23,7 @@ logger:
   level: warn
 database:
   driver: sqlite
-  source: '../.mss/run/antd-v6-e2e/admin.db?_busy_timeout=30000&_journal_mode=WAL'
+  source: '../.mss/run/antd-v6-e2e/admin.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate'
   name: mss-boot-admin-antd-v6-e2e
 auth:
   key: 'mss-antd-v6-e2e-non-production-key'
