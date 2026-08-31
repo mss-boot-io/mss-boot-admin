@@ -2,17 +2,22 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-2-2-release
-  displayName: Portable artifact repair, qualify, and publish v1.2.2
+  displayName: v1.2.2 immutable partial release record
   description: >-
-    Governs the synchronized v1.2.2 forward repair of the root foundation,
-    reusable Framework, and sole Ant Design 6 frontend from one exact commit
-    already merged into main.
+    Records the immutable partial v1.2.2 train from
+    29a99f2bdb9a2c516459529918795404c153df2e: Framework and Admin Web published
+    and Root qualification/tagging completed, but Root image publication timed out
+    before the image and Release completed. The remaining goals, requirements,
+    acceptance, and rollout sections preserve historical intent and evidence only;
+    they are not current publication authority. v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.1.0
+    stable-at-preparation: v1.1.0
+    current-stable-now: v1.3.7
     target-version: v1.2.2
-    release-status: preparation
+    release-status: immutable-partial
+    release-commit: 29a99f2bdb9a2c516459529918795404c153df2e
 spec:
   problem: >-
     The immutable v1.2.1 Framework and frontend releases completed, and the

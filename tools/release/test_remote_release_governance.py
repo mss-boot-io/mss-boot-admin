@@ -159,6 +159,18 @@ else:
                 "target": "tag",
                 "enforcement": "active",
             },
+            {
+                "id": 105,
+                "name": "docs-tags-controlled-deletion",
+                "target": "tag",
+                "enforcement": "active",
+            },
+            {
+                "id": 106,
+                "name": "docs-tags-no-in-place-update",
+                "target": "tag",
+                "enforcement": "active",
+            },
         ]
         common_ruleset = {
             "source_type": "Repository",
@@ -215,7 +227,12 @@ else:
                 "conditions": {
                     "ref_name": {"include": STOPPED_V135_REFS, "exclude": []}
                 },
-                "rules": [{"type": "creation"}],
+                "rules": [
+                    {"type": "creation"},
+                    {"type": "deletion"},
+                    {"type": "update"},
+                    {"type": "non_fast_forward"},
+                ],
                 "bypass_actors": [],
             },
             f"/repos/{REPOSITORY}/rulesets/103?includes_parents=true": {
@@ -223,7 +240,7 @@ else:
                 "id": 103,
                 "name": "release-tags-immutable",
                 "conditions": {
-                    "ref_name": {"include": list(RELEASE_REFS), "exclude": []}
+                    "ref_name": {"include": list(CORE_RELEASE_REFS), "exclude": []}
                 },
                 "rules": [
                     {"type": "update"},
@@ -239,7 +256,38 @@ else:
                 "conditions": {
                     "ref_name": {"include": STOPPED_V136_REFS, "exclude": []}
                 },
-                "rules": [{"type": "creation"}],
+                "rules": [
+                    {"type": "creation"},
+                    {"type": "deletion"},
+                    {"type": "update"},
+                    {"type": "non_fast_forward"},
+                ],
+                "bypass_actors": [],
+            },
+            f"/repos/{REPOSITORY}/rulesets/105?includes_parents=true": {
+                **common_ruleset,
+                "id": 105,
+                "name": "docs-tags-controlled-deletion",
+                "conditions": {
+                    "ref_name": {"include": list(DOCS_RELEASE_REFS), "exclude": []}
+                },
+                "rules": [{"type": "deletion"}],
+                "bypass_actors": [
+                    {
+                        "actor_id": RELEASE_ACTOR_ID,
+                        "actor_type": "User",
+                        "bypass_mode": "always",
+                    }
+                ],
+            },
+            f"/repos/{REPOSITORY}/rulesets/106?includes_parents=true": {
+                **common_ruleset,
+                "id": 106,
+                "name": "docs-tags-no-in-place-update",
+                "conditions": {
+                    "ref_name": {"include": list(DOCS_RELEASE_REFS), "exclude": []}
+                },
+                "rules": [{"type": "update"}, {"type": "non_fast_forward"}],
                 "bypass_actors": [],
             },
         }
@@ -352,7 +400,10 @@ else:
         self.assertEqual(report["controlledCreationRuleset"], 101)
         self.assertEqual(report["stoppedV135CreationRuleset"], 102)
         self.assertEqual(report["stoppedV136CreationRuleset"], 104)
-        self.assertEqual(report["immutableRuleset"], 103)
+        self.assertEqual(report["coreImmutableRuleset"], 103)
+        self.assertEqual(report["controlledDeletionRuleset"], 105)
+        self.assertEqual(report["noInPlaceUpdateRuleset"], 106)
+        self.assertEqual(report["tagMode"], "delete-then-recreate")
         self.assertEqual(report["environments"], {"prod": ["refs/tags/docs/v*"]})
         self.assertEqual(report["environmentSecrets"], {"prod": []})
         self.assertEqual(
@@ -568,6 +619,16 @@ else:
             ]
             if item["name"] != "prod"
         ]
+        rulesets_endpoint = (
+            f"/repos/{REPOSITORY}/rulesets?includes_parents=true&per_page=100"
+        )
+        state[rulesets_endpoint] = [
+            ruleset
+            for ruleset in state[rulesets_endpoint]
+            if ruleset["id"] not in (105, 106)
+        ]
+        del state[f"/repos/{REPOSITORY}/rulesets/105?includes_parents=true"]
+        del state[f"/repos/{REPOSITORY}/rulesets/106?includes_parents=true"]
         for ruleset_id in (101, 102, 103, 104):
             includes = state[
                 f"/repos/{REPOSITORY}/rulesets/{ruleset_id}?includes_parents=true"
@@ -580,7 +641,7 @@ else:
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(json.loads(result.stdout)["scope"], "core")
 
-    def test_docs_scope_does_not_read_or_validate_core_environments_or_tag_refs(self):
+    def test_docs_scope_skips_core_environments_but_checks_core_immutable_boundary(self):
         state = copy.deepcopy(self.state)
         for name in ("release", "release-v6", "release-auto", "release-v6-auto", "npm-auto"):
             for endpoint in (
@@ -590,7 +651,7 @@ else:
                 f"/repositories/{REPOSITORY_ID}/environments/{name}/secrets?per_page=100",
             ):
                 del state[endpoint]
-        for ruleset_id in (101, 102, 103, 104):
+        for ruleset_id in (101, 102, 104, 105, 106):
             includes = state[
                 f"/repos/{REPOSITORY}/rulesets/{ruleset_id}?includes_parents=true"
             ]["conditions"]["ref_name"]["include"]
@@ -629,7 +690,7 @@ else:
         ]
         self.assert_rejected(
             state,
-            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.6 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
         )
 
         state = copy.deepcopy(self.state)
@@ -638,7 +699,7 @@ else:
         ]["ref_name"]["include"].remove("refs/tags/admin/v1.3.6")
         self.assert_rejected(
             state,
-            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.6 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
         )
 
         state = copy.deepcopy(self.state)
@@ -662,7 +723,7 @@ else:
         ]
         self.assert_rejected(
             state,
-            "v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.5 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
         )
 
         state = copy.deepcopy(self.state)
@@ -671,7 +732,7 @@ else:
         ]["ref_name"]["include"].remove("refs/tags/admin/v1.3.5")
         self.assert_rejected(
             state,
-            "v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.5 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
         )
 
         state = copy.deepcopy(self.state)
@@ -686,7 +747,7 @@ else:
         ]
         self.assert_rejected(
             state,
-            "core release tag immutability must cover every release tag with no bypass",
+            "core release tag immutability must cover every core release tag with no bypass",
         )
 
     def test_docs_scope_rejects_broad_or_cross_scope_tag_patterns(self):
@@ -704,16 +765,16 @@ else:
                 "docs release-tag creation authority must belong only to the explicit release actor",
             ),
             (
-                103,
+                105,
                 "include",
                 "~ALL",
-                "docs release tag immutability must cover every release tag with no bypass",
+                "Docs tag deletion authority must belong only to the explicit release actor",
             ),
             (
-                103,
+                106,
                 "exclude",
                 "refs/tags/*",
-                "docs release tag immutability must cover every release tag with no bypass",
+                "Docs tags must reject in-place update and require delete then recreate",
             ),
         )
         for ruleset_id, condition, pattern, message in cases:
@@ -726,7 +787,7 @@ else:
                 ]["conditions"]["ref_name"][condition].append(pattern)
                 self.assert_rejected(state, message, scope="docs")
 
-    def test_docs_controlled_creation_stop_freeze_and_immutability_are_exact(self):
+    def test_docs_controlled_creation_stop_freeze_and_replaceability_are_exact(self):
         state = copy.deepcopy(self.state)
         state[f"/repos/{REPOSITORY}/rulesets/101?includes_parents=true"][
             "conditions"
@@ -749,7 +810,7 @@ else:
         ]["ref_name"]["include"].append("refs/tags/docs/v1.3.6-wrong")
         self.assert_rejected(
             state,
-            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.6 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
             scope="docs",
         )
 
@@ -765,20 +826,82 @@ else:
         ]
         self.assert_rejected(
             state,
-            "v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            "v1.3.5 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
             scope="docs",
         )
 
         state = copy.deepcopy(self.state)
         state[f"/repos/{REPOSITORY}/rulesets/103?includes_parents=true"][
             "conditions"
+        ]["ref_name"]["include"].append("refs/tags/docs/v*")
+        self.assert_rejected(
+            state,
+            "core release tag immutability must cover every core release tag with no bypass",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/102?includes_parents=true"][
+            "rules"
+        ] = [{"type": "creation"}]
+        self.assert_rejected(
+            state,
+            "v1.3.5 stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/105?includes_parents=true"][
+            "bypass_actors"
+        ][0]["actor_id"] = 999
+        self.assert_rejected(
+            state,
+            "Docs tag deletion authority must belong only to the explicit release actor",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/106?includes_parents=true"][
+            "conditions"
         ]["ref_name"]["include"].remove("refs/tags/docs/v*")
         state[f"/repos/{REPOSITORY}/rulesets/103?includes_parents=true"][
             "conditions"
-        ]["ref_name"]["include"].append("refs/tags/docs/release-v*")
+        ]["ref_name"]["include"] = list(CORE_RELEASE_REFS)
         self.assert_rejected(
             state,
-            "docs release tag immutability must cover every release tag with no bypass",
+            "Docs tags must reject in-place update and require delete then recreate",
+            scope="docs",
+        )
+
+    def test_docs_scope_rejects_any_additional_active_tag_mutation_ruleset(self):
+        state = copy.deepcopy(self.state)
+        summary_endpoint = (
+            f"/repos/{REPOSITORY}/rulesets?includes_parents=true&per_page=100"
+        )
+        state[summary_endpoint].append(
+            {
+                "id": 107,
+                "name": "unexpected-broad-tag-freeze",
+                "target": "tag",
+                "enforcement": "active",
+            }
+        )
+        state[f"/repos/{REPOSITORY}/rulesets/107?includes_parents=true"] = {
+            "id": 107,
+            "name": "unexpected-broad-tag-freeze",
+            "source_type": "Repository",
+            "source": REPOSITORY,
+            "target": "tag",
+            "enforcement": "active",
+            "conditions": {
+                "ref_name": {"include": ["refs/tags/*"], "exclude": []}
+            },
+            "rules": [{"type": "deletion"}],
+            "bypass_actors": [],
+        }
+        self.assert_rejected(
+            state,
+            "exactly the core immutable, stopped-train freezes, and two Docs replacement rulesets may govern tag mutation",
             scope="docs",
         )
 

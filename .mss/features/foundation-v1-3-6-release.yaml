@@ -4,15 +4,16 @@ metadata:
   name: foundation-v1-3-6-release
   displayName: Foundation v1.3.6 immutable partial release
   description: >-
-    Freezes the exact v1.3.6 publication ledger after the coordinated train
+    Historical release contract that freezes the exact v1.3.6 publication ledger after the coordinated train
     published its component and Root releases but failed the Root image and
-    official npm publication paths, with Docs never created.
+    official npm publication paths, with Docs never created. v1.3.7 is now current stable.
   owner: release-engineering
   labels:
     domain: release-recovery
     target-version: v1.3.6
     release-status: immutable-partial
     release-commit: b1fe47a3a83209574e09d53526b122dd2cbc5277
+    current-stable-now: v1.3.7
 spec:
   problem: >-
     The exact merged-main commit b1fe47a3a83209574e09d53526b122dd2cbc5277
@@ -28,8 +29,8 @@ spec:
     - Preserve every successful v1.3.6 component and Root identity at the exact release commit.
     - Record failed and absent surfaces precisely instead of presenting v1.3.6 as complete or wholly unpublished.
     - Permanently prevent v1.3.6 qualification, continuation, late publication, and mixed-version adoption.
-    - Carry the workflow and Trusted Publisher corrections into a new v1.3.7 candidate through a reviewed pull request.
-    - Keep v1.3.2 as the only current stable and rollback baseline.
+    - At this checkpoint, carry the workflow and Trusted Publisher corrections into a new v1.3.7 candidate through a reviewed pull request; that candidate has since reconciled as current stable.
+    - Record that v1.3.2 was the only current stable and rollback baseline at the v1.3.6 failure checkpoint; active guidance now uses v1.3.7.
   nonGoals:
     - Delete, move, recreate, reuse, or append artifacts to any v1.3.6 tag, Release, package, image, checksum, or run.
     - Publish the missing v1.3.6 npm package, Root image, or Docs from repaired source.
@@ -45,7 +46,7 @@ spec:
       description: Reviews the recovery and new-candidate pull request without becoming a second release operator.
     - id: documentation-reader
       displayName: Documentation reader
-      description: Sees the exact partial ledger and is directed only to the v1.3.2 stable baseline.
+      description: Sees the exact partial ledger and is directed to the current v1.3.7 stable baseline, with v1.3.2 retained as historical previous-stable evidence.
   modules:
     - name: release-ledger
       kind: infrastructure
@@ -98,10 +99,10 @@ spec:
       actor: documentation-reader
       module: documentation
       rules:
-        - v1.3.2 remains current stable and rollback evidence.
+        - At the v1.3.6 checkpoint, v1.3.2 remained current stable and rollback evidence; v1.3.7 is now current stable.
         - v1.3.5 and v1.3.6 are both immutable partial trains and are not installation or upgrade targets.
-        - v1.3.7 is a candidate only and exposes no adopter installation, creation, or upgrade commands before complete reconciliation.
-        - The public Docs site remains separately deployment-pending until a later authorized Docs tag publishes merged source.
+        - At this checkpoint v1.3.7 was a candidate only and exposed no adopter installation, creation, or upgrade commands before complete reconciliation; it is now current stable and adoptable.
+        - At this checkpoint the public Docs site remained separately deployment-pending; the current Docs site uses the independently replaceable docs/v1.3.7 pointer.
   constraints:
     - id: exact-release-commit
       type: operations
@@ -145,7 +146,7 @@ spec:
           value: python3 -m unittest tools/release/test_check_release_policy.py
     - id: v136-documentation-ledger
       requirement: publish-truthful-v136-docs
-      statement: Source documentation labels v1.3.6 partial, v1.3.7 candidate, and v1.3.2 stable without candidate adoption commands.
+      statement: Historical checkpoint evidence labeled v1.3.6 partial, v1.3.7 candidate, and v1.3.2 stable without candidate adoption commands; current source labels v1.3.7 stable.
       level: contract
       phase: checkpoint
       required: true
@@ -166,7 +167,7 @@ spec:
     - id: misleading-component-availability
       description: Public v1.3.6 Go modules or Releases could be mistaken for a complete supported distribution.
       severity: high
-      mitigation: Present a per-surface matrix and point adopters only to the complete v1.3.2 stable train.
+      mitigation: Present a per-surface matrix and point current adopters only to the complete v1.3.7 stable train; retain v1.3.2 as historical previous-stable evidence.
   validation:
     changed: mss verify --changed
     all: mss verify --all
@@ -182,6 +183,6 @@ spec:
       correct the npm Trusted Publisher binding before freezing a new exact
       merged-main commit.
     rollback: >-
-      Existing adopters remain on the complete matching v1.3.2 distribution.
+      At this checkpoint existing adopters remained on the complete matching v1.3.2 distribution; current adopters use the complete matching v1.3.7 distribution.
       Never combine public v1.3.6 components with another patch or restore a
       stored npm token to complete the stopped train.

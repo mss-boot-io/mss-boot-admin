@@ -48,7 +48,10 @@ Show only transitions. Do not repeatedly narrate an unchanged queued run.
   public-site state are never stable-promotion prerequisites. An exact existing npm
   package may be reconciled; a different `gitHead`, integrity, provenance, or
   mutable alias must fail closed rather than trigger another publish.
-- If a public tag, Release, package, or image already exists and repair needs source changes, preserve it and prepare a new patch version through a PR.
+- If a core public tag, Release, package, or image already exists and repair needs
+  source changes, preserve it and prepare a new patch version through a PR. Docs
+  is the sole exception: its website-only Release and tag may be deleted and the
+  same `docs/vX.Y.Z` identity recreated through the controlled workflow below.
 
 ## Choose the release path
 
@@ -87,20 +90,21 @@ For a component-only or downstream release, retain the same source, evidence, im
 
 The Admin Distribution consists of Root, Framework, Admin, and frontend/package
 surfaces. Docs is an independently publishable website, not a Distribution
-component or stable-adoption gate. A `docs/{version}` tag identifies only one
-immutable website publication; it does not recreate Root, Framework, frontend,
-npm, stable aliases, or `currentStableVersion`. The initial tag uses the exact
-base Root commit after that Root Release exists. A later Docs-only correction or
-stable-wording revision is first merged through its own PR and frozen as an exact
-source commit. A subsequent reviewed authorization PR sets
-`docsRevisionPublicationReady`, binds `docsRevisionVersion` to the lowest unused
-`+docs.N` identity, and binds `docsRevisionCommit` to that frozen source. Only
-then may the revision tag point to the older authorized merged-main source and
-reconcile the Docs Release assets, checksums, public `release.json`, and visible
-site against that commit. Docs absence or failure is recorded as website
-deployment pending and never changes Distribution stability or adopter availability.
+component or stable-adoption gate. `docs/{currentStableVersion}` is a replaceable
+website deployment pointer. It may point to the Root commit or a later
+merged-main descendant after the Root Release exists. It does not recreate Root,
+Framework, frontend, npm, stable aliases, or `currentStableVersion`.
 
-When the coordinated Docs tag for the current stable version already exists but later merged documentation must replace stale public content, preserve that tag and use the lowest unused positive Docs revision allowed by policy, such as `docs/${VERSION}+docs.1`. A `+docs.N` tag updates only the Docs component, does not consume the next product patch version, and must still pass exact-tag resolution, the reviewed ancestor-source binding, merged-PR proof, protected deployment, Release, `/release.json`, and browser reconciliation. Disable the consumed one-shot Docs authorization in a follow-up PR.
+To update the website, merge and qualify the Docs source first. As the sole
+release operator, delete the old Docs GitHub Release, delete the same remote Docs
+tag, verify that both identities are absent, create a new annotated tag with the
+same name at the qualified merged-main commit, and create its remote ref through
+the authenticated GitHub API. Direct force-update
+is prohibited. The protected workflow then rebuilds checksums and Release assets,
+deploys the site, and reconciles `/release.json` plus visible browser state.
+Historical `+docs.N` tags remain audit records but are not created by the current
+policy. Docs absence or failure is recorded as website deployment pending and
+never changes Distribution stability or adopter availability.
 
 ## Procedure
 
@@ -116,27 +120,33 @@ Set shell variables once and validate them:
 set -euo pipefail
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 VERSION="$(python3 -c 'from pathlib import Path; from tools.release.check_release_policy import load_policy; print(load_policy(Path(".mss/release-policy.yaml"))["nextPublicVersion"])')"
+DOCS_VERSION="$(python3 -c 'from pathlib import Path; from tools.release.check_release_policy import load_policy; print(load_policy(Path(".mss/release-policy.yaml"))["currentStableVersion"])')"
 SHA="$(git rev-parse HEAD)"
 ROOT_TAG="${VERSION}"
 FRAMEWORK_TAG="mss-boot/${VERSION}"
 ADMIN_TAG="admin/${VERSION}"
 FRONTEND_TAG="web/antd-v6/${VERSION}"
-DOCS_TAG="docs/${VERSION}"
+DOCS_TAG="docs/${DOCS_VERSION}"
 ```
 
 Fetch and fail closed before publication:
 
 ```bash
-git fetch origin main --tags
+git fetch --no-tags origin \
+  '+refs/heads/main:refs/remotes/origin/main'
 test -z "$(git status --porcelain=v1 --untracked-files=all)"
 test "${SHA}" = "$(git rev-parse origin/main)"
-python3 tools/release/verify_release_source.py \
+GH_TOKEN="$(gh auth token)" python3 tools/release/verify_release_source.py \
   --repository "${REPO}" \
   --commit "${SHA}" \
   --policy .mss/release-policy.yaml
 ```
 
-Confirm all prerequisite PRs are merged in dependency order. Confirm root, Framework, Admin, and frontend version references agree. Check every proposed remote tag before creating any one of them. Stop on any existing unexpected ref; never move or reuse it.
+Confirm all prerequisite PRs are merged in dependency order. Confirm root,
+Framework, Admin, and frontend version references agree. Check every proposed
+remote tag before creating any one of them. Stop on any existing unexpected core
+ref; never move or reuse it. For Docs only, follow the explicit delete-then-
+recreate sequence in section 9.
 
 ### 2. Run focused review gates, then one exact-main qualification
 
@@ -176,8 +186,8 @@ other static assets, header wrapping, hero actions, card rhythm, dark mode when
 offered, content readability, table scrolling, and document-level horizontal
 overflow. Fix visual defects through the Docs PR, rebuild the site, and capture
 browser evidence before freezing the Docs source. A later visual fix needs a new
-Docs PR and, when an immutable tag already exists, the reviewed revision path;
-it does not invalidate or delay a Distribution release.
+Docs PR followed by controlled deletion and recreation of the same stable Docs
+tag; it does not invalidate or delay a Distribution release.
 
 Treat reusable-workflow call mode as explicit data. A called workflow inherits the
 caller's `github` context, so it must not infer `workflow_call` mode from
@@ -210,9 +220,9 @@ preview, component tags, stable promotion, or current-stable reconciliation.
 Immediately before the preview and every Distribution tag push, fetch
 `origin/main` again and require it to remain `SHA`. If `main` advanced, stop
 before creating an immutable Distribution ref and select the new merged-main
-commit. A later Docs tag follows the separately reviewed Root-ancestor or
-revision-source binding in section 9, so it does not require current
-`origin/main` to equal the older Root commit. If the reviewed policy lists the
+commit. A later Docs recreation follows the Root-ancestor and merged-main source
+binding in section 9, so it does not require the Docs commit to equal the older
+Root commit. If the reviewed policy lists the
 version in `immutableStoppedTrains`, stop: every listed ref is permanently
 rejected and must never be deleted, moved, recreated, completed, or resumed.
 
@@ -240,7 +250,7 @@ git tag -a "${FRONTEND_TAG}" "${SHA}" -m "${FRONTEND_TAG}"
 git push origin "refs/tags/${FRONTEND_TAG}"
 ```
 
-The workflows fail before checkout, secrets, or writes unless both actor identities are `lwnmengjing`; each also verifies the exact merged-main source and active release policy. The first irreversible Framework publication performs one cheap exact-SHA/version artifact-preview lookup so an operator mistake cannot create a partial train before staging. Admin does not repeat that lookup; after the Framework Release exists, it keeps the unique remote dependency boundary by resolving the exact public Framework through `proxy.golang.org` with `GOWORK=off` and testing the compile-time composition before publishing. The consolidated controlled-creation ruleset covers Root, component, and Docs tag namespaces with `lwnmengjing` as its only bypass. The immutable ruleset has no bypass. SullivanPrime remains an independent PR reviewer and is not a release-environment reviewer.
+The workflows fail before checkout, secrets, or writes unless both actor identities are `lwnmengjing`; each also verifies the exact merged-main source and active release policy. The first irreversible Framework publication performs one cheap exact-SHA/version artifact-preview lookup so an operator mistake cannot create a partial train before staging. Admin does not repeat that lookup; after the Framework Release exists, it keeps the unique remote dependency boundary by resolving the exact public Framework through `proxy.golang.org` with `GOWORK=off` and testing the compile-time composition before publishing. The consolidated controlled-creation ruleset covers Root, component, and Docs tag namespaces with `lwnmengjing` as its only bypass. The no-bypass immutable ruleset covers only core release tags. Docs deletion is restricted to `lwnmengjing`, while a separate no-bypass rule forbids in-place update, so Docs can change only by delete then recreate. Exact stopped-train rules additionally reject creation, deletion, and update of stopped Docs refs with no bypass. SullivanPrime remains an independent PR reviewer and is not a release-environment reviewer.
 
 ### 6. Verify remote governance without adding an approval pause
 
@@ -351,44 +361,151 @@ consumed stable-promotion authorization, opens adopter availability, and aligns
 the checked-in human and Agent guidance with those machine facts. This step
 never waits for or includes a Docs tag, deployment credential, Release,
 `/release.json`, or public-site response. If the public website needs the newly
-merged wording, record this reconciliation PR's exact merged commit, then merge
-another reviewed authorization PR that sets
-`docsRevisionPublicationReady: true`, binds `docsRevisionVersion` to the lowest
-unused identity such as `${VERSION}+docs.1`, and binds `docsRevisionCommit` to
-that recorded source. Tag that source only after authorization, never move
-`docs/${VERSION}`, and disable the consumed revision authority afterward.
+merged wording, record the exact merged commit and execute the replaceable Docs
+sequence in section 9. No Distribution policy field, patch version, or
+`+docs.N` identity is consumed.
 
 ### 9. Publish and reconcile the Docs website asynchronously
 
-After the base Root Release exists, the initial website tag may be created at
-the exact Root commit whenever the documentation team is ready:
+After the base Root Release exists, the website tag may be created or recreated
+at a qualified merged-main commit that contains that Root commit. Before any
+deletion, re-fetch `origin/main`, require `SHA` to remain its exact clean
+PR-produced tip, require the stable Root tag and public Release, authorize the
+exact Docs ref through policy, and make the Docs-specific remote governance
+check pass:
 
 ```bash
-git ls-remote --tags origin "refs/tags/${DOCS_TAG}" "refs/tags/${DOCS_TAG}^{}"
-git tag -a "${DOCS_TAG}" "${SHA}" -m "${DOCS_TAG}"
-git push origin "refs/tags/${DOCS_TAG}"
-```
-
-Before creating it, require the Docs-specific tag governance, Root Release,
-merged-main source, protected `prod` environment, and effective organization
-credential. The Docs workflow retains exact Root ancestry, immutable tag and
-Release identity, checksums, monotonic deployment, `/release.json`, and browser
-reconciliation. A `docs/v*` tag means only “this website revision was published.”
-It does not certify or change Distribution, package, alias, current-stable, or
-adopter state.
-
-```bash
+git fetch --no-tags origin \
+  '+refs/heads/main:refs/remotes/origin/main'
+test "$(gh api user --jq .login)" = 'lwnmengjing'
+test "${SHA}" = "$(git rev-parse HEAD)"
+test "${SHA}" = "$(git rev-parse origin/main)"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+GH_TOKEN="$(gh auth token)" python3 tools/release/verify_release_source.py \
+  --repository "${REPO}" \
+  --commit "${SHA}" \
+  --policy .mss/release-policy.yaml
+python3 tools/release/check_release_policy.py \
+  --policy .mss/release-policy.yaml \
+  --component docs \
+  --version "${DOCS_VERSION}" \
+  --tag "${DOCS_TAG}" \
+  --intent publish \
+  --commit "${SHA}"
+git fetch --force --no-tags origin "refs/tags/${DOCS_VERSION}"
+root_commit="$(git rev-parse 'FETCH_HEAD^{commit}')"
+git merge-base --is-ancestor "${root_commit}" "${SHA}"
+root_release="$(
+  gh release view "${DOCS_VERSION}" \
+    --json tagName,targetCommitish,isDraft,isPrerelease
+)"
+jq -e \
+  --arg tag "${DOCS_VERSION}" \
+  --arg commit "${root_commit}" \
+  '.tagName == $tag and .targetCommitish == $commit and
+   .isDraft == false and .isPrerelease == false' \
+  <<< "${root_release}" >/dev/null
+docs_governance_report="$(mktemp)"
 bash tools/release/verify_remote_release_governance.sh \
   --repository "${REPO}" \
   --release-actor-login lwnmengjing \
   --scope docs \
-  > ".mss/reports/remote-docs-governance-${DOCS_TAG//\//-}.json"
+  > "${docs_governance_report}"
+jq -e '.success == true and .tagMode == "delete-then-recreate"' \
+  "${docs_governance_report}" >/dev/null
 ```
 
-If the base tag already exists, never recreate or move it. Publish later source
-or stable wording only through the reviewed lowest-unused `+docs.N` authorization
-described above. If any Docs check fails, leave the Distribution untouched,
-record `website deployment pending`, and continue the Docs repair independently.
+Only after every check above passes may a replacement inspect the exact current
+targets and delete them:
+
+```bash
+ref_error="$(mktemp)"
+if existing_docs_ref="$(
+  gh api "/repos/${REPO}/git/ref/tags/${DOCS_TAG}" 2> "${ref_error}"
+)"; then
+  jq -e --arg ref "refs/tags/${DOCS_TAG}" '.ref == $ref' \
+    <<< "${existing_docs_ref}" >/dev/null
+elif grep -Eqi 'HTTP 404|Not Found' "${ref_error}"; then
+  existing_docs_ref=''
+else
+  echo 'Docs tag inspection failed without an authoritative not-found response' >&2
+  exit 1
+fi
+rm -f "${ref_error}"
+release_error="$(mktemp)"
+if existing_docs_release="$(
+  gh release view "${DOCS_TAG}" \
+    --json tagName,targetCommitish,isDraft,isPrerelease,assets \
+    2> "${release_error}"
+)"; then
+  printf '%s\n' "${existing_docs_release}"
+elif grep -Eqi 'release not found|HTTP 404|Not Found' "${release_error}"; then
+  existing_docs_release=''
+else
+  echo 'Docs Release inspection failed without an authoritative not-found response' >&2
+  exit 1
+fi
+rm -f "${release_error}"
+if [[ -n "${existing_docs_release}" ]]; then
+  gh release delete "${DOCS_TAG}" --yes
+fi
+if [[ -n "${existing_docs_ref}" ]]; then
+  gh api --method DELETE "/repos/${REPO}/git/refs/tags/${DOCS_TAG}"
+fi
+ref_error="$(mktemp)"
+if gh api "/repos/${REPO}/git/ref/tags/${DOCS_TAG}" \
+  >/dev/null 2> "${ref_error}"; then
+  echo "Docs tag ${DOCS_TAG} still exists after deletion" >&2
+  exit 1
+elif ! grep -Eqi 'HTTP 404|Not Found' "${ref_error}"; then
+  echo 'Docs tag absence could not be verified authoritatively' >&2
+  exit 1
+fi
+rm -f "${ref_error}"
+release_error="$(mktemp)"
+if gh release view "${DOCS_TAG}" >/dev/null 2> "${release_error}"; then
+  echo "Docs Release ${DOCS_TAG} still exists after deletion" >&2
+  exit 1
+elif ! grep -Eqi 'release not found|HTTP 404|Not Found' "${release_error}"; then
+  echo 'Docs Release absence could not be verified authoritatively' >&2
+  exit 1
+fi
+rm -f "${release_error}"
+tag_object="$(
+  gh api --method POST "/repos/${REPO}/git/tags" \
+    -f tag="${DOCS_TAG}" \
+    -f message="${DOCS_TAG}" \
+    -f object="${SHA}" \
+    -f type=commit
+)"
+tag_object_sha="$(jq -er '.sha' <<< "${tag_object}")"
+created_ref="$(
+  gh api --method POST "/repos/${REPO}/git/refs" \
+    -f ref="refs/tags/${DOCS_TAG}" \
+    -f sha="${tag_object_sha}"
+)"
+jq -e \
+  --arg ref "refs/tags/${DOCS_TAG}" \
+  --arg sha "${tag_object_sha}" \
+  '.ref == $ref and .object.sha == $sha' \
+  <<< "${created_ref}" >/dev/null
+git fetch --force --no-tags origin "refs/tags/${DOCS_TAG}"
+test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "${SHA}"
+```
+
+The guarded sequence also handles an initial publication when both remote
+identities are authoritatively absent. Deletion is authorized only
+for the current stable `DOCS_TAG`, never a core or stopped-train tag. The Docs
+workflow retains exact Root ancestry, PR-produced merged source, checksums,
+forward-only deployment, `/release.json`, and browser reconciliation. A
+`docs/v*` tag means only “this website is currently deployed from this commit.”
+It does not certify or change Distribution, package, alias, current-stable, or
+adopter state.
+
+If any Docs check fails after deletion, leave the Distribution untouched, record
+`website deployment pending`, repair through another PR when source changes are
+required, and recreate the same Docs tag only after every affected Docs check
+passes.
 
 ### 10. Reconcile public truth independently
 
@@ -406,9 +523,10 @@ After publication, verify all of the following without relying only on workflow 
 - root also contains six `mss-tools-${VERSION}-*` archives, `SHA256SUMS.tools-${VERSION}`, `install-mss.sh`, and `install-mss.ps1`; each tool archive has only `BUILD-INFO`, `LICENSE`, `mss`, and `mss-mcp` (with Windows suffixes), and no raw `admin` or internal `mss-pr` asset;
 - install the public tool bundle into an empty temporary directory, verify version/commit/timestamp, and create and validate a Thin Host without cloning the Foundation; separately verify both public command packages still compile with `go install`, while keeping release-provenance creation and upgrade confined to the checksummed bundle;
 - when Docs is published, its independent website ledger exposes the expected
-  application, version, and authorized commit at `/release.json`; any later Docs
-  revision exposes its own identity and merged-main commit without moving an
-  earlier tag. Missing or pending Docs is reported but never makes the complete
+  application, version, and currently deployed merged-main commit at
+  `/release.json`; replacement history is retained in PR, workflow, deployment,
+  and commit records rather than immutable Docs tags. Missing or pending Docs is
+  reported but never makes the complete
   Distribution ledger fail;
 - fresh-install and upgrade migrations, API registry synchronization, menu API binding, authorization negative cases, and rollback evidence are attached where required;
 - the local checkout still matches fetched `origin/main`, the tracked worktree is clean, unrelated local services are untouched, and the original GitHub actor is active.
@@ -422,14 +540,16 @@ Write one sanitized reconciliation comment to the evidence issue with run URLs, 
 - If a Root tag or Release is already public and the Root image candidate
   requires a source repair, freeze the partial train and prepare the next unused
   patch through a PR. A Docs source or deployment repair stays on the independent
-  Docs PR and revision-tag path and never freezes the Distribution. If stable
+  Docs PR and same-tag replacement path and never freezes the Distribution. If stable
   npm promotion fails without publishing and no source or policy changes are required, repair
   only the external Trusted Publisher identity under explicit authorization and
   rerun from the exact Root tag after reconstructing the ledger. Never add a
   token or move an immutable ref.
 - Never move npm `latest` or GitHub Latest during candidate publication. Never
   use an auxiliary dist-tag as a holding area or run `npm dist-tag` manually.
-- Never delete, move, overwrite, or reuse a public tag, Release, package, image, or checksum.
+- Never delete, move, overwrite, or reuse a core public tag, Release, package,
+  image, or checksum. The only exception is the current stable website-only Docs
+  tag and Release, using the controlled delete-then-recreate sequence above.
 - Never release from a topic branch, detached commit, local-only fix, dirty worktree, or commit absent from current `origin/main`.
 - Never weaken a test, bypass an environment policy, forge evidence, or invent a
   preview result to shorten the cycle.

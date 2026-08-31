@@ -226,6 +226,22 @@ class ReleaseSourceGitTest(unittest.TestCase):
         evidence = self.verify(tag="docs/v1.1.0", source_mode="docs")
         self.assertEqual(evidence["number"], 474)
 
+    def test_docs_base_tag_can_be_recreated_at_a_later_merged_main_commit(self):
+        (self.work / "tracked.txt").write_text("later docs\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later docs PR")
+        later_docs = run_git(self.work, "rev-parse", "HEAD")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "tag", "docs/v1.1.0", later_docs)
+        run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
+
+        evidence = self.verify(
+            commit=later_docs,
+            tag="docs/v1.1.0",
+            source_mode="docs",
+        )
+        self.assertEqual(evidence["number"], 474)
+
     def test_docs_base_rejects_candidate_not_on_remote_main(self):
         (self.work / "tracked.txt").write_text("local docs\n", encoding="utf-8")
         run_git(self.work, "add", "tracked.txt")
@@ -263,13 +279,19 @@ class ReleaseSourceGitTest(unittest.TestCase):
                 ),
             )
 
-    def test_docs_base_rejects_root_tag_at_another_commit(self):
+    def test_docs_base_rejects_candidate_older_than_root_tag(self):
         run_git(self.work, "tag", "docs/v1.1.0", self.candidate)
         run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
-        run_git(self.work, "tag", "-f", "v1.1.0", self.base_commit)
+        (self.work / "tracked.txt").write_text("later root\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later root")
+        later_root = run_git(self.work, "rev-parse", "HEAD")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "tag", "-f", "v1.1.0", later_root)
         run_git(self.work, "push", "--force", "origin", "refs/tags/v1.1.0")
+        run_git(self.work, "checkout", "--detach", self.candidate)
 
-        with self.assertRaisesRegex(SOURCE.SourceError, "Root tag.*not candidate"):
+        with self.assertRaisesRegex(SOURCE.SourceError, "not an ancestor"):
             self.verify(tag="docs/v1.1.0", source_mode="docs")
 
     def test_promotion_requires_an_exact_remote_tag(self):

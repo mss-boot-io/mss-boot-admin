@@ -96,13 +96,14 @@ v1.3.7 Root Release 已把单一 Blueprint 源嵌入工具，并绑定版本、�
 Admin、Admin Web 与 Root 正式 Tag。各 Tag 只触发自己的发布面；Root Tag 发布 Root
 Release、工具与 Root 镜像，不发布 npm。Root 对账后，单独的已评审策略 PR 一次性授权
 从精确 Root Tag 手工调度 `npm-release.yml`，验证 npm provenance 后再推进 npm `latest`
-与 GitHub Latest。Docs 不参与上述顺序或门禁；网站内容确认后可由独立且不可变的
-`docs/vX.Y.Z` 或 `docs/vX.Y.Z+docs.N` Tag 异步发布。公共对账仍需匿名解析 Go/npm 依赖，
+与 GitHub Latest。Docs 不参与上述顺序或门禁；网站内容确认后由可替换的
+`docs/vX.Y.Z` Tag 异步发布。更新时先删同名 Docs Release 和 Tag，再从受审 merged-main
+后代同名重建，禁止直接 force-update。公共对账仍需匿名解析 Go/npm 依赖，
 并覆盖生成、升级、测试、构建、运行、权限与浏览器关键流程。
 
 任一 Distribution 门禁失败，后续 Distribution 阶段保持关闭。需要修复时通过后续 PR
 合入 main，选择新的 merged-main 提交并重新资格；Docs 网站失败只阻断自身部署，不回退
-已通过的组件证据，也不得移动或补附任何已公开身份。
+已通过的组件证据，也不得移动或补附任何核心已公开身份。
 
 ## mss-shop 证明
 

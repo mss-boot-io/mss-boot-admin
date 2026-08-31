@@ -272,9 +272,9 @@ verify_stopped_ruleset() {
     ([.conditions.ref_name.include[] | select(ref_scope(.) == $scope)] | sort) == $expected_refs and
     ([.conditions.ref_name.exclude[] | select(ref_scope(.) == $scope)] | sort) == [] and
     .bypass_actors == [] and
-    ([.rules[].type] == ["creation"])
+    ([.rules[].type] | sort) == ["creation", "deletion", "non_fast_forward", "update"]
   ' <<< "${ruleset}" >/dev/null || {
-    echo "${version} stopped-tag creation must be blocked by the exact no-bypass ruleset" >&2
+    echo "${version} stopped tags must be creation- and mutation-frozen by the exact no-bypass ruleset" >&2
     exit 1
   }
   printf '%s\n' "${ruleset_id}"
@@ -285,40 +285,97 @@ stopped_v136_id="$(verify_stopped_ruleset v1.3.6)"
 
 immutable_id="$(unique_ruleset_id release-tags-immutable)"
 immutable_ruleset="$(gh api "/repos/${repository}/rulesets/${immutable_id}?includes_parents=true")"
+docs_deletion_id=''
+docs_no_update_id=''
 jq -e \
-  --arg repository "${repository}" \
-  --arg scope "${scope}" '
+  --arg repository "${repository}" '
   [
     "refs/tags/admin/v*",
     "refs/tags/mss-boot/v*",
     "refs/tags/v*",
     "refs/tags/web/antd-v6/v*",
     "refs/tags/web/antd/v*"
-  ] as $core_refs |
-  ["refs/tags/docs/v*"] as $docs_refs |
-  def ref_scope($ref):
-    if ($docs_refs | index($ref)) != null then
-      "docs"
-    elif ($core_refs | index($ref)) != null then
-      "core"
-    else
-      "ambiguous"
-    end;
-  (if $scope == "docs" then $docs_refs else $core_refs end | sort) as $expected_refs |
+  ] as $expected_refs |
   .source_type == "Repository" and
   .source == $repository and
   .target == "tag" and
   .enforcement == "active" and
-  all(.conditions.ref_name.include[]?; ref_scope(.) != "ambiguous") and
-  all(.conditions.ref_name.exclude[]?; ref_scope(.) != "ambiguous") and
-  ([.conditions.ref_name.include[] | select(ref_scope(.) == $scope)] | sort) == $expected_refs and
-  ([.conditions.ref_name.exclude[] | select(ref_scope(.) == $scope)] | sort) == [] and
+  ([.conditions.ref_name.include[]] | sort) == ($expected_refs | sort) and
+  ([.conditions.ref_name.exclude[]] | sort) == [] and
   .bypass_actors == [] and
   ([.rules[].type] | sort) == ["deletion", "non_fast_forward", "update"]
-' <<< "${immutable_ruleset}" >/dev/null || {
-  echo "${scope} release tag immutability must cover every release tag with no bypass" >&2
-  exit 1
-}
+  ' <<< "${immutable_ruleset}" >/dev/null || {
+    echo "core release tag immutability must cover every core release tag with no bypass" >&2
+    exit 1
+  }
+
+if [[ "${scope}" == 'docs' ]]; then
+  mapfile -t mutation_names < <(
+    while IFS= read -r ruleset_id; do
+      ruleset="$(gh api "/repos/${repository}/rulesets/${ruleset_id}?includes_parents=true")"
+      if jq -e '
+        any(.rules[]?;
+          .type == "deletion" or
+          .type == "update" or
+          .type == "non_fast_forward"
+        )
+      ' <<< "${ruleset}" >/dev/null; then
+        jq -r '.name' <<< "${ruleset}"
+      fi
+    done < <(jq -r '.[] | select(
+      .target == "tag" and .enforcement == "active"
+    ) | .id' <<< "${rulesets}")
+  )
+  mapfile -t mutation_names < <(printf '%s\n' "${mutation_names[@]}" | sort)
+  if [[ "${#mutation_names[@]}" -ne 5 \
+    || "${mutation_names[0]}" != 'docs-tags-controlled-deletion' \
+    || "${mutation_names[1]}" != 'docs-tags-no-in-place-update' \
+    || "${mutation_names[2]}" != 'release-tags-immutable' \
+    || "${mutation_names[3]}" != 'v1.3.5-stopped-tags-never-create' \
+    || "${mutation_names[4]}" != 'v1.3.6-stopped-tags-never-create' ]]; then
+    echo 'exactly the core immutable, stopped-train freezes, and two Docs replacement rulesets may govern tag mutation' >&2
+    exit 1
+  fi
+
+  docs_deletion_id="$(unique_ruleset_id docs-tags-controlled-deletion)"
+  docs_deletion_ruleset="$(gh api "/repos/${repository}/rulesets/${docs_deletion_id}?includes_parents=true")"
+  jq -e \
+    --arg repository "${repository}" \
+    --argjson release_actor_id "${release_actor_id}" '
+    .source_type == "Repository" and
+    .source == $repository and
+    .target == "tag" and
+    .enforcement == "active" and
+    .conditions.ref_name.include == ["refs/tags/docs/v*"] and
+    .conditions.ref_name.exclude == [] and
+    [.rules[].type] == ["deletion"] and
+    .bypass_actors == [{
+      actor_id: $release_actor_id,
+      actor_type: "User",
+      bypass_mode: "always"
+    }]
+  ' <<< "${docs_deletion_ruleset}" >/dev/null || {
+    echo 'Docs tag deletion authority must belong only to the explicit release actor' >&2
+    exit 1
+  }
+
+  docs_no_update_id="$(unique_ruleset_id docs-tags-no-in-place-update)"
+  docs_no_update_ruleset="$(gh api "/repos/${repository}/rulesets/${docs_no_update_id}?includes_parents=true")"
+  jq -e \
+    --arg repository "${repository}" '
+    .source_type == "Repository" and
+    .source == $repository and
+    .target == "tag" and
+    .enforcement == "active" and
+    .conditions.ref_name.include == ["refs/tags/docs/v*"] and
+    .conditions.ref_name.exclude == [] and
+    ([.rules[].type] | sort) == ["non_fast_forward", "update"] and
+    .bypass_actors == []
+  ' <<< "${docs_no_update_ruleset}" >/dev/null || {
+    echo 'Docs tags must reject in-place update and require delete then recreate' >&2
+    exit 1
+  }
+fi
 
 verify_active_environment() {
   local environment_name=$1
@@ -480,7 +537,9 @@ else
     --argjson controlled_ruleset_id "${controlled_id}" \
     --argjson stopped_v135_ruleset_id "${stopped_v135_id}" \
     --argjson stopped_v136_ruleset_id "${stopped_v136_id}" \
-    --argjson immutable_ruleset_id "${immutable_id}" \
+    --argjson core_immutable_ruleset_id "${immutable_id}" \
+    --argjson docs_deletion_ruleset_id "${docs_deletion_id}" \
+    --argjson docs_no_update_ruleset_id "${docs_no_update_id}" \
     '{
       success: true,
       scope: $scope,
@@ -490,7 +549,10 @@ else
       controlledCreationRuleset: $controlled_ruleset_id,
       stoppedV135CreationRuleset: $stopped_v135_ruleset_id,
       stoppedV136CreationRuleset: $stopped_v136_ruleset_id,
-      immutableRuleset: $immutable_ruleset_id,
+      coreImmutableRuleset: $core_immutable_ruleset_id,
+      controlledDeletionRuleset: $docs_deletion_ruleset_id,
+      noInPlaceUpdateRuleset: $docs_no_update_ruleset_id,
+      tagMode: "delete-then-recreate",
       environments: {
         prod: ["refs/tags/docs/v*"]
       },

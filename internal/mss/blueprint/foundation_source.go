@@ -56,31 +56,34 @@ type foundationReleasePolicy struct {
 		Name string `yaml:"name"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Mode                         string                   `yaml:"mode"`
-		ReleaseBranch                string                   `yaml:"releaseBranch"`
-		RequireMergedPRSource        *bool                    `yaml:"requireMergedPullRequestSource"`
-		CurrentStableVersion         string                   `yaml:"currentStableVersion"`
-		CurrentStableCommit          string                   `yaml:"currentStableCommit"`
-		NextPublicVersion            string                   `yaml:"nextPublicVersion"`
-		DistributionVersion          string                   `yaml:"distributionVersion"`
-		DistributionComponents       string                   `yaml:"distributionComponents"`
-		ReleaseTargetState           string                   `yaml:"releaseTargetState"`
-		ImmutableStoppedTrains       []foundationStoppedTrain `yaml:"immutableStoppedTrains"`
-		PublicationWorkflowsReady    *bool                    `yaml:"publicationWorkflowsReady"`
-		DocsRevisionPublicationReady *bool                    `yaml:"docsRevisionPublicationReady"`
-		DocsRevisionVersion          *string                  `yaml:"docsRevisionVersion"`
-		DocsRevisionCommit           *string                  `yaml:"docsRevisionCommit"`
-		StablePromotionReady         *bool                    `yaml:"stablePromotionReady"`
-		StablePromotionVersion       *string                  `yaml:"stablePromotionVersion"`
-		StablePromotionCommit        *string                  `yaml:"stablePromotionCommit"`
-		PublicPrereleases            *bool                    `yaml:"publicPrereleases"`
-		RootTagTemplate              string                   `yaml:"rootTagTemplate"`
-		FrameworkTagTemplate         string                   `yaml:"frameworkTagTemplate"`
-		AdminTagTemplate             string                   `yaml:"adminTagTemplate"`
-		FrontendTagTemplate          string                   `yaml:"frontendTagTemplate"`
-		FrontendV6TagTemplate        string                   `yaml:"frontendV6TagTemplate"`
-		DocsTagTemplate              string                   `yaml:"docsTagTemplate"`
-		NpmPackageTemplate           string                   `yaml:"npmPackageTemplate"`
+		Mode                      string                   `yaml:"mode"`
+		ReleaseBranch             string                   `yaml:"releaseBranch"`
+		RequireMergedPRSource     *bool                    `yaml:"requireMergedPullRequestSource"`
+		CurrentStableVersion      string                   `yaml:"currentStableVersion"`
+		CurrentStableCommit       string                   `yaml:"currentStableCommit"`
+		NextPublicVersion         string                   `yaml:"nextPublicVersion"`
+		DistributionVersion       string                   `yaml:"distributionVersion"`
+		DistributionComponents    string                   `yaml:"distributionComponents"`
+		ReleaseTargetState        string                   `yaml:"releaseTargetState"`
+		ImmutableStoppedTrains    []foundationStoppedTrain `yaml:"immutableStoppedTrains"`
+		PublicationWorkflowsReady *bool                    `yaml:"publicationWorkflowsReady"`
+		DocsTagMutable            *bool                    `yaml:"docsTagMutable"`
+		// Deprecated Docs revision fields remain readable for historical
+		// Foundation policies. Current policies use DocsTagMutable instead.
+		DocsRevisionPublicationReady *bool   `yaml:"docsRevisionPublicationReady"`
+		DocsRevisionVersion          *string `yaml:"docsRevisionVersion"`
+		DocsRevisionCommit           *string `yaml:"docsRevisionCommit"`
+		StablePromotionReady         *bool   `yaml:"stablePromotionReady"`
+		StablePromotionVersion       *string `yaml:"stablePromotionVersion"`
+		StablePromotionCommit        *string `yaml:"stablePromotionCommit"`
+		PublicPrereleases            *bool   `yaml:"publicPrereleases"`
+		RootTagTemplate              string  `yaml:"rootTagTemplate"`
+		FrameworkTagTemplate         string  `yaml:"frameworkTagTemplate"`
+		AdminTagTemplate             string  `yaml:"adminTagTemplate"`
+		FrontendTagTemplate          string  `yaml:"frontendTagTemplate"`
+		FrontendV6TagTemplate        string  `yaml:"frontendV6TagTemplate"`
+		DocsTagTemplate              string  `yaml:"docsTagTemplate"`
+		NpmPackageTemplate           string  `yaml:"npmPackageTemplate"`
 	} `yaml:"spec"`
 }
 
@@ -399,23 +402,30 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	}
 	extendedReleaseContract := strings.TrimSpace(policy.Spec.ReleaseTargetState) != "" ||
 		len(policy.Spec.ImmutableStoppedTrains) != 0 ||
+		policy.Spec.DocsTagMutable != nil ||
 		policy.Spec.DocsRevisionPublicationReady != nil ||
 		strings.TrimSpace(policy.Spec.NpmPackageTemplate) != ""
 	lifecycleAuthorizationContract := policy.Spec.StablePromotionReady != nil ||
 		policy.Spec.StablePromotionVersion != nil ||
-		policy.Spec.StablePromotionCommit != nil ||
+		policy.Spec.StablePromotionCommit != nil
+	legacyDocsRevisionContract := policy.Spec.DocsRevisionPublicationReady != nil ||
 		policy.Spec.DocsRevisionVersion != nil ||
 		policy.Spec.DocsRevisionCommit != nil
 	if policy.Spec.PublicationWorkflowsReady == nil || policy.Spec.PublicPrereleases == nil ||
-		(extendedReleaseContract && policy.Spec.DocsRevisionPublicationReady == nil) ||
-		(lifecycleAuthorizationContract && (policy.Spec.DocsRevisionPublicationReady == nil ||
-			policy.Spec.StablePromotionReady == nil ||
+		(extendedReleaseContract && policy.Spec.DocsTagMutable == nil && policy.Spec.DocsRevisionPublicationReady == nil) ||
+		(lifecycleAuthorizationContract && (policy.Spec.StablePromotionReady == nil ||
 			policy.Spec.StablePromotionVersion == nil ||
-			policy.Spec.StablePromotionCommit == nil ||
-			policy.Spec.DocsRevisionVersion == nil ||
-			policy.Spec.DocsRevisionCommit == nil)) ||
-		(policy.Spec.DocsRevisionPublicationReady != nil && *policy.Spec.DocsRevisionPublicationReady && !lifecycleAuthorizationContract) {
+			policy.Spec.StablePromotionCommit == nil)) ||
+		(legacyDocsRevisionContract && policy.Spec.DocsRevisionPublicationReady == nil) {
 		return foundationReleasePolicy{}, errors.New("committed foundation release policy boolean controls are required")
+	}
+	if policy.Spec.DocsTagMutable != nil {
+		if !*policy.Spec.DocsTagMutable {
+			return foundationReleasePolicy{}, errors.New("committed foundation docsTagMutable must remain true")
+		}
+		if legacyDocsRevisionContract {
+			return foundationReleasePolicy{}, errors.New("committed foundation policy cannot mix mutable Docs tags with legacy Docs revisions")
+		}
 	}
 	currentRaw := strings.TrimSpace(policy.Spec.CurrentStableVersion)
 	nextRaw := strings.TrimSpace(policy.Spec.NextPublicVersion)
@@ -441,9 +451,7 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 	if lifecycleAuthorizationContract {
 		promotionRaw := strings.TrimSpace(*policy.Spec.StablePromotionVersion)
 		promotionCommit := strings.TrimSpace(*policy.Spec.StablePromotionCommit)
-		docsRevisionVersion := strings.TrimSpace(*policy.Spec.DocsRevisionVersion)
-		docsRevisionCommit := strings.TrimSpace(*policy.Spec.DocsRevisionCommit)
-		if promotionRaw == "" || promotionCommit == "" || docsRevisionVersion == "" || docsRevisionCommit == "" {
+		if promotionRaw == "" || promotionCommit == "" {
 			return foundationReleasePolicy{}, errors.New("committed foundation release policy lifecycle authorization fields are required")
 		}
 		if !strings.HasPrefix(promotionRaw, "v") || !validSemanticVersion(strings.TrimPrefix(promotionRaw, "v")) {
@@ -467,21 +475,31 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 		}
 		*policy.Spec.StablePromotionVersion = promotionRaw
 		*policy.Spec.StablePromotionCommit = promotionCommit
+	}
 
-		if *policy.Spec.DocsRevisionPublicationReady {
-			base, revision, ok := strings.Cut(docsRevisionVersion, "+docs.")
-			revisionNumber, revisionErr := strconv.Atoi(revision)
-			if !ok || base != currentRaw || revisionErr != nil || revisionNumber < 1 || revisionNumber > 999 || strconv.Itoa(revisionNumber) != revision {
-				return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionVersion must be the current stable vX.Y.Z+docs.N revision from 1 through 999")
+	if legacyDocsRevisionContract {
+		if policy.Spec.DocsRevisionVersion == nil || policy.Spec.DocsRevisionCommit == nil {
+			if *policy.Spec.DocsRevisionPublicationReady {
+				return foundationReleasePolicy{}, errors.New("committed foundation legacy Docs revision fields are required when publication is ready")
 			}
-			if !fullCommitPattern.MatchString(docsRevisionCommit) {
-				return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionCommit must be a full commit when publication is ready")
+		} else {
+			docsRevisionVersion := strings.TrimSpace(*policy.Spec.DocsRevisionVersion)
+			docsRevisionCommit := strings.TrimSpace(*policy.Spec.DocsRevisionCommit)
+			if *policy.Spec.DocsRevisionPublicationReady {
+				base, revision, ok := strings.Cut(docsRevisionVersion, "+docs.")
+				revisionNumber, revisionErr := strconv.Atoi(revision)
+				if !ok || base != currentRaw || revisionErr != nil || revisionNumber < 1 || revisionNumber > 999 || strconv.Itoa(revisionNumber) != revision {
+					return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionVersion must be the current stable vX.Y.Z+docs.N revision from 1 through 999")
+				}
+				if !fullCommitPattern.MatchString(docsRevisionCommit) {
+					return foundationReleasePolicy{}, errors.New("committed foundation docsRevisionCommit must be a full commit when publication is ready")
+				}
+			} else if docsRevisionVersion != "disabled" || docsRevisionCommit != "disabled" {
+				return foundationReleasePolicy{}, errors.New("committed foundation docs revision authorization must be disabled until publication is ready")
 			}
-		} else if docsRevisionVersion != "disabled" || docsRevisionCommit != "disabled" {
-			return foundationReleasePolicy{}, errors.New("committed foundation docs revision authorization must be disabled until publication is ready")
+			*policy.Spec.DocsRevisionVersion = docsRevisionVersion
+			*policy.Spec.DocsRevisionCommit = docsRevisionCommit
 		}
-		*policy.Spec.DocsRevisionVersion = docsRevisionVersion
-		*policy.Spec.DocsRevisionCommit = docsRevisionCommit
 	}
 	targetState := strings.TrimSpace(policy.Spec.ReleaseTargetState)
 	if extendedReleaseContract {

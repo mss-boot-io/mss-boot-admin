@@ -52,7 +52,7 @@ Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或�
   也不能补齐其失败的 Root image 与官方 npm；
 - GitHub Packages、本地 tarball、源码 checkout 或 `replace` 不能替代官方 npmjs 与公共
   Go Module 对账；
-- Docs Tag 只发布网站，独立不可变且可异步候补，不参与组件完整性或采用门禁；
+- Docs Tag 只发布网站，可由受控操作者删除后同名重建且可异步候补；直接更新被禁止，不参与组件完整性或采用门禁；
 - 后续完整版本同样必须从精确干净的 merged-main 提交资格，并冻结标签、Release 和 digest。
 
 ## 上线门禁

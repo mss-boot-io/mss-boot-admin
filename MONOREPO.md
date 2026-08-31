@@ -69,16 +69,16 @@ npm, and alias identities before accepting existing public state; it must not
 inspect Docs.
 
 The final current-stable policy reconciliation advanced current stable and
-adopter availability immediately from the complete Distribution ledger. Its
-exact merged commit is the only possible source for a stable-wording Docs
-update. A subsequent reviewed one-shot authorization must bind
-`docsRevisionVersion` to the lowest unused `<stable-version>+docs.<N>` identity
-and `docsRevisionCommit` to that exact source, then publish the immutable
-`docs/<stable-version>+docs.<N>` revision instead of moving the base Docs tag.
+adopter availability immediately from the complete Distribution ledger. A
+later qualified merged-main descendant may update the website by deleting the
+current Docs Release and tag, proving both are absent, and recreating the same
+`docs/<stable-version>` tag. Direct force-update is prohibited; core release
+identities remain immutable.
 Formal tag and promotion workflows do not repeat expensive qualification or
 accept a readiness run ID or manual environment approval. A release-source
 repair after public Distribution identity requires another unused product
-version; a Docs failure uses only the independent Docs PR and revision-tag path.
+version; a Docs failure uses only the independent Docs PR and same-tag
+replacement path.
 
 ## Workflow location
 
