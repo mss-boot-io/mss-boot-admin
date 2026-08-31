@@ -283,6 +283,7 @@ spec:
 			{name: "workflows disabled", data: strings.Replace(ready, "publicationWorkflowsReady: true", "publicationWorkflowsReady: false", 1), want: "workflows must remain ready"},
 			{name: "short commit", data: strings.Replace(ready, strings.Repeat("1", 40), strings.Repeat("1", 39), 1), want: "full commit"},
 			{name: "uppercase commit", data: strings.Replace(ready, strings.Repeat("1", 40), strings.Repeat("A", 40), 1), want: "full commit"},
+			{name: "consumed promotion", data: strings.Replace(ready, "currentStableVersion: v1.0.0", "currentStableVersion: v1.1.0", 1), want: "already consumed"},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				if _, err := decodeFoundationReleasePolicy([]byte(test.data)); err == nil || !strings.Contains(err.Error(), test.want) {
@@ -335,11 +336,14 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode canonical release policy: %v", err)
 	}
-	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || !*policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "77b53d41092741eac62fa6418c0bdbf87413c7cd" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
+	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "disabled" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
 		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
 	}
 	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || !*policy.Spec.PublicationWorkflowsReady {
 		t.Fatalf("canonical recovery target = %#v, want v1.3.7 with publication enabled", policy.Spec)
+	}
+	if policy.Spec.CurrentStableVersion != "v1.3.7" || policy.Spec.CurrentStableCommit != "77b53d41092741eac62fa6418c0bdbf87413c7cd" {
+		t.Fatalf("canonical current stable = %#v, want exact v1.3.7 release", policy.Spec)
 	}
 	stopped, err := validateFoundationStoppedTrains(policy)
 	if err != nil {

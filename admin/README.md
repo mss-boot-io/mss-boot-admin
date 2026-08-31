@@ -1,25 +1,21 @@
 # Importable Admin application
 
-## v1.3.7 candidate status
+## v1.3.7 stable status
 
-v1.3.7 is the selected complete package-first candidate, but it is not yet a
-stable or adoptable distribution. Candidate components can become public in
-stages; the remote release ledger is authoritative until stable promotion and
-final reconciliation complete. Do not install or combine
-`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7` with unreconciled candidate
-components. It becomes an adopter dependency only after one exact merged-main
-preview and the complete train qualify.
+v1.3.7 is the current stable, adoptable Complete Admin Distribution. The public
+module `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7` was qualified with
+the matching Framework, Admin Web, Root tools, and images from exact merged-main
+commit `77b53d41092741eac62fa6418c0bdbf87413c7cd`. Consumers must pin the complete
+v1.3.7 train and must not combine this module with another patch or a local
+replacement.
 
-v1.3.5 and v1.3.6 remain immutable-partial trains. v1.3.6 published the Admin
+v1.3.5 and v1.3.6 remain immutable partial trains. v1.3.6 published the Admin
 identity `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6` from commit
-`b1fe47a3a83209574e09d53526b122dd2cbc5277`, but its Root image and official
-npm workflows failed and Docs was never created. Each public component remains
-immutable and is not, by itself, a complete Thin Host distribution.
-
-The release policy still identifies **v1.3.2** as the current stable
-distribution. Do not combine a v1.3.5 or v1.3.6 Admin module with another patch,
-Foundation source, a local replacement, or an unreconciled frontend package to
-manufacture a mixed distribution.
+`b1fe47a3a83209574e09d53526b122dd2cbc5277`, but that train never completed.
+Each public component remains immutable audit evidence and is not, by itself, a
+complete Thin Host distribution. The Docs website publishes independently; a
+Docs failure or later versioned Docs revision does not change this Admin
+module's stable identity.
 
 ## Composition contract
 
@@ -54,18 +50,14 @@ Do not copy Admin startup, security middleware, migrations, or core routes into
 a business repository. A business module may extend the protected group only
 through `admin/business`; UI visibility never replaces backend authorization.
 
-The v1.3.7 candidate generates this composition as part of a version-bound Thin
-Host. Until its Root tools, official npmjs package, images, and
-external-consumer evidence are public, this file describes the composition
-boundary only and is not an application-creation or setup guide. v1.3.7 is not adoptable
-before publication and public external-consumer reconciliation.
+The v1.3.7 tool generates this composition as part of a version-bound Thin Host.
+Use the public Root tool and package onboarding guide instead of copying this
+repository's Admin source into a business application.
 
-The v1.3.7 candidate bootstrap contract reads the initial administrator password
+The v1.3.7 bootstrap contract reads the initial administrator password
 through hidden input or a one-use `MSS_ADMIN_INITIAL_PASSWORD` secret, stores
 only a one-way verifier, and exposes no default password. The generated local
-application identity remains user `admin` at `http://127.0.0.1:8001`, but
-those facts do not authorize prepublication v1.3.7 adoption or make either
-partial train adoptable.
+application identity is user `admin` at `http://127.0.0.1:8001`.
 
 See the [component status](../docs/docs/getting-started/packages.md) and
 [Admin architecture](../docs/docs/architecture/complete-admin-distribution-and-thin-business-host.zh-CN.md).

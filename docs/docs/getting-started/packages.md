@@ -1,66 +1,108 @@
 ---
-title: v1.3.7 候选包发布状态
+title: v1.3.7 包与导入边界
 order: 2
-description: v1.3.7 未稳定候选包与 v1.3.5/v1.3.6 永久停止组件边界
-keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutable partial]
+description: v1.3.7 正式稳定版 Go Module、Admin Web npm 包与公共解析方法
+keywords: [v1.3.7 stable go module npm admin web package]
 ---
 
-# v1.3.7 候选包发布状态
+# v1.3.7 包与导入边界
 
-:::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。Go Module、Admin Web npmjs 与 Root 包面可能
-处于不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable
-policy 对账完成前，不开放安装、创建或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
-:::
+v1.3.7 是当前协调稳定版。所有下游应用必须使用同一版本的公共 Admin、Framework 与
+Admin Web，并保留生成器写入的精确锁；v1.3.5 与 v1.3.6 的不可变部分制品不能与其
+混用。Docs 网站独立异步发布，不决定这些组件是否可解析或可采用。
 
-## 已公开与缺失的身份
-
-| 组件 | v1.3.5 身份 | 采用结论 |
-| --- | --- | --- |
-| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` | Go Module 已公开，但只代表 Framework 组件 |
-| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` | Go Module 已公开，但只代表后端组件 |
-| Admin Web | `@mss-boot-io/admin-web@1.3.5` | GitHub Release 与 GitHub Packages 已公开，npmjs 未发布 |
-| Root | `v1.3.5` | 只有不可变 Tag；Root Release、工具和后端镜像未发布 |
-| Docs | `docs/v1.3.5` | 未创建、未部署 |
-| Framework | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6` | Go Module 与 Release 已公开；只作为部分列车组件 |
-| Admin | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6` | Go Module 与 Release 已公开；只作为部分列车组件 |
-| Admin Web | `@mss-boot-io/admin-web@1.3.6` | GitHub Release/Packages 已公开；官方 npmjs 不存在 |
-| Root | `v1.3.6` | Root Release 与工具公开；Root image 不存在 |
-| Docs | `docs/v1.3.6` | 未创建、未部署 |
-
-这些身份可以用于审计已经公开的不可变组件，不能拼成受支持的 Thin Host。尤其不能把
-GitHub Packages、Release 附件、本地 tarball、源码目录、分支或 `replace` 当作 npmjs 和
-完整 Root 发布的替代品。
-
-## 未来完整发行的导入边界
-
-完整 Admin Distribution 仍遵循以下设计，但只有未来显式选定且完成公共对账的版本才能
-提供可执行用法：
+## 完整 Distribution 的依赖方向
 
 ```text
 业务后端模块 ──编译期注册──> Admin ──依赖──> mss-boot
 业务前端路由 ──显式注册──> Admin Web 完整应用
 ```
 
-- 普通应用只直接依赖 Admin；仅开发通用基础设施时才直接依赖 Framework；
-- Admin Web 是一个完整前端发行单元，不拆出第二个 SPA；
-- 下游必须使用公共 Go Module、官方 npmjs 包和冻结锁，不使用本地替换；
-- 公共解析资格必须关闭 Foundation workspace，并在仓库外的干净使用方环境验证；
-- 后端权限始终由服务端执行，前端菜单或控件隐藏不能替代授权。
+- 普通 Thin Host 直接依赖 Admin，由 Admin 固定 Framework；只有开发通用基础设施时才
+  直接导入 `mss-boot`；
+- `@mss-boot-io/admin-web@1.3.7` 是完整前端发行单元，不拆出第二个 SPA；
+- 不使用本地 `replace`、源码目录、GitHub Packages tarball 或相邻版本补齐依赖；
+- 后端权限始终是最终权威，前端控件隐藏不能授权请求。
 
-## 业务扩展与升级所有权
+## 在仓库外验证 Go 公共解析
 
-未来 Thin Host 只拥有业务模块和组合胶水。普通 AdminModule 由确定性生成器负责；关系、
-十进制定价、库存并发和状态机等复杂行为使用显式扩展接缝：
+Go workspace 可能掩盖模块元数据问题。以下片段在系统临时目录启动隔离作用域，任一 Go
+命令失败都会立即返回非零状态，并在片段结束时恢复位置与 `GOWORK`、删除消费者目录。
 
-- `internal/modules/custom/modules.go` 注册手写 `business.Module`；
-- `web/src/business/routes.config.ts` 与 `route-registrations.ts` 声明页面、菜单和权限；
-- `web/src/business/locales/zh-CN.ts` 与 `en-US.ts` 同步业务文案；
-- 受管组合层合并核心、生成和手写条目，并对重复路径失败关闭。
+POSIX shell：
 
-三方升级只能更新受管文件，必须原字节保留业务和未知文件。v1.3.5 与 v1.3.6 都没有完整公共工具、
-npmjs 包和 Root 发布，因此不能用来创建、验证或升级这种 Thin Host。
+```shell
+(
+  set -eu
+  consumer_dir="$(mktemp -d)"
+  cleanup() {
+    status=$?
+    trap - EXIT INT TERM
+    rm -rf -- "$consumer_dir"
+    exit "$status"
+  }
+  trap cleanup EXIT INT TERM
+  cd "$consumer_dir"
+  export GOWORK=off
+  go mod init mss-boot-io.local/v137-public-consumer
+  go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7
+  go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7
+  go mod verify
+)
+```
 
-完整证据见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5) 与
-[v1.3.6 不可变部分发布记录](/releases/v1-3-6)。
+Windows PowerShell：
+
+```powershell
+$previousGowork = $env:GOWORK
+$consumerDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mss-v137-consumer-" + [guid]::NewGuid().ToString("N"))
+$locationPushed = $false
+try {
+  New-Item -ItemType Directory -Path $consumerDir -ErrorAction Stop | Out-Null
+  Push-Location -LiteralPath $consumerDir -ErrorAction Stop
+  $locationPushed = $true
+  $env:GOWORK = 'off'
+  go mod init mss-boot-io.local/v137-public-consumer
+  if ($LASTEXITCODE -ne 0) { throw 'go mod init failed' }
+  go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7
+  if ($LASTEXITCODE -ne 0) { throw 'Admin module resolution failed' }
+  go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7
+  if ($LASTEXITCODE -ne 0) { throw 'Framework module resolution failed' }
+  go mod verify
+  if ($LASTEXITCODE -ne 0) { throw 'go mod verify failed' }
+}
+finally {
+  if ($locationPushed) {
+    Pop-Location
+  }
+  if ($null -eq $previousGowork) {
+    Remove-Item Env:GOWORK -ErrorAction SilentlyContinue
+  } else {
+    $env:GOWORK = $previousGowork
+  }
+  if (Test-Path -LiteralPath $consumerDir) {
+    Remove-Item -LiteralPath $consumerDir -Recurse -Force
+  }
+}
+```
+
+这段验证只证明公共 Go Module 可解析。完整 Thin Host 仍应由 v1.3.7 `mss new app`
+生成，并执行 `mss doctor --strict`、`mss setup` 与 `mss verify --all`。
+
+## Admin Web npm 包
+
+官方包是 `@mss-boot-io/admin-web@1.3.7`，发布到 npmjs 且 `latest` 指向 1.3.7。生成的
+Thin Host 会固定精确版本和锁文件；不要手工改成范围版本。若要做仓库外审计，可在新的
+临时目录匿名安装并核对版本、`gitHead`、integrity 和 provenance，但不要把审计目录或
+日志写入业务仓库。
+
+Admin Web 既是参考前端，也是唯一完整 Admin npm 单元。认证、布局、运行时和公共合同
+不会分散到独立版本包。业务页面写入 Thin Host 的 `web/src/business/` 并通过显式路由、
+locale 与 permission 投影接入。
+
+## 镜像与版本一致性
+
+Root 后端镜像与前端镜像使用不可变 digest；生产部署应固定 digest，并确认它们都来自
+v1.3.7 的同一源提交。Foundation 参考镜像不是携带业务模块的 Thin Host 业务镜像，不能
+直接当作业务系统部署。Docs 网站的 `docs/v*` Tag 只发布网站，不改变 Go、npm 或 OCI
+身份。

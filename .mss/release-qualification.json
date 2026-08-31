@@ -28,7 +28,7 @@
     },
     {
       "path": ".mss/features/foundation-v1-3-2-release.yaml",
-      "reason": "carry-forward: v1.3.2 is the immutable current stable distribution and remains rollback evidence until v1.3.7 publication reconciles completely."
+      "reason": "carry-forward: v1.3.2 is the immutable previous stable distribution and remains historical rollback evidence after v1.3.7 reconciled completely as current stable."
     },
     {
       "path": ".mss/features/foundation-v1-3-1-release.yaml",

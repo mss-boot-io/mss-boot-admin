@@ -1,5 +1,5 @@
 ---
-title: v1.3.7 候选主题设置优先级、继承与重置
+title: v1.3.7 主题设置优先级、继承与重置
 order: 14
 nav:
   order: 1
@@ -9,20 +9,17 @@ keywords: [admin ant-design-v6 theme settings precedence inheritance]
 ---
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。官方 npmjs 包和 Root 工具可能处于不同公开
-阶段，必须以远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy
-对账完成前，本页不是 Admin Web 安装、创建或升级指引。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**，官方 npmjs 包与 Root 工具已完成对账；v1.3.5 与
+v1.3.6 保持不可变部分发布。Docs 网站可通过 `docs/v*` 异步候补，不影响组件或采用。
 :::
 
 ## 产品合同
 
-- Admin Web 候选身份：`@mss-boot-io/admin-web@1.3.7`，公开阶段以远端 npm 与 Release 台账为准；
-- Admin 后端候选身份：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7`，公开阶段以远端 Go 与 Release 台账为准；
+- Admin Web 稳定身份：`@mss-boot-io/admin-web@1.3.7`，已由远端 npm 与 Release 台账对账；
+- Admin 后端稳定身份：`github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7`，已由远端 Go 与 Release 台账对账；
 - 历史状态：v1.3.5 与 v1.3.6 的已公开组件保持不可变，但不能补全或混用；
 - 源码状态：主题继承、重置、并发前置条件和授权已在 Foundation 中实现；
-- 采用状态：只有未来完成全部公共对账的协调版本才能把这套源码合同作为 Thin Host 产品面；
+- 采用状态：v1.3.7 已完成全部公共对账，可把这套合同作为 Thin Host 产品面；
 - 设计历史保留在[默认 V6 切换 ADR](https://github.com/mss-boot-io/mss-boot-admin/blob/main/docs/adr/2026-08-17-ant-design-v6-default-cutover.md)，使用方无需 Foundation 源码。
 
 本页只描述 V6 规范契约。后端不再返回旧主题投影，不接受缺少修订号的写入，

@@ -78,9 +78,10 @@ For the consolidated foundation repository, release the synchronized train in th
     or after steps 7 through 9 without blocking any of them.
 
 During steps 1 through 6, the candidate version is public evidence, not the
-coordinated stable. Both mutable aliases remain exactly on the reviewed current
-stable version (v1.3.2 for the v1.3.7 train). Do not create `next`, `candidate`,
-or `release-*` npm dist-tags, and never run a standalone `npm dist-tag` mutation.
+coordinated stable. Both mutable aliases remain exactly on the reviewed
+`currentStableVersion` read before the train starts. Do not create `next`,
+`candidate`, or `release-*` npm dist-tags, and never run a standalone
+`npm dist-tag` mutation.
 
 For a component-only or downstream release, retain the same source, evidence, immutability, and reconciliation rules while following that repository's tag namespace and workflow.
 
@@ -275,7 +276,7 @@ immediately before saving it.
 Before creating candidate tags, also require both mutable public aliases to
 resolve to the reviewed current stable version from policy: npmjs
 `@mss-boot-io/admin-web` `dist-tags.latest` and the repository's GitHub Latest
-Root Release. For the v1.3.7 candidate they both remain v1.3.2. A component or
+Root Release. Record that exact pre-promotion version in the release ledger. A component or
 Root candidate Release, versioned npm mirror, or versioned image is not authority
 to advance either alias. Stop on drift and repair the public alias through the
 governed stable path; never disguise it with a second npm dist-tag.
@@ -308,6 +309,11 @@ stable-promotion policy to ready and bind `stablePromotionVersion` plus the exac
 Root `stablePromotionCommit`. Docs is explicitly outside this ledger. That
 reviewed policy is read from current `origin/main`; it must not move or recreate
 the older Root tag, and it must not prematurely change `currentStableVersion`.
+
+After final current-stable reconciliation, close the consumed authority by
+setting `stablePromotionReady` false and `stablePromotionCommit` to `disabled`.
+Any future stable promotion requires a new reviewed policy PR bound to its own
+exact version and release commit; never reuse a consumed authorization.
 
 Re-fetch policy and public state after the policy PR merges. Require the exact
 Root tag and every candidate component Release to peel to `SHA`; require public

@@ -4,22 +4,20 @@ order: 1
 nav:
   title: 发布
   order: 6
-description: v1.3.2 当前稳定、v1.3.5/v1.3.6 永久停止与 v1.3.7 未稳定候选
+description: v1.3.7 当前稳定、v1.3.5/v1.3.6 永久停止与 Docs 独立发布
 ---
 
 # 发布
 
-当前稳定版本是 **v1.3.2**。v1.3.5 与 v1.3.6 已永久停止，只保留不可变部分发布记录。v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用；候选 Distribution 发布面可能处于不同公开阶段，
-必须以远端发布台账为准。完整 stable promotion 和最终 current-stable policy 对账完成前，本页
-不是 v1.3.7 安装、创建或升级入口。Docs 网站可通过 `docs/v*` 异步候补，其状态不阻断采用。
+当前稳定版本是 **v1.3.7**。v1.3.5 与 v1.3.6 已永久停止，只保留不可变部分发布记录。
+v1.3.7 的组件、npm、镜像、Root Release、稳定别名和 current-stable 策略已经对账完成。
+Docs 网站可通过 `docs/v*` 独立异步候补，其状态不阻断组件发布、稳定推进或采用。
 
-- [v1.3.7 发布候选说明](/releases/v1-3-7)
-- [v1.3.2 当前稳定记录](/releases/archive/v1-3-2)
+- [v1.3.7 当前稳定版说明](/releases/v1-3-7)
+- [v1.3.7 快速开始](/getting-started)
 - [v1.3.6 不可变部分发布记录](/releases/v1-3-6)
 - [v1.3.5 不可变部分发布记录](/releases/v1-3-5)
-- [v1.3.7 候选采用状态](/getting-started)
-- [v1.3.7 候选工具状态](/getting-started/tooling)
+- [v1.3.7 工具说明](/getting-started/tooling)
 - [v1.3.4 组件部分发布记录](/releases/archive/v1-3-4)
 - [历史版本归档](/releases/archive)
 
@@ -32,9 +30,9 @@ Tag；随后标签消息校验错误使 promotion 失败，Root Release 与工�
 包和后端镜像均未发布。自然触发的 Root candidate 与 container 运行在公开前取消。
 v1.3.5 不会成为完整可安装版本，所有已公开身份保持不可变。
 
-完整修复由已选定但尚未稳定或可采用的 v1.3.7 候选承接；其组件可能分阶段公开，稳定提升
-与最终对账完成前以远端发布台账为权威，并需要新的 merged-main 资格证据。v1.3.6 也从
+完整修复已由 v1.3.7 稳定版承接，并从精确 merged-main 提交完成完整资格、发布和最终对账。
+v1.3.6 从
 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、Admin Web 与
 Root，但 Root image 和 npm 失败、Docs 未创建，因此同样冻结为不可续的部分列车。
 
-历史页只提供其自身版本的不可变证据；除当前稳定 v1.3.2 外，不参与当前安装或升级决策。
+历史页只提供其自身版本的不可变证据；它们不参与当前 v1.3.7 安装或升级决策。

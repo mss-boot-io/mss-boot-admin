@@ -8,14 +8,14 @@ and the root changelog, not as a current release surface.
 
 No unreleased changes are recorded.
 
-## [web/antd-v6/v1.3.7] - 2026-08-29
+## [web/antd-v6/v1.3.7] - 2026-08-31
 
-Status: **coordinated v1.3.7 release candidate / not stable or adoptable**.
-Candidate component surfaces can become public in stages; the remote release
-ledger is authoritative until stable promotion and final reconciliation
-complete. The current public coordinated stable frontend remains v1.3.2. This
-new candidate keeps the single Admin Web application and package contract while
-the release path repairs Root image preview and official npm Trusted Publishing.
+Status: **published / coordinated current stable**. The Admin Web Release,
+frontend image, official npm package `@mss-boot-io/admin-web@1.3.7`, npm
+`latest`, Root image, GitHub Latest, and current-stable policy reconcile to exact
+release commit `77b53d41092741eac62fa6418c0bdbf87413c7cd`. npm was published
+through Trusted Publishing/OIDC with provenance and without a stored token.
+Docs website publication is independent and does not gate this package.
 
 ### Changed
 
@@ -27,12 +27,12 @@ the release path repairs Root image preview and official npm Trusted Publishing.
 
 ### Release
 
-- Publish `@mss-boot-io/admin-web@1.3.7` only through the exact npm Trusted
+- Publish `@mss-boot-io/admin-web@1.3.7` through the exact npm Trusted
   Publisher binding for `npm-release.yml` and `npm-auto`, with OIDC provenance
   and no `NPM_TOKEN` or `NODE_AUTH_TOKEN` fallback.
-- Keep v1.3.7 unavailable until the Admin Web Release, official npm package,
-  Root image, complete Root ledger, and external Thin Host acceptance all
-  reconcile from the same commit.
+- Reconcile the Admin Web Release, official npm package, Root image, complete
+  Root ledger, and external Thin Host acceptance from the same commit before
+  opening v1.3.7 adoption; that reconciliation is complete.
 
 ## [web/antd-v6/v1.3.6] - 2026-08-27
 

@@ -12,13 +12,13 @@ keywords: [admin release checklist smoke regression]
 
 :::warning
 v1.3.5 与 v1.3.6 都已永久停止为不可变部分发布；本清单不能授权补发其缺失制品。
-v1.3.7 是尚未完成 Distribution 公共对账的候选，本清单也不能单独把它变成可安装或可升级版本。
-当前稳定与回退资料仍以 [v1.3.2 稳定记录](/releases/archive/v1-3-2) 为准。
+v1.3.7 已完成 Distribution 公共对账并成为当前稳定版，但本清单不能把后续源码提交冒充为
+v1.3.7 制品。安装与升级从[快速开始](/getting-started)进入。
 Docs 是异步、非阻断的网站发布；`docs/v*` 只标识网站部署，其缺失或失败不影响组件、npm、
 GitHub Latest、current stable 或采用状态。
 :::
 
-本清单区分未来完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
+本清单区分后续完整版本或业务 Thin Host 的代码门禁与生产部署巡检。Foundation 发布方先
 在 PR Head 上完成 `mss verify --changed`、影响计划选中的聚焦检查与受影响页面的内置浏览器验收，
 并通过精简后的 PR 必需检查；合并后，只在精确且 tracked-clean 的 merged-main commit 上执行一次
 `mss verify --all --release-evidence --expect-commit <full-sha>` 并固定自绑定完整报告。唯一 Root preview 只生成和核验
@@ -94,5 +94,5 @@ Distribution Tag 不重复昂贵验证，也不接受 promotion、readiness run 
 - [集成测试指南](/admin/integration-test-guide)
 - [v1.3.5 不可变部分发布记录](/releases/v1-3-5)
 - [v1.3.6 不可变部分发布记录](/releases/v1-3-6)
-- [v1.3.7 发布候选说明](/releases/v1-3-7)
-- [当前采用状态](/getting-started)
+- [v1.3.7 稳定版说明](/releases/v1-3-7)
+- [v1.3.7 快速开始](/getting-started)

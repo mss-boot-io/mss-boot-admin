@@ -1,21 +1,18 @@
 ---
-title: v1.3.7 候选页面展示配置发布治理
+title: v1.3.7 页面展示配置发布治理
 order: 16
 nav:
   order: 1
   title: Admin
-description: v1.3.7 候选页面展示配置的草稿、发布、回滚、权限与恢复合同
-keywords: [v1.3.7 v1.3.5 v1.3.2 admin presentation configuration publish rollback recovery etag]
+description: v1.3.7 稳定版页面展示配置的草稿、发布、回滚、权限与恢复合同
+keywords: [v1.3.7 v1.3.5 v1.3.6 admin presentation configuration publish rollback recovery etag]
 ---
 
 # 页面展示配置发布治理
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
-本页不是安装、创建、升级或部署指引。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或采用。
 :::
 
 页面展示配置把“已经编译并授权的页面能力”与日常展示选择分开。维护者可以准备列顺序、搜索项、

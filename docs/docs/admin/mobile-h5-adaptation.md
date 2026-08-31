@@ -1,23 +1,21 @@
 ---
-title: v1.3.7 候选 Thin Host 移动端响应式规范
+title: v1.3.7 Thin Host 移动端响应式规范
 order: 27
 nav:
   order: 1
   title: admin
 description: Thin Host 业务页面的响应式、可访问性与内置浏览器验收矩阵
-keywords: [v1.3.7 v1.3.5 v1.3.2 thin host admin mobile responsive accessibility]
+keywords: [v1.3.7 v1.3.5 v1.3.6 thin host admin mobile responsive accessibility]
 ---
 
 ## 目标
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。官方 npmjs 包和完整 Thin Host 路径可能处于
-不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
-对账完成前，本页不是前端安装、创建或升级指引。Docs 网站可异步候补且不阻断该采用门禁。
+发布状态：**v1.3.7 是当前稳定版**，官方 npmjs 包与完整 Thin Host 路径已完成对账；
+v1.3.5 与 v1.3.6 保持不可变部分发布。Docs 网站可异步候补，不阻断组件或采用。
 :::
 
-v1.3.7 候选 Admin Web 只组合一个前端应用。桌面和移动端共享同一套业务组件、权限判断、
+v1.3.7 Admin Web 只组合一个前端应用。桌面和移动端共享同一套业务组件、权限判断、
 请求契约和
 表单校验，不维护两份页面实现。移动适配解决信息密度、触摸操作和导航可达性，不能改变
 后端权限或业务语义。

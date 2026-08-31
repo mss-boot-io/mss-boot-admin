@@ -1,17 +1,15 @@
 ---
 title: 本地调试合同
 order: 4
-description: Foundation 源码调试边界与未来 Thin Host 开发拓扑
+description: Foundation 源码调试边界与 v1.3.7 Thin Host 开发拓扑
 ---
 
 # 本地调试合同
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
-本页不是下游安装、创建、升级或本地启动指引。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**；本页描述 Foundation 源码调试，Thin Host 的安装、创建、
+升级和本地启动从[快速开始](/getting-started)进入。v1.3.5 与 v1.3.6 保持不可变部分发布；
+Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或采用。
 :::
 
 ## Foundation 源码调试
@@ -42,8 +40,8 @@ description: Foundation 源码调试边界与未来 Thin Host 开发拓扑
 停止进程时只停止当前项目声明的进程。删除数据库、缓存或生成物不是普通排障步骤，必须
 先解析精确目标和恢复影响。
 
-## 未来 Thin Host
+## v1.3.7 Thin Host
 
-未来完整发行会把相同诊断、初始化、开发编排和验证能力放入可核验的 Root 工具，并绑定
-同版本 Blueprint 与公共包。v1.3.5 没有这条工具来源链，因此本页不展示其 Thin Host
-命令。
+v1.3.7 Root 工具提供可核验的诊断、初始化、开发编排和验证能力，并绑定同版本 Blueprint
+与公共包。采用者按[快速开始](/getting-started)使用发布工具；Foundation 贡献者才使用
+本页源码工作区。v1.3.5 与 v1.3.6 没有完整来源链，因此本页不展示它们的 Thin Host 命令。

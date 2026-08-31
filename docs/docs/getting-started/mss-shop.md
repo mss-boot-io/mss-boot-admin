@@ -1,32 +1,31 @@
 ---
-title: mss-shop 范本采用状态
+title: mss-shop 范本边界
 order: 4
-description: v1.3.7 候选通用单租户商城范本边界与公共验收前置条件
-keywords: [mss-shop v1.3.7 v1.3.6 v1.3.5 v1.3.2 single tenant reference r1shop]
+description: 以 v1.3.7 正式稳定版建立通用单租户商城范本的范围、所有权与验收合同
+keywords: [mss-shop v1.3.7 stable single tenant reference r1shop]
 ---
 
-# mss-shop 范本采用状态
+# mss-shop 范本边界
 
-[mss-boot-io/mss-shop](https://github.com/mss-boot-io/mss-shop) 原计划在完整 Admin
-Distribution 公开对账后创建。v1.3.5 已停止为不可变部分发布，缺少 Root 工具、官方
-npmjs 包和 Docs，因此不能成为范本的生成、安装或升级基线。当前稳定版本仍是 v1.3.2，
-但它也不是本轮 mss-shop 重构所声明的生成基线。
+[mss-boot-io/mss-shop](https://github.com/mss-boot-io/mss-shop) 应以当前稳定版 v1.3.7
+作为新的可复现生成基线。v1.3.5 与 v1.3.6 是永久停止的不可变部分发布，不得用它们的
+部分组件生成或补齐范本。Docs 网站通过独立 Tag 异步候补，不影响 v1.3.7 工具、包和
+范本基线的有效性。
 
-v1.3.6 公开了 Framework、Admin、Admin Web 与 Root Release/工具，但 Root image 与
-官方 npm 发布失败、Docs 未创建；它同样不可续，也不能作为范本基线。
+本页定义范本应满足的产品边界，不把 Foundation 源码工作区的成功当成 mss-shop 已经
+生成、合并或部署的证明。最终资格必须来自 mss-shop 仓库自己的精确生成清单、业务提交、
+CI 和浏览器证据。
 
-v1.3.7 已选为 release candidate，但尚未稳定且不可采用。工具、Go Module、npmjs、镜像与
-外部使用方路径可能处于不同公开阶段，必须以远端发布台账为准。本页只保留 source-only 的
-业务和架构设计；完整 stable promotion 和最终 current-stable policy 对账完成前，不提供安装、
-创建或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
+## 建立可复现基线
 
-## 可复现基线要求
+在空目录安装 v1.3.7 Root Release 的 `mss` 与 `mss-mcp`，核对版本与源提交后，用
+`mss new app` 先查看只读计划，再显式生成 `github.com/mss-boot-io/mss-shop`。未经业务
+修改的生成结果应单独提交，后续商城能力以独立提交进入，从 Git 历史清楚区分 Blueprint
+管理文件和业务自有文件。
 
-未来范本应从空目录使用一个完整公开版本生成，并把未经业务修改的生成结果单独提交。
-后续商城能力以独立提交进入，从历史中清楚区分 Blueprint 管理文件和业务自有文件。
-
-资格证据必须来自 mss-shop 仓库自身的精确生成清单、业务提交与 CI；Foundation 源码、
-本地工具、本地包或历史候选命令不能替代这条证据链。
+生成基线必须固定 v1.3.7 Admin Distribution 与公开 npmjs 包，保留
+`.mss/blueprint-manifest.json` 和冻结锁，并在仓库外解析依赖。不得使用 Foundation
+checkout、本地 Go `replace`、本地 npm tarball 或历史候选命令替代公共发布身份。
 
 ## 复杂业务的扩展接缝
 
@@ -43,9 +42,9 @@ principal 与数据库执行后端 permission 检查，并用正、负授权用�
 `route-registrations.ts` 提供菜单、服务端路径和权限元数据。两者都通过 Thin Host 的
 固定组合层与生成结果合并；重复页面路径或服务端路径必须失败关闭，不能静默覆盖。
 
-商城手写页面的文案同时写入 `web/src/business/locales/zh-CN.ts` 与 `en-US.ts`。
-受管 locale facade 按 Admin core、AdminModule 生成词典、商城手写词典的顺序合并；业务
-文件在三方升级中保持原字节。
+商城手写页面的文案同时写入 `web/src/business/locales/zh-CN.ts` 与 `en-US.ts`。受管
+locale facade 按 Admin core、AdminModule 生成词典、商城手写词典的顺序合并；业务文件
+在三方升级中保持原字节。
 
 ## 参考来源与重构原则
 
@@ -73,12 +72,9 @@ mss-shop 会先盘点而后选择性重构以下项目的业务能力：
 如果未来需要多租户，应通过新的规格、迁移与权限模型扩展，不能在查询层临时添加
 `tenant_id` 假装完成隔离。
 
-## 未来验收边界
+## 验收完成定义
 
 完整交付需要后端、前端、生成漂移、权限正反例、升级保留和外部使用方检查全部通过，
 并用 Codex 内置浏览器验证桌面和窄屏关键流程、深链刷新、权限拒绝、网络错误与控制台
-零异常。在完整发行版本被显式选择前，这些只是验收合同，不表示 mss-shop 已可创建。
-
-当前版本状态见 [v1.3.5 不可变部分发布记录](/releases/v1-3-5) 与
-[v1.3.6 不可变部分发布记录](/releases/v1-3-6)；稳定历史见
-[v1.3.2 稳定记录](/releases/archive/v1-3-2)。
+零异常。验证报告必须绑定 mss-shop 精确提交和 v1.3.7 Distribution 身份；Docs 网站部署
+状态只作为文档自己的发布证据，不得阻断或替代这些检查。

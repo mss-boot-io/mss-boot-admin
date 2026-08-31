@@ -3,88 +3,149 @@
 [简体中文](./README.zh-CN.md)
 
 mss-boot is an agent-native management-system foundation. **v1.3.7 is the
-selected complete package-first release candidate, but it is not stable or
-adoptable.** Candidate Distribution surfaces may be at different public stages;
-use the remote release ledger as authority. Until stable promotion and the final
-`currentStableVersion` policy reconciliation complete, do not install, create,
-or upgrade with v1.3.7. The Docs website is an asynchronous, non-blocking
-publication: a `docs/v*` tag identifies only a website deployment and never
-controls package availability or adoption. v1.3.5 and v1.3.6 are immutable
-partial trains. No identity from either
-train may be deleted, moved, recreated, reused, or completed.
+current stable and adoptable Complete Admin Distribution.** Every component was
+qualified and published from merged `main` commit
+`77b53d41092741eac62fa6418c0bdbf87413c7cd`; generated Thin Hosts pin this
+exact coordinated version instead of combining independent component versions.
 
-## Current availability
+The public Docs website is released independently and may follow the component
+train. A `docs/v*` tag identifies only a website deployment: missing, failed,
+or temporarily stale Docs deployment never blocks Framework, Admin, frontend,
+tool, image, npm, or stable-alias publication. Checked-in human and Agent
+guidance remains versioned with the source contracts.
 
-The release policy still identifies **v1.3.2** as the current coordinated
-stable distribution. Its immutable release record remains the supported
-baseline for existing adopters.
+## Stable distribution identities
 
-The stopped identity namespaces remain explicit audit evidence:
+| Surface | v1.3.7 identity |
+| --- | --- |
+| Root tools, backend image, and GitHub Release | `v1.3.7` |
+| Reusable Go Framework | `mss-boot/v1.3.7` |
+| Importable Admin Go module | `admin/v1.3.7` |
+| Complete Admin Web | `web/antd-v6/v1.3.7` / `@mss-boot-io/admin-web@1.3.7` |
+| Documentation website | independently deployed from a versioned `docs/v*` website tag |
 
-| Train | Framework | Admin | Official npm identity | Docs identity |
-| --- | --- | --- | --- | --- |
-| v1.3.5 | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.5` | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.5` | `@mss-boot-io/admin-web@1.3.5` | `docs/v1.3.5` |
-| v1.3.6 | `github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.6` | `github.com/mss-boot-io/mss-boot-admin/admin@v1.3.6` | `@mss-boot-io/admin-web@1.3.6` | `docs/v1.3.6` |
+v1.3.5 and v1.3.6 remain immutable partial release trains. Their existing
+tags, Releases, and artifacts are audit evidence, not compatible substitutes
+for the stable train. Do not mix stopped-train components with a source
+checkout, a local `replace`, or an absent package identity.
 
-Some Go and GitHub identities in those rows exist while the npm or Docs
-identity may be absent. A named identity is not a claim that it was published.
+## Install the v1.3.7 tools
 
-v1.3.6 published only part of the intended train from exact commit
-`b1fe47a3a83209574e09d53526b122dd2cbc5277`:
+The versioned installers verify release checksums, install both `mss` and
+`mss-mcp`, do not use `sudo`, and do not modify a shell profile.
 
-| Surface | v1.3.6 result | Availability |
-| --- | --- | --- |
-| Framework | `mss-boot/v1.3.6` | Public Go component and GitHub Release |
-| Admin | `admin/v1.3.6` | Public Go component and GitHub Release |
-| Admin Web | `web/antd-v6/v1.3.6` | GitHub Release and GitHub Packages; official npmjs is absent |
-| Root | `v1.3.6` | Public Root Release and tools; Root image is absent |
-| Docs | planned `docs/v1.3.6` | Not published |
+Linux or macOS:
 
-These component identities are immutable but do not form a complete Thin Host
-distribution. Do not combine them with v1.3.2, a source checkout, a local
-replacement, or an unpublished package.
+```shell
+curl -fL -o install-mss.sh \
+  https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.7/install-mss.sh
+bash ./install-mss.sh --version v1.3.7
+export PATH="$HOME/.local/bin:$PATH"
+mss --version
+mss-mcp --version
+```
 
-v1.3.7 is the new candidate. It must first pass one non-publishing preview from
-an exact repaired merged-main commit, including a real Root OCI artifact and
-the exact credentialless npm Trusted Publisher binding for `npm-release.yml`
-and `npm-auto`. Its candidate Distribution surfaces then publish in governed
-stages and may not all be public at the same time. Until stable promotion and
-the final current-stable policy reconciliation complete, no v1.3.7 download,
-install, creation, or upgrade procedure is supported. Docs may publish before or
-after that boundary; its absence, failure, or stale site state does not block it.
+Windows PowerShell:
 
-## Adopter status
+```powershell
+Invoke-WebRequest `
+  https://github.com/mss-boot-io/mss-boot-admin/releases/download/v1.3.7/install-mss.ps1 `
+  -OutFile install-mss.ps1
+& .\install-mss.ps1 -Version v1.3.7
+$env:Path = "$env:LOCALAPPDATA\Programs\mss\bin;$env:Path"
+mss --version
+mss-mcp --version
+```
 
-There is no supported v1.3.5 or v1.3.6 installer, empty-directory application
-creation, local setup, or distribution-upgrade procedure. v1.3.7 is now the
-selected candidate for those package-first interfaces, but current onboarding
-continues to withhold executable commands until stable promotion, external Thin
-Host acceptance, and the final current-stable policy reconciliation have
-completed. Public Docs deployment is tracked separately and is not an adoption
-prerequisite.
+## Consume the stable packages
 
-Use the [v1.3.2 stable record](./docs/docs/releases/archive/v1-3-2.md)
-for the current stable boundary and the
-[v1.3.5 partial-release record](./docs/docs/releases/v1-3-5.md) and
-[v1.3.6 partial-release record](./docs/docs/releases/v1-3-6.md) for immutable
-audit evidence. The [v1.3.7 candidate record](./docs/docs/releases/v1-3-7.md)
-describes the recovery, migration, security, and rollback boundary without
-claiming publication.
+Pin the exact coordinated Go and npm versions. The Admin module contains no
+committed local `replace`, and the official npmjs package installs without a
+registry token. Run the Go commands from the root of an **existing external
+consumer module** (a directory containing `go.mod`); for a clean public-resolution
+check from an empty directory, use the [external consumer procedure](./docs/docs/getting-started/packages.md).
+Run the npm command separately from an **existing frontend package root** (the
+directory containing its `package.json`, normally `web/` in a Thin Host).
+
+Go module root:
+
+```shell
+go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7
+go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7
+```
+
+Frontend package root:
+
+```shell
+corepack pnpm@10.34.5 add --save-exact @mss-boot-io/admin-web@1.3.7
+```
+
+The npm `latest` tag currently resolves to `1.3.7`, but Thin Hosts still pin
+the exact version. Official npm publication uses GitHub Actions Trusted
+Publishing; no stored npm token is part of the release contract.
+
+## Create and start a Thin Host
+
+Run the released tool from an empty destination parent, not from a Foundation
+source checkout:
+
+```shell
+mss new app orders-admin --module github.com/acme/orders-admin --repository acme/orders-admin --destination ./orders-admin --write --git-init
+
+cd orders-admin
+mss doctor --strict
+mss setup
+mss dev --detach
+```
+
+Interactive first setup asks for the initial administrator password with
+hidden input. Non-interactive automation may inject
+`MSS_ADMIN_INITIAL_PASSWORD` from a secret store for the `mss setup` process
+only. It must not appear in arguments, reports, generated files, dependency
+installation, or the long-running service environment. After initialization,
+open `http://127.0.0.1:8001` and sign in as `admin`; there is no default
+password.
+
+## Upgrade a Thin Host
+
+Back up code, configuration, and the database; install the target v1.3.7 tools;
+and verify both binaries before planning. A supported three-way upgrade requires
+the generated `.mss/blueprint-manifest.json`:
+
+```shell
+mss --version
+mss-mcp --version
+mss upgrade admin v1.3.7 --format json
+mss upgrade admin v1.3.7 --apply --yes --format json
+mss doctor --strict
+mss verify --all
+mss upgrade admin v1.3.7 --format json
+```
+
+The first and final commands are read-only; the final plan must contain no
+create, update, delete, or conflict operations. The upgrade engine changes only
+Blueprint-managed files and preserves business-owned and unknown files. A
+hand-assembled repository or one missing its manifest must generate a clean
+v1.3.7 baseline in a new directory and migrate business-owned specifications
+and files instead of fabricating a manifest.
 
 ## Architecture boundary
 
-The v1.3.7 candidate keeps a generated application as a **Thin Host**: it pins
-one coordinated Admin Go module and Admin Web package, contains
-only composition glue and business-owned modules, and never copies Foundation
-core source. Business backend modules register at compile time, frontend
-business routes extend the packaged shell, and backend authorization remains
-authoritative. This candidate architecture contract does not make v1.3.7
-adoptable before the complete stable-promotion reconciliation and does not
-complete v1.3.5 or v1.3.6.
+A generated application is a **Thin Host**. It imports the complete Admin Go
+module and Admin Web package, owns only composition glue and business modules,
+and does not copy Foundation core source. Backend modules register at compile
+time, frontend business routes extend the packaged shell, and backend
+authorization remains authoritative.
 
-## Documentation
+Runtime dynamic models, virtual CRUD, and browser-facing code generation remain
+removed. Structured Feature and AdminModule specifications drive deterministic
+development-time generation and reviewable migrations, permissions, menus,
+frontend code, tests, and Agent evaluation contracts.
 
-The repository separates human guidance from executable Agent authority:
+## Human and Agent documentation
+
+The repository deliberately separates explanatory documentation from executable
+Agent authority:
 
 | Audience | Start here |
 | --- | --- |
@@ -93,22 +154,16 @@ The repository separates human guidance from executable Agent authority:
 | Foundation AI Agents | nearest `AGENTS.md` -> `.mss/**` -> applicable `.agents/skills/**` |
 | Generated Thin Host AI Agents | the generated repository's `AGENTS.md`, `.mss/**`, and local Skills |
 
-The public [Agent collaboration guide](./docs/docs/agent/index.md) explains this
-model for humans; it is not an executable instruction source and does not merge
-Foundation-maintainer Skills into Thin Host capabilities.
-
-- [Adopter and component status](./docs/docs/getting-started/index.md)
-- [Published components and import boundaries](./docs/docs/getting-started/packages.md)
-- [Tool publication status](./docs/docs/getting-started/tooling.md)
-- [mss-shop reference status](./docs/docs/getting-started/mss-shop.md)
-- [v1.3.7 release-candidate record](./docs/docs/releases/v1-3-7.md)
-- [v1.3.6 immutable partial-release record](./docs/docs/releases/v1-3-6.md)
-- [v1.3.5 immutable partial-release record](./docs/docs/releases/v1-3-5.md)
+The public [Agent collaboration guide](./docs/docs/agent/index.md) explains the
+model for humans; it is not an executable instruction source. Start with the
+[quick start](./docs/docs/getting-started/index.md),
+[package boundary](./docs/docs/getting-started/packages.md),
+[tooling contract](./docs/docs/getting-started/tooling.md), and
+[v1.3.7 release record](./docs/docs/releases/v1-3-7.md).
 
 Foundation contributors should use
-[`CONTRIBUTING.md`](./docs/CONTRIBUTING.md) and the nearest `AGENTS.md`;
-source-checkout commands are
-deliberately kept out of adopter onboarding.
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) and the nearest `AGENTS.md` for
+source-checkout commands and validation.
 
 ## License and security
 

@@ -88,15 +88,6 @@ class ReleasePolicyTest(unittest.TestCase):
                 original.replace(
                     "  publicationWorkflowsReady: true\n",
                     "  publicationWorkflowsReady: false\n",
-                )
-                .replace(
-                    "  stablePromotionReady: true\n",
-                    "  stablePromotionReady: false\n",
-                )
-                .replace(
-                    "  stablePromotionCommit: "
-                    "77b53d41092741eac62fa6418c0bdbf87413c7cd\n",
-                    "  stablePromotionCommit: disabled\n",
                 ),
                 encoding="utf-8",
             )
@@ -119,29 +110,20 @@ class ReleasePolicyTest(unittest.TestCase):
 
     def test_stable_promotion_requires_reviewed_exact_commit(self):
         release_commit = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
-        self.assertIs(self.policy["stablePromotionReady"], True)
+        previous_stable_commit = "635fbb03a82976941e527d8ac1000fec0624abac"
+        self.assertEqual(self.policy["currentStableVersion"], "v1.3.7")
+        self.assertEqual(self.policy["currentStableCommit"], release_commit)
+        self.assertIs(self.policy["stablePromotionReady"], False)
         self.assertEqual(self.policy["stablePromotionVersion"], "v1.3.7")
-        self.assertEqual(self.policy["stablePromotionCommit"], release_commit)
-        for component, public_ref in (
-            ("root", "v1.3.7"),
-            ("npm", "@mss-boot-io/admin-web@1.3.7"),
-        ):
-            POLICY.check_public_ref(
-                self.policy,
-                component,
-                "v1.3.7",
-                public_ref,
-                intent="promote",
-                commit=release_commit,
-            )
-        with self.assertRaisesRegex(POLICY.PolicyError, "exact release commit"):
+        self.assertEqual(self.policy["stablePromotionCommit"], "disabled")
+        with self.assertRaisesRegex(POLICY.PolicyError, "promotion remains disabled"):
             POLICY.check_public_ref(
                 self.policy,
                 "npm",
                 "v1.3.7",
                 "@mss-boot-io/admin-web@1.3.7",
                 intent="promote",
-                commit="b" * 40,
+                commit=release_commit,
             )
 
         original = POLICY_PATH.read_text(encoding="utf-8")
@@ -149,26 +131,78 @@ class ReleasePolicyTest(unittest.TestCase):
             candidate = Path(directory) / "policy.yaml"
             candidate.write_text(
                 original.replace(
-                    "  stablePromotionReady: true\n",
+                    "  currentStableVersion: v1.3.7\n",
+                    "  currentStableVersion: v1.3.2\n",
+                )
+                .replace(
+                    f"  currentStableCommit: {release_commit}\n",
+                    f"  currentStableCommit: {previous_stable_commit}\n",
+                )
+                .replace(
                     "  stablePromotionReady: false\n",
-                ).replace(
-                    f"  stablePromotionCommit: {release_commit}\n",
+                    "  stablePromotionReady: true\n",
+                )
+                .replace(
                     "  stablePromotionCommit: disabled\n",
+                    f"  stablePromotionCommit: {release_commit}\n",
                 ),
                 encoding="utf-8",
             )
-            disabled = POLICY.load_policy(candidate)
-            with self.assertRaisesRegex(
-                POLICY.PolicyError, "promotion remains disabled"
+            promotion = POLICY.load_policy(candidate)
+            for component, public_ref in (
+                ("root", "v1.3.7"),
+                ("npm", "@mss-boot-io/admin-web@1.3.7"),
             ):
                 POLICY.check_public_ref(
-                    disabled,
+                    promotion,
+                    component,
+                    "v1.3.7",
+                    public_ref,
+                    intent="promote",
+                    commit=release_commit,
+                )
+            with self.assertRaisesRegex(POLICY.PolicyError, "exact release commit"):
+                POLICY.check_public_ref(
+                    promotion,
                     "npm",
                     "v1.3.7",
                     "@mss-boot-io/admin-web@1.3.7",
                     intent="promote",
-                    commit=release_commit,
+                    commit="b" * 40,
                 )
+
+    def test_consumed_stable_promotion_authorization_cannot_be_reopened(self):
+        release_commit = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
+        original = POLICY_PATH.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "policy.yaml"
+            candidate.write_text(
+                original.replace(
+                    "  stablePromotionReady: false\n",
+                    "  stablePromotionReady: true\n",
+                ).replace(
+                    "  stablePromotionCommit: disabled\n",
+                    f"  stablePromotionCommit: {release_commit}\n",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                POLICY.PolicyError, "already consumed"
+            ):
+                POLICY.load_policy(candidate)
+
+        reopened = dict(self.policy)
+        reopened["stablePromotionReady"] = True
+        reopened["stablePromotionCommit"] = release_commit
+        with self.assertRaisesRegex(POLICY.PolicyError, "already consumed"):
+            POLICY.check_public_ref(
+                reopened,
+                "npm",
+                "v1.3.7",
+                "@mss-boot-io/admin-web@1.3.7",
+                intent="promote",
+                commit=release_commit,
+            )
 
     def test_docs_revision_remains_disabled_without_exact_source_binding(self):
         self.assertIs(self.policy["docsRevisionPublicationReady"], False)
@@ -180,8 +214,8 @@ class ReleasePolicyTest(unittest.TestCase):
                     POLICY.check_public_ref(
                         self.policy,
                         "docs",
-                        "v1.3.2+docs.1",
-                        "docs/v1.3.2+docs.1",
+                        "v1.3.7+docs.1",
+                        "docs/v1.3.7+docs.1",
                         intent=intent,
                     )
 
@@ -197,7 +231,7 @@ class ReleasePolicyTest(unittest.TestCase):
                 )
                 .replace(
                     "  docsRevisionVersion: disabled\n",
-                    "  docsRevisionVersion: v1.3.2+docs.1\n",
+                    "  docsRevisionVersion: v1.3.7+docs.1\n",
                 )
                 .replace(
                     "  docsRevisionCommit: disabled\n",
@@ -210,8 +244,8 @@ class ReleasePolicyTest(unittest.TestCase):
                 POLICY.check_public_ref(
                     docs_policy,
                     "docs",
-                    "v1.3.2+docs.1",
-                    "docs/v1.3.2+docs.1",
+                    "v1.3.7+docs.1",
+                    "docs/v1.3.7+docs.1",
                     intent=intent,
                     commit=docs_commit,
                 )
@@ -220,8 +254,8 @@ class ReleasePolicyTest(unittest.TestCase):
                 POLICY.check_public_ref(
                     docs_policy,
                     "docs",
-                    "v1.3.2+docs.2",
-                    "docs/v1.3.2+docs.2",
+                    "v1.3.7+docs.2",
+                    "docs/v1.3.7+docs.2",
                     intent="publish",
                     commit=docs_commit,
                 )
@@ -229,8 +263,8 @@ class ReleasePolicyTest(unittest.TestCase):
                 POLICY.check_public_ref(
                     docs_policy,
                     "docs",
-                    "v1.3.2+docs.1",
-                    "docs/v1.3.2+docs.1",
+                    "v1.3.7+docs.1",
+                    "docs/v1.3.7+docs.1",
                     intent="publish",
                     commit="d" * 40,
                 )
@@ -244,7 +278,7 @@ class ReleasePolicyTest(unittest.TestCase):
             ),
             (
                 "  docsRevisionVersion: disabled\n",
-                "  docsRevisionVersion: v1.3.2+docs.1\n",
+                "  docsRevisionVersion: v1.3.7+docs.1\n",
             ),
             (
                 "  docsRevisionCommit: disabled\n",
@@ -256,11 +290,11 @@ class ReleasePolicyTest(unittest.TestCase):
             ready = ready.replace(old, new)
 
         invalid_cases = (
-            ready.replace("v1.3.2+docs.1", "v1.3.7+docs.1"),
+            ready.replace("v1.3.7+docs.1", "v1.3.2+docs.1"),
             ready.replace(f"{'e' * 40}\n", "short\n"),
             original.replace(
                 "  docsRevisionVersion: disabled\n",
-                "  docsRevisionVersion: v1.3.2+docs.1\n",
+                "  docsRevisionVersion: v1.3.7+docs.1\n",
             ),
         )
         for candidate_text in invalid_cases:
@@ -274,11 +308,11 @@ class ReleasePolicyTest(unittest.TestCase):
     def test_docs_revision_is_confined_to_current_stable_and_docs_namespace(self):
         cases = (
             ("docs", "v1.2.3+docs.1", "docs/v1.2.3+docs.1", "current stable"),
-            ("docs", "v1.3.2+docs.0", "docs/v1.3.2+docs.0", "invalid"),
-            ("docs", "v1.3.2+docs.01", "docs/v1.3.2+docs.01", "invalid"),
-            ("docs", "v1.3.2+other.1", "docs/v1.3.2+other.1", "invalid"),
-            ("root", "v1.3.2+docs.1", "v1.3.2+docs.1", "invalid"),
-            ("docs", "v1.3.2+docs.1", "docs/v1.3.2", "does not match"),
+            ("docs", "v1.3.7+docs.0", "docs/v1.3.7+docs.0", "invalid"),
+            ("docs", "v1.3.7+docs.01", "docs/v1.3.7+docs.01", "invalid"),
+            ("docs", "v1.3.7+other.1", "docs/v1.3.7+other.1", "invalid"),
+            ("root", "v1.3.7+docs.1", "v1.3.7+docs.1", "invalid"),
+            ("docs", "v1.3.7+docs.1", "docs/v1.3.7", "does not match"),
         )
         for component, version, tag, message in cases:
             with self.subTest(component=component, version=version, tag=tag):
@@ -291,8 +325,8 @@ class ReleasePolicyTest(unittest.TestCase):
             POLICY.check_public_ref(
                 self.policy,
                 "docs",
-                "v1.3.2+docs.1000",
-                "docs/v1.3.2+docs.1000",
+                "v1.3.7+docs.1000",
+                "docs/v1.3.7+docs.1000",
                 intent="qualify",
             )
 
@@ -448,7 +482,7 @@ class ReleasePolicyTest(unittest.TestCase):
         replacements = (
             ("  publicPrereleases: false\n", "  publicPrereleases: true\n"),
             ("  nextPublicVersion: v1.3.7\n", "  nextPublicVersion: v1.3.7-rc.01\n"),
-            ("  currentStableVersion: v1.3.2\n", "  currentStableVersion: v1.3.2-rc.1\n"),
+            ("  currentStableVersion: v1.3.7\n", "  currentStableVersion: v1.3.7-rc.1\n"),
         )
         for old, new in replacements:
             with self.subTest(replacement=new.strip()):
