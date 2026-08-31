@@ -35,9 +35,9 @@ spec:
   docsRevisionPublicationReady: false
   docsRevisionVersion: disabled
   docsRevisionCommit: disabled
-  stablePromotionReady: false
+  stablePromotionReady: true
   stablePromotionVersion: v1.3.7
-  stablePromotionCommit: disabled
+  stablePromotionCommit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"

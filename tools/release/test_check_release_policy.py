@@ -88,6 +88,15 @@ class ReleasePolicyTest(unittest.TestCase):
                 original.replace(
                     "  publicationWorkflowsReady: true\n",
                     "  publicationWorkflowsReady: false\n",
+                )
+                .replace(
+                    "  stablePromotionReady: true\n",
+                    "  stablePromotionReady: false\n",
+                )
+                .replace(
+                    "  stablePromotionCommit: "
+                    "77b53d41092741eac62fa6418c0bdbf87413c7cd\n",
+                    "  stablePromotionCommit: disabled\n",
                 ),
                 encoding="utf-8",
             )
@@ -109,54 +118,56 @@ class ReleasePolicyTest(unittest.TestCase):
                 )
 
     def test_stable_promotion_requires_reviewed_exact_commit(self):
-        self.assertIs(self.policy["stablePromotionReady"], False)
+        release_commit = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
+        self.assertIs(self.policy["stablePromotionReady"], True)
         self.assertEqual(self.policy["stablePromotionVersion"], "v1.3.7")
-        self.assertEqual(self.policy["stablePromotionCommit"], "disabled")
-        with self.assertRaisesRegex(POLICY.PolicyError, "promotion remains disabled"):
+        self.assertEqual(self.policy["stablePromotionCommit"], release_commit)
+        for component, public_ref in (
+            ("root", "v1.3.7"),
+            ("npm", "@mss-boot-io/admin-web@1.3.7"),
+        ):
+            POLICY.check_public_ref(
+                self.policy,
+                component,
+                "v1.3.7",
+                public_ref,
+                intent="promote",
+                commit=release_commit,
+            )
+        with self.assertRaisesRegex(POLICY.PolicyError, "exact release commit"):
             POLICY.check_public_ref(
                 self.policy,
                 "npm",
                 "v1.3.7",
                 "@mss-boot-io/admin-web@1.3.7",
                 intent="promote",
-                commit="a" * 40,
+                commit="b" * 40,
             )
 
         original = POLICY_PATH.read_text(encoding="utf-8")
-        release_commit = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory) / "policy.yaml"
             candidate.write_text(
                 original.replace(
-                    "  stablePromotionReady: false\n",
                     "  stablePromotionReady: true\n",
+                    "  stablePromotionReady: false\n",
                 ).replace(
-                    "  stablePromotionCommit: disabled\n",
                     f"  stablePromotionCommit: {release_commit}\n",
+                    "  stablePromotionCommit: disabled\n",
                 ),
                 encoding="utf-8",
             )
-            promotion = POLICY.load_policy(candidate)
-            for component, public_ref in (
-                ("root", "v1.3.7"),
-                ("npm", "@mss-boot-io/admin-web@1.3.7"),
+            disabled = POLICY.load_policy(candidate)
+            with self.assertRaisesRegex(
+                POLICY.PolicyError, "promotion remains disabled"
             ):
                 POLICY.check_public_ref(
-                    promotion,
-                    component,
-                    "v1.3.7",
-                    public_ref,
-                    intent="promote",
-                    commit=release_commit,
-                )
-            with self.assertRaisesRegex(POLICY.PolicyError, "exact release commit"):
-                POLICY.check_public_ref(
-                    promotion,
+                    disabled,
                     "npm",
                     "v1.3.7",
                     "@mss-boot-io/admin-web@1.3.7",
                     intent="promote",
-                    commit="b" * 40,
+                    commit=release_commit,
                 )
 
     def test_docs_revision_remains_disabled_without_exact_source_binding(self):
