@@ -221,13 +221,13 @@ spec:
 
     verify-all:
       command: go run ./cmd/mss verify --all
-      description: Execute the complete local quality suite, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict and empty second upgrade, evals, dependency policy, frontend delivery and browser behavior, both packaged and real external Thin Hosts, release workflow contracts, and docs checks. This local suite owns broad quality; hosted Agent and frontend matrices are explicit diagnostics. Use verify-release-evidence for the frozen merged-main release gate.
+      description: Execute the complete local Distribution quality suite, including strict contracts, Agent builds, Admin and Framework race/coverage/vet/metadata checks, standalone next-Foundation generation and upgrade, CLI/MCP/doctor identity parity, deterministic conflict and empty second upgrade, evals, dependency policy, frontend delivery and browser behavior, both packaged and real external Thin Hosts, and release workflow contracts. Docs changes remain strict under verify-changed and docs-build, but the asynchronous website track is deliberately outside this Distribution gate. Hosted Agent and frontend matrices are explicit diagnostics. Use verify-release-evidence for the frozen merged-main Distribution release gate.
       outputFormats: [text, json]
       category: verification
 
     verify-release-evidence:
       command: go run ./cmd/mss verify --all --release-evidence --expect-commit <full-sha>
-      description: Execute the complete local suite and fail closed unless HEAD remains the supplied full commit and tracked files remain clean before and after; verify.json and verify.md bind the result to that commit and record both clean-state checks, while the external Thin Host check persists sanitized detailed reports and an evidence manifest in a recorded system-temporary directory.
+      description: Execute the complete local Distribution suite and fail closed unless HEAD remains the supplied full commit and tracked files remain clean before and after; verify.json and verify.md bind the result to that commit and record both clean-state checks, while the external Thin Host check persists sanitized detailed reports and an evidence manifest in a recorded system-temporary directory. Docs site qualification is a separate non-blocking docs-build plus browser-evidence path.
       outputFormats: [text, json]
       category: verification
 
@@ -252,8 +252,15 @@ spec:
       idempotent: true
 
     remote-release-governance-verify:
-      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --release-actor-login lwnmengjing
-      description: As any authenticated repository administrator, emit sanitized metadata proving that Root, component, and Docs tag creation belongs only to lwnmengjing, stopped v1.3.5 refs have a creation-only no-bypass freeze, every release tag remains immutable, active publishing environments have exact tag policies with no reviewer pause or administrator bypass, and retired environments allow no ref; the organization-managed Docs credential must be available to this repository without repository or environment overrides, and no secret value is read.
+      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --release-actor-login lwnmengjing --scope core
+      description: As any authenticated repository administrator, emit sanitized metadata proving that Root, Framework, Admin, frontend, and npm publication authority belongs only to lwnmengjing, stopped component refs have a creation-only no-bypass freeze, every core release tag remains immutable, active core publishing environments have exact tag policies with no reviewer pause or administrator bypass, and retired environments allow no ref. Docs credentials, environments, tags, and site state are deliberately outside this core distribution gate.
+      outputFormats: [json]
+      category: release
+      idempotent: true
+
+    docs-release-governance-verify:
+      command: bash tools/release/verify_remote_release_governance.sh --repository <owner/repository> --release-actor-login lwnmengjing --scope docs
+      description: Before an optional Docs site publication, independently verify Docs tag creation and immutability, the prod environment policy, and effective availability of the organization-managed CF_API_TOKEN without reading its value. Failure blocks only the Docs deployment and never blocks the core distribution, official npm, GitHub Latest, current-stable policy, or adopter availability.
       outputFormats: [json]
       category: release
       idempotent: true
@@ -266,7 +273,7 @@ spec:
 
     official-npm-stable-promotion:
       command: gh workflow run npm-release.yml --ref <exact-root-tag> -f version=<version>
-      description: After every immutable component, Root, image, Go module, package, and Docs candidate surface reconciles, dispatch the reviewed exact Root tag to publish or reconcile official npm latest through Trusted Publishing; the workflow verifies npm identity and provenance before moving GitHub Latest.
+      description: After every immutable distribution component, Root, image, Go module, and package surface reconciles, dispatch the reviewed exact Root tag to publish or reconcile official npm latest through Trusted Publishing; the workflow verifies npm identity and provenance before moving GitHub Latest. Docs is an asynchronous site-only track and is never a promotion prerequisite.
       outputFormats: [text]
       category: release
       idempotent: true

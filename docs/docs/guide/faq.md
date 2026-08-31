@@ -8,16 +8,16 @@ description: v1.3.7 未稳定候选、v1.3.5/v1.3.6 永久停止与 v1.3.2 稳�
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不开放安装、创建
-或升级命令。
+为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于不同公开阶段，
+必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy 对账完成前，不开放
+安装、创建或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
 :::
 
 ## v1.3.7 现在可以安装或升级吗？
 
 不可以。v1.3.7 只是未稳定候选，必须先完成唯一非发布 preview、正式组件与 Root 候选发布、
-候选 Docs、单独受审的 stable promotion，以及最终 policy/Docs 对账。任何源码构建、本地包
-或单个候选制品都不能代替这条证据链。
+单独受审的 stable promotion，以及最终 current-stable policy 对账。任何源码构建、本地包或
+单个候选制品都不能代替这条 Distribution 证据链。Docs Tag 只发布网站，可前后异步完成。
 
 ## v1.3.6 现在可以安装或升级吗？
 

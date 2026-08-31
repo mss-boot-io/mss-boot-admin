@@ -8,9 +8,9 @@ description: 人类维护者如何为 Foundation Agent 或 Thin Host Agent 选�
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是 Thin Host
-安装、创建或升级指南。
+为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于不同公开阶段，
+必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy 对账完成前，本页
+不是 Thin Host 安装、创建或升级指南。Docs 网站可异步候补且不阻断该采用门禁。
 :::
 
 ## 先选择上下文
@@ -53,5 +53,5 @@ loading、empty、error、denied 与 locale，高风险交互增加 Codex 内置
 报告改动目标、文件所有权、实际命令与结果、跳过项、迁移、安全和兼容性影响。所有发行
 变更先通过 PR 合入 main；源码检查成功不能授权公共 Tag、包、镜像或 Docs。
 
-未来完整版本完成公共工具、Go/npm、镜像、Docs 与外部使用方对账后，才能把同一工作流
-作为 Thin Host 采用者路径。
+未来完整版本完成公共工具、Go/npm、镜像与外部使用方 Distribution 对账后，才能把同一
+工作流作为 Thin Host 采用者路径。Docs 网站通过独立 Tag 候补发布，不是这一判断的前置。

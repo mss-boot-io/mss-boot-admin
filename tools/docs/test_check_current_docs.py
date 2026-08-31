@@ -772,8 +772,8 @@ class CurrentDocsContractTest(unittest.TestCase):
                 "separate reviewed policy decision. The operator may manually dispatch "
                 "`npm-release.yml` from the exact `v1.3.7` Root tag and use "
                 "npm publish --tag latest --provenance. Only then may it promote the "
-                "exact Root Release to GitHub Latest. The final stable-policy and "
-                "human-documentation reconciliation follows through another PR. "
+                "exact Root Release to GitHub Latest. The final current-stable "
+                "policy reconciliation follows through another PR. "
                 "Formal workflows do not repeat expensive qualification.\n"
             )
             monorepo.write_text(valid_monorepo, encoding="utf-8")

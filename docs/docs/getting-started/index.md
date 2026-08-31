@@ -11,9 +11,9 @@ keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate immutable partial component ava
 # v1.3.7 候选采用状态
 
 当前协调稳定发行版仍是 **v1.3.2**。v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。v1.3.7
-已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不提供安装、创建、
-初始化或升级命令。
+已选为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于不同公开
+阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy 对账完成前，
+不提供安装、创建、初始化或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
 
 :::warning
 v1.3.5 的 Framework、Admin、Admin Web 与 Root Tag 已公开，但 Root Release、工具、
@@ -30,7 +30,7 @@ v1.3.6 的 Framework、Admin、Admin Web 与 Root Release/工具也已公开，�
 | 表面 | 状态 | 采用边界 |
 | --- | --- | --- |
 | v1.3.2 协调发行版 | 当前稳定 | 已有采用者继续以[稳定记录](/releases/archive/v1-3-2)为准 |
-| v1.3.7 协调发行版 | 已选候选、未稳定 | 各发布面按阶段公开；等待完整 stable promotion 与最终 policy/Docs 对账 |
+| v1.3.7 协调发行版 | 已选候选、未稳定 | Distribution 发布面按阶段公开；等待完整 stable promotion 与最终 current-stable policy 对账，Docs 不阻断 |
 | v1.3.6 Framework/Admin/Admin Web/Root | 已公开 | 不可变部分列车；仅作为组件与审计证据 |
 | v1.3.6 Root image/npmjs/Docs | 失败或缺失 | 永久不补发，不能组成公开 Thin Host |
 | v1.3.5 Framework | Go Module 已公开 | 仅可作为独立组件使用 |
@@ -53,6 +53,7 @@ v1.3.6 的 Framework、Admin、Admin Web 与 Root Release/工具也已公开，�
 
 ## 未来完整发行的必要条件
 
-后续版本只有在 Root 工具、Go Module、公开 npmjs、Root 与前端镜像、Docs 和空目录
-使用方验证全部绑定同一 merged-main 提交后，才会重新提供可复制的安装、创建、初始化、
-开发和升级流程。单个 Tag、Release 或组件包不能提前开放采用路径。
+后续版本只有在 Root 工具、Go Module、公开 npmjs、Root 与前端镜像和空目录使用方验证全部
+绑定同一 merged-main 提交，并完成稳定别名与 current-stable policy 对账后，才会重新提供可
+复制的安装、创建、初始化、开发和升级流程。单个 Tag、Release 或组件包不能提前开放采用路径；
+Docs 网站通过 `docs/v*` 独立发布，不加入该前置条件。

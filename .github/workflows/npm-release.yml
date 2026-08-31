@@ -103,7 +103,7 @@ jobs:
             --tag "web/antd-v6/${RELEASE_VERSION}" \
             --intent publish
 
-      - name: Require reviewed stable promotion and complete candidate ledger
+      - name: Require reviewed stable promotion and complete distribution ledger
         id: promotion
         env:
           GH_TOKEN: ${{ github.token }}
@@ -175,7 +175,6 @@ jobs:
             "admin/${RELEASE_VERSION}"
             "web/antd-v6/${RELEASE_VERSION}"
             "${RELEASE_VERSION}"
-            "docs/${RELEASE_VERSION}"
           )
           for release_tag in "${release_tags[@]}"; do
             test "$(resolve_tag_commit "${release_tag}")" = "${RELEASE_COMMIT}"
@@ -202,17 +201,6 @@ jobs:
               ;;
           esac
           echo "GITHUB_LATEST_VERSION=${current_latest}" >> "${GITHUB_ENV}"
-
-          docs_identity="${RUNNER_TEMP}/production-docs-release.json"
-          curl --fail --location --silent --show-error \
-            --output "${docs_identity}" \
-            'https://docs.mss-boot-io.top/release.json'
-          jq -e \
-            --arg version "${RELEASE_VERSION}" \
-            --arg commit "${RELEASE_COMMIT}" \
-            '.application == "mss-boot-docs" and
-             .version == $version and .commit == $commit' \
-            "${docs_identity}" >/dev/null
 
       - name: Require the exact frontend release
         env:

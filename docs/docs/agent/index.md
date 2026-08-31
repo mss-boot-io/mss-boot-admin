@@ -15,9 +15,10 @@ description: 给人类维护者看的 Agent 协作入口，以及 Foundation 与
 进入，Thin Host Agent 必须从生成仓库自己的本地合同进入。
 :::
 
-v1.3.7 仍是未稳定、不可采用的候选；各发布面可能处于不同公开阶段，必须以远端发布台账
-为准。完整 stable promotion 和最终 policy/Docs 对账完成前，这里不把 Thin Host 安装、创建
-或升级命令包装成当前可用的快速开始；采用边界以[采用状态](/getting-started)为准。
+v1.3.7 仍是未稳定、不可采用的候选；各 Distribution 发布面可能处于不同公开阶段，必须以
+远端发布台账为准。完整 stable promotion 和最终 current-stable policy 对账完成前，这里不把
+Thin Host 安装、创建或升级命令包装成当前可用的快速开始；采用边界以
+[采用状态](/getting-started)为准。Docs 网站可异步候补且不阻断采用。
 
 ## 两种 Agent 上下文
 

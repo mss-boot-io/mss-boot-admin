@@ -1418,7 +1418,7 @@ exit 66
             for step in steps
             if step.get("name") == "Verify merged-main release source"
         )["run"]
-        self.assertIn("source_mode='release'", source)
+        self.assertIn("source_mode='docs'", source)
         self.assertIn("source_mode='promotion'", source)
         self.assertIn('--source-mode "${source_mode}"', source)
 
@@ -1685,7 +1685,7 @@ exit 66
             step
             for step in steps
             if step.get("name")
-            == "Require reviewed stable promotion and complete candidate ledger"
+            == "Require reviewed stable promotion and complete distribution ledger"
         )
         self.assertEqual(ledger["id"], "promotion")
         ledger_script = ledger["run"]
@@ -1699,16 +1699,18 @@ exit 66
             '"admin/${RELEASE_VERSION}"',
             '"web/antd-v6/${RELEASE_VERSION}"',
             '"${RELEASE_VERSION}"',
-            '"docs/${RELEASE_VERSION}"',
             'test "$(resolve_tag_commit "${release_tag}")" = "${RELEASE_COMMIT}"',
             ".isDraft == false and .isPrerelease == false",
             'releases/latest" --jq .tag_name',
             '"${current_stable}"|"${RELEASE_VERSION}")',
-            "https://docs.mss-boot-io.top/release.json",
-            '.application == "mss-boot-docs"',
-            ".version == $version and .commit == $commit",
         ):
             self.assertIn(required, ledger_script)
+        for forbidden in (
+            '"docs/${RELEASE_VERSION}"',
+            "https://docs.mss-boot-io.top/release.json",
+            '"mss-boot-docs"',
+        ):
+            self.assertNotIn(forbidden, ledger_script)
 
         go_modules = next(
             step

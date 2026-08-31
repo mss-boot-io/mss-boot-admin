@@ -200,9 +200,9 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
         self.assertIn('"${latest}" == "${EXPECTED_LATEST}"', verify["run"])
         self.assertNotIn('"dist-tags.${NPM_DIST_TAG}"', verify["run"])
 
-    def test_stable_promotion_requires_reviewed_policy_and_complete_public_ledger(self):
+    def test_stable_promotion_requires_reviewed_policy_and_distribution_ledger(self):
         preflight = self.step(
-            "Require reviewed stable promotion and complete candidate ledger"
+            "Require reviewed stable promotion and complete distribution ledger"
         )["run"]
         for required in (
             "origin/main:.mss/release-policy.yaml",
@@ -211,12 +211,16 @@ class OfficialNpmReleaseWorkflowTest(unittest.TestCase):
             '"mss-boot/${RELEASE_VERSION}"',
             '"admin/${RELEASE_VERSION}"',
             '"web/antd-v6/${RELEASE_VERSION}"',
-            '"docs/${RELEASE_VERSION}"',
             'releases/latest',
             '"${current_stable}"|"${RELEASE_VERSION}")',
-            'https://docs.mss-boot-io.top/release.json',
         ):
             self.assertIn(required, preflight)
+        for forbidden in (
+            '"docs/${RELEASE_VERSION}"',
+            "https://docs.mss-boot-io.top/release.json",
+            '"mss-boot-docs"',
+        ):
+            self.assertNotIn(forbidden, preflight)
 
         go_modules = self.step("Verify exact public Go modules")["run"]
         self.assertIn("GOPROXY=https://proxy.golang.org", go_modules)

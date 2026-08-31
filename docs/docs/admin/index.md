@@ -12,8 +12,8 @@ description: v1.3.7 Admin 候选、v1.3.5 永久停止记录与未开放采用�
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不开放安装、创建
-或升级命令。
+远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
+不开放安装、创建或升级命令。Docs 网站可通过 `docs/v*` 异步候补，其状态不影响这一采用门禁。
 :::
 
 v1.3.5 是不可变部分发布，只公开了部分 Admin 组件：

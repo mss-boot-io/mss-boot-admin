@@ -10,8 +10,9 @@ keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate mss mss-mcp immutable partial]
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止且缺少完整公共工具链；v1.3.7 已选
 为 release candidate，但尚未稳定且不可采用。`mss`、`mss-mcp`、安装器和校验和可能处于
-不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，
-本页不提供安装、创建、开发、验证或升级命令。
+不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
+对账完成前，本页不提供安装、创建、开发、验证或升级命令。Docs 网站可异步候补且不阻断
+该采用门禁。
 :::
 
 ## 实际结果

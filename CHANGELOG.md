@@ -6,6 +6,15 @@ tag namespaces.
 
 ## [Unreleased]
 
+### Changed
+
+- Define Docs as an asynchronous website-only publication. A `docs/v*` tag now
+  identifies the deployed site revision and retains its own Root-ancestor,
+  immutable-tag, revision-order, protected-deployment, checksum, `release.json`,
+  and browser checks, while Docs absence or failure never blocks Framework,
+  Admin, Admin Web, Root, images, npm, GitHub Latest, current-stable policy, or
+  adopter availability.
+
 ### Fixed
 
 - Preserve the release-notes file's trailing newline when the Docs workflow

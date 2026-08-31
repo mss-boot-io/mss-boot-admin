@@ -3,8 +3,10 @@
 [English](./README.md)
 
 mss-boot 是面向 Agent 的管理系统基础设施。**v1.3.7 已选为完整 package-first 发布候选，
-但尚未稳定且不可采用。** 候选发布面可能处于不同公开阶段，必须以远端发布台账为准；
-完整 stable promotion 和最终 policy/Docs 对账完成前，不得使用 v1.3.7 安装、创建或升级。
+但尚未稳定且不可采用。** 候选 Distribution 发布面可能处于不同公开阶段，必须以远端发布
+台账为准；完整 stable promotion 和最终 `currentStableVersion` policy 对账完成前，不得使用
+v1.3.7 安装、创建或升级。Docs 是异步、非阻断的网站发布；`docs/v*` 只标识网站部署，不决定
+组件、稳定别名、current stable 或采用状态。
 v1.3.5 与 v1.3.6 都是不可变部分发布列车；不得删除、移动、重建、复用或补全其中任何身份。
 
 ## 当前可用状态
@@ -36,14 +38,16 @@ v1.3.6 只从精确提交 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 发布了�
 
 v1.3.7 是新的候选。它必须先从修复后的精确 merged-main 提交完成一次非发布 preview，
 包含真实 Root OCI artifact，并核对 `npm-release.yml` 与 `npm-auto` 的无令牌 Trusted
-Publisher 绑定。候选发布面随后按治理顺序公开，可能处于不同阶段；完整 stable promotion
-和最终 policy/Docs 对账完成前，不支持 v1.3.7 下载、安装、创建或升级流程。
+Publisher 绑定。候选 Distribution 发布面随后按治理顺序公开，可能处于不同阶段；完整
+stable promotion 和最终 current-stable policy 对账完成前，不支持 v1.3.7 下载、安装、创建
+或升级流程。Docs 可在此前或此后独立候补，其缺失、失败或站点滞后不影响这一边界。
 
 ## 采用者状态
 
 v1.3.5 与 v1.3.6 都没有受支持的安装器、空目录应用创建、本地初始化或发行版升级流程。v1.3.7 现已
 选为这些 package-first 接口的候选，但在 stable promotion、外部 Thin Host 验收和最终
-policy/Docs 对账完成前，当前入门文档仍不提供可执行命令。
+current-stable policy 对账完成前，当前入门文档仍不提供可执行命令。公开 Docs 部署单独记录，
+不是采用前置条件。
 
 当前稳定边界见 [v1.3.2 稳定记录](./docs/docs/releases/archive/v1-3-2.md)，
 不可变审计证据见

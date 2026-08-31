@@ -37,9 +37,10 @@ v1.3.6 从 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admi
 Admin Web 与 Root Release/工具，但 Root image 和官方 npm 发布失败，Docs 未创建。它也
 是不可续的不可变部分发布，不能用 token、rerun 或 v1.3.7 源码补齐。
 
-v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开
-阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，
-不得使用 v1.3.7 安装、创建或升级。
+v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于
+不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
+对账完成前，不得使用 v1.3.7 安装、创建或升级。Docs 网站通过 `docs/v*` 异步候补，其缺失或
+失败不影响 Distribution 稳定与采用边界。
 :::
 
 当前稳定版本仍是 **v1.3.2**。需要可执行的稳定安装资料时，请从

@@ -11,9 +11,10 @@ description: Thin Host 日常开发、配置、验证、部署与故障排查入
 
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，不得安装、创建
-或升级，版本判断从[采用状态](/getting-started)进入。
+为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于不同公开阶段，
+必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy 对账完成前，不得
+安装、创建或升级，版本判断从[采用状态](/getting-started)进入。Docs 网站可异步候补且不阻断
+该采用门禁。
 :::
 
 ## 合同入口

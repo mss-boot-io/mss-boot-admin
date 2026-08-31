@@ -10,9 +10,9 @@ description: v1.3.2 当前稳定、v1.3.5/v1.3.6 永久停止与 v1.3.7 未稳�
 # 发布
 
 当前稳定版本是 **v1.3.2**。v1.3.5 与 v1.3.6 已永久停止，只保留不可变部分发布记录。v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用；候选发布面可能处于不同公开阶段，必须以远端
-发布台账为准。完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是 v1.3.7 安装、
-创建或升级入口。
+为 release candidate，但尚未稳定且不可采用；候选 Distribution 发布面可能处于不同公开阶段，
+必须以远端发布台账为准。完整 stable promotion 和最终 current-stable policy 对账完成前，本页
+不是 v1.3.7 安装、创建或升级入口。Docs 网站可通过 `docs/v*` 异步候补，其状态不阻断采用。
 
 - [v1.3.7 发布候选说明](/releases/v1-3-7)
 - [v1.3.2 当前稳定记录](/releases/archive/v1-3-2)
