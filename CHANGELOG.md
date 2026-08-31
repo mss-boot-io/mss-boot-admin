@@ -6,7 +6,12 @@ tag namespaces.
 
 ## [Unreleased]
 
-No unreleased changes are recorded.
+### Fixed
+
+- Preserve the release-notes file's trailing newline when the Docs workflow
+  reconciles an immutable GitHub Release. The final check remains a strict body
+  equality check, but no longer reports a false failure after a successful
+  publication solely because shell command substitution removed the final LF.
 
 ## [v1.3.7] - 2026-08-29
 

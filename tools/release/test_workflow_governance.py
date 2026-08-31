@@ -1583,6 +1583,10 @@ exit 66
             "--latest=false",
         ):
             self.assertIn(required, release)
+        final_reconciliation = release[release.index('final_release="$(') :]
+        self.assertIn('--rawfile body "${notes}"', final_reconciliation)
+        self.assertNotIn("--arg body", final_reconciliation)
+        self.assertIn(".body == $body", final_reconciliation)
         self.assertFalse(
             any(
                 step.get("name") == "Refuse mutation of an existing docs release"
