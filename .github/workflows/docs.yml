@@ -528,7 +528,7 @@ jobs:
             --arg tag "${GITHUB_REF_NAME}" \
             --arg commit "${GITHUB_SHA}" \
             --arg title "${title}" \
-            --arg body "$(< "${notes}")" \
+            --rawfile body "${notes}" \
             --argjson assets "${expected_names}" \
             '.tagName == $tag and .targetCommitish == $commit and
              .name == $title and .body == $body and
