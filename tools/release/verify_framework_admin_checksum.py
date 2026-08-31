@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import io
 import json
 import os
@@ -28,7 +29,7 @@ class ChecksumContractError(ValueError):
 
 
 class GitCandidateFile(NamedTuple):
-    """One canonical module file read from the exact HEAD Git tree."""
+    """One canonical module file read from one exact Git tree."""
 
     relative: PurePosixPath
     content: bytes
@@ -74,9 +75,19 @@ def _ensure_clean_paths(
     paths: list[str],
     *,
     label: str,
+    reference: str = "HEAD",
 ) -> None:
     commands = [
-        ["git", "diff", "--cached", "--name-only", "-z", "HEAD", "--", *paths],
+        [
+            "git",
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            reference,
+            "--",
+            *paths,
+        ],
         ["git", "diff", "--name-only", "-z", "--ignore-cr-at-eol", "--", *paths],
         ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", *paths],
     ]
@@ -100,23 +111,30 @@ def _git_module_candidate(
     *,
     source_directory: str,
     label: str,
+    source_commit: str = "HEAD",
     verify_clean: bool = True,
 ) -> list[GitCandidateFile]:
-    """Read module inputs from HEAD after proving the index/worktree is equivalent."""
+    """Read module inputs from an exact Git tree.
+
+    Candidate qualification uses HEAD and proves that the index/worktree is
+    equivalent. Published-stable reconciliation supplies a policy-bound
+    immutable commit and deliberately ignores later component-source changes.
+    """
 
     if verify_clean:
         _ensure_clean_paths(
             repository_root,
             [source_directory],
             label=label,
+            reference=source_commit,
         )
     archive_result = _run_bytes(
-        ["git", "archive", "--format=tar", "HEAD", "--", source_directory],
+        ["git", "archive", "--format=tar", source_commit, "--", source_directory],
         cwd=repository_root,
     )
     if archive_result.returncode != 0:
         raise ChecksumContractError(
-            f"cannot read the exact HEAD {label} candidate: "
+            f"cannot read the exact {source_commit} {label} tree: "
             + archive_result.stderr.decode("utf-8", errors="replace").strip()
         )
     prefix = source_directory.rstrip("/") + "/"
@@ -149,7 +167,7 @@ def _git_module_candidate(
                 )
     except (OSError, tarfile.TarError) as exc:
         raise ChecksumContractError(
-            f"cannot decode the exact HEAD {label} candidate: {exc}"
+            f"cannot decode the exact {source_commit} {label} tree: {exc}"
         ) from exc
     if not result:
         raise ChecksumContractError(f"the {label} candidate contains no tracked files")
@@ -164,8 +182,12 @@ def _git_module_candidate(
                 repository_root,
                 ["LICENSE"],
                 label=f"{label} repository LICENSE",
+                reference=source_commit,
             )
-        root_license = _repository_root_license_candidate(repository_root)
+        root_license = _repository_root_license_candidate(
+            repository_root,
+            source_commit=source_commit,
+        )
         if root_license is not None:
             result.append(root_license)
     return result
@@ -173,14 +195,16 @@ def _git_module_candidate(
 
 def _repository_root_license_candidate(
     repository_root: Path,
+    *,
+    source_commit: str = "HEAD",
 ) -> GitCandidateFile | None:
     tree = _run_bytes(
-        ["git", "ls-tree", "-z", "HEAD", "--", "LICENSE"],
+        ["git", "ls-tree", "-z", source_commit, "--", "LICENSE"],
         cwd=repository_root,
     )
     if tree.returncode != 0:
         raise ChecksumContractError(
-            "cannot inspect the exact HEAD repository LICENSE: "
+            f"cannot inspect the exact {source_commit} repository LICENSE: "
             + tree.stderr.decode("utf-8", errors="replace").strip()
         )
     entry = tree.stdout.removesuffix(b"\0")
@@ -203,7 +227,7 @@ def _repository_root_license_candidate(
     )
     if content.returncode != 0:
         raise ChecksumContractError(
-            "cannot read the exact HEAD repository LICENSE: "
+            f"cannot read the exact {source_commit} repository LICENSE: "
             + content.stderr.decode("utf-8", errors="replace").strip()
         )
     # cmd/go's inherited dataFile always exposes mode 0644, independently of
@@ -341,6 +365,7 @@ def _calculate_module_candidate_sums(
     version: str,
     go_command: str = "go",
     sources: list[GitCandidateFile] | None = None,
+    source_commit: str = "HEAD",
 ) -> tuple[str, str, int]:
     repository_root = repository_root.resolve()
     if sources is None:
@@ -348,6 +373,7 @@ def _calculate_module_candidate_sums(
             repository_root,
             source_directory=source_directory,
             label=label,
+            source_commit=source_commit,
         )
     with tempfile.TemporaryDirectory(prefix=f"mss-{label.lower()}-file-proxy-") as directory:
         proxy_root = Path(directory)
@@ -371,6 +397,7 @@ def calculate_candidate_sums(
     *,
     version: str,
     go_command: str = "go",
+    source_commit: str = "HEAD",
 ) -> tuple[str, str, int]:
     return _calculate_module_candidate_sums(
         repository_root,
@@ -379,6 +406,7 @@ def calculate_candidate_sums(
         label="Framework",
         version=version,
         go_command=go_command,
+        source_commit=source_commit,
     )
 
 
@@ -387,6 +415,7 @@ def calculate_admin_candidate_sums(
     *,
     version: str,
     go_command: str = "go",
+    source_commit: str = "HEAD",
 ) -> tuple[str, str, int]:
     return _calculate_module_candidate_sums(
         repository_root,
@@ -395,6 +424,7 @@ def calculate_admin_candidate_sums(
         label="Admin",
         version=version,
         go_command=go_command,
+        source_commit=source_commit,
     )
 
 
@@ -588,11 +618,19 @@ def _updated_test_constants(
     return text.encode("utf-8")
 
 
-def _head_file_bytes(repository_root: Path, relative: str) -> bytes:
-    result = _run_bytes(["git", "show", f"HEAD:{relative}"], cwd=repository_root)
+def _head_file_bytes(
+    repository_root: Path,
+    relative: str,
+    *,
+    source_commit: str = "HEAD",
+) -> bytes:
+    result = _run_bytes(
+        ["git", "show", f"{source_commit}:{relative}"],
+        cwd=repository_root,
+    )
     if result.returncode != 0:
         raise ChecksumContractError(
-            f"cannot read exact HEAD metadata {relative}: "
+            f"cannot read exact {source_commit} metadata {relative}: "
             + result.stderr.decode("utf-8", errors="replace").strip()
         )
     return result.stdout
@@ -618,9 +656,14 @@ def _verify_update_target_state(
     *,
     relative: str,
     expected: bytes,
+    source_commit: str = "HEAD",
 ) -> None:
     current = (repository_root / relative).read_bytes()
-    committed = _head_file_bytes(repository_root, relative)
+    committed = _head_file_bytes(
+        repository_root,
+        relative,
+        source_commit=source_commit,
+    )
     # The approved targets are text files governed by the repository's LF
     # attributes. A Windows checkout may still expose CRLF bytes, so compare
     # their Git-equivalent text before deciding that the user changed them.
@@ -634,34 +677,67 @@ def _verify_update_target_state(
         )
 
 
+def _ensure_refresh_inputs_clean(
+    repository_root: Path,
+    *,
+    reference: str,
+) -> None:
+    _ensure_clean_paths(
+        repository_root,
+        ["mss-boot"],
+        label="Framework",
+        reference=reference,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["admin", ":(exclude)admin/go.sum"],
+        label="Admin source",
+        reference=reference,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["templates/application", ":(exclude)templates/application/go.sum"],
+        label="Thin Host source",
+        reference=reference,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["LICENSE"],
+        label="repository LICENSE",
+        reference=reference,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["go.work"],
+        label="workspace",
+        reference=reference,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        [".mss/release-policy.yaml"],
+        label="release policy evidence",
+        reference=reference,
+    )
+
+
 def refresh_repository_metadata(
     repository_root: Path,
     *,
     version: str,
     go_command: str = "go",
+    expected_head_commit: str | None = None,
 ) -> dict[str, object]:
     """Deterministically refresh the four checksum layers from exact HEAD blobs."""
 
     if not VERSION_RE.fullmatch(version):
         raise ChecksumContractError("version must be an exact stable vX.Y.Z value")
     repository_root = repository_root.resolve()
-    _ensure_clean_paths(repository_root, ["mss-boot"], label="Framework")
-    _ensure_clean_paths(
-        repository_root,
-        ["admin", ":(exclude)admin/go.sum"],
-        label="Admin source",
-    )
-    _ensure_clean_paths(
-        repository_root,
-        ["templates/application", ":(exclude)templates/application/go.sum"],
-        label="Thin Host source",
-    )
-    _ensure_clean_paths(
-        repository_root,
-        ["LICENSE"],
-        label="repository LICENSE",
-    )
-    _ensure_clean_paths(repository_root, ["go.work"], label="workspace")
+    head_commit = _head_commit(repository_root)
+    if expected_head_commit is not None and head_commit != expected_head_commit:
+        raise ChecksumContractError(
+            "HEAD changed before checksum metadata refresh could begin"
+        )
+    _ensure_refresh_inputs_clean(repository_root, reference=head_commit)
 
     required_version = _required_framework_version(
         repository_root / "admin" / "go.mod",
@@ -681,12 +757,14 @@ def refresh_repository_metadata(
         repository_root,
         source_directory="mss-boot",
         label="Framework",
+        source_commit=head_commit,
         verify_clean=False,
     )
     admin_sources = _git_module_candidate(
         repository_root,
         source_directory="admin",
         label="Admin",
+        source_commit=head_commit,
         verify_clean=False,
     )
     framework_sum, framework_go_mod_sum, framework_file_count = (
@@ -731,7 +809,11 @@ def refresh_repository_metadata(
 
     template_relative = "templates/application/go.sum"
     updated_template_go_sum = _updated_go_sum(
-        _head_file_bytes(repository_root, template_relative),
+        _head_file_bytes(
+            repository_root,
+            template_relative,
+            source_commit=head_commit,
+        ),
         module=FRAMEWORK_MODULE,
         version=version,
         module_sum=framework_sum,
@@ -748,7 +830,11 @@ def refresh_repository_metadata(
     )
     test_relative = "tools/release/test_verify_framework_admin_checksum.py"
     updated_test = _updated_test_constants(
-        _head_file_bytes(repository_root, test_relative),
+        _head_file_bytes(
+            repository_root,
+            test_relative,
+            source_commit=head_commit,
+        ),
         framework_sum=framework_sum,
         framework_go_mod_sum=framework_go_mod_sum,
         admin_sum=admin_sum,
@@ -765,12 +851,32 @@ def refresh_repository_metadata(
             repository_root,
             relative=relative,
             expected=content,
+            source_commit=head_commit,
         )
-    updated_files = [
-        relative
-        for relative, content in outputs.items()
-        if _write_if_changed(repository_root / relative, content)
-    ]
+    _ensure_refresh_inputs_clean(repository_root, reference=head_commit)
+    if _head_commit(repository_root) != head_commit:
+        raise ChecksumContractError(
+            "HEAD changed before refreshed checksum metadata could be written"
+        )
+    updated_files: list[str] = []
+    for relative, content in outputs.items():
+        if _head_commit(repository_root) != head_commit:
+            raise ChecksumContractError(
+                "HEAD changed while refreshed checksum metadata was being written"
+            )
+        if _write_if_changed(repository_root / relative, content):
+            updated_files.append(relative)
+    _ensure_refresh_inputs_clean(repository_root, reference=head_commit)
+    for relative, expected in outputs.items():
+        current = (repository_root / relative).read_bytes()
+        if current.replace(b"\r\n", b"\n") != expected.replace(b"\r\n", b"\n"):
+            raise ChecksumContractError(
+                f"refreshed checksum metadata changed before success: {relative}"
+            )
+    if _head_commit(repository_root) != head_commit:
+        raise ChecksumContractError(
+            "HEAD changed while refreshed checksum metadata was being written"
+        )
     return {
         "success": True,
         "write": True,
@@ -782,24 +888,52 @@ def refresh_repository_metadata(
         "adminGoModSum": admin_go_mod_sum,
         "adminCandidateFiles": admin_file_count,
         "updatedFiles": updated_files,
+        "sourceMode": "candidate",
+        "sourceCommit": head_commit,
+        "headCommit": head_commit,
     }
 
 
-def verify_repository(
+def _head_commit(repository_root: Path) -> str:
+    result = _run(
+        ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+        cwd=repository_root,
+    )
+    commit = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ChecksumContractError("cannot resolve the exact candidate HEAD commit")
+    return commit
+
+
+def _verify_repository_tree(
     repository_root: Path,
     *,
     version: str,
     go_command: str = "go",
+    source_commit: str | None = None,
+    expected_head_commit: str | None = None,
 ) -> dict[str, object]:
     if not VERSION_RE.fullmatch(version):
         raise ChecksumContractError("version must be an exact stable vX.Y.Z value")
     repository_root = repository_root.resolve()
+    head_commit = _head_commit(repository_root)
+    if expected_head_commit is not None and head_commit != expected_head_commit:
+        raise ChecksumContractError(
+            "HEAD changed before Framework/Admin checksum evidence could be built"
+        )
+    component_source_commit = source_commit or head_commit
     _ensure_clean_paths(
         repository_root,
         ["templates/application"],
         label="Thin Host metadata",
+        reference=head_commit,
     )
-    _ensure_clean_paths(repository_root, ["go.work"], label="workspace")
+    _ensure_clean_paths(
+        repository_root,
+        ["go.work"],
+        label="workspace",
+        reference=head_commit,
+    )
     required_version = _required_framework_version(
         repository_root / "admin" / "go.mod",
         go_command=go_command,
@@ -816,19 +950,42 @@ def verify_repository(
     recorded_sum, recorded_go_mod_sum = _recorded_sums(
         repository_root / "admin" / "go.sum", version=version
     )
-    candidate_sum, candidate_go_mod_sum, file_count = calculate_candidate_sums(
-        repository_root,
-        version=version,
-        go_command=go_command,
-    )
+    if source_commit is None:
+        candidate_sum, candidate_go_mod_sum, file_count = calculate_candidate_sums(
+            repository_root,
+            version=version,
+            go_command=go_command,
+            source_commit=component_source_commit,
+        )
+        source_label = "final candidate tree"
+    else:
+        framework_sources = _git_module_candidate(
+            repository_root,
+            source_directory="mss-boot",
+            label="Framework",
+            source_commit=source_commit,
+            verify_clean=False,
+        )
+        candidate_sum, candidate_go_mod_sum, file_count = (
+            _calculate_module_candidate_sums(
+                repository_root,
+                module=FRAMEWORK_MODULE,
+                source_directory="mss-boot",
+                label="Framework",
+                version=version,
+                go_command=go_command,
+                sources=framework_sources,
+            )
+        )
+        source_label = f"published stable commit {source_commit}"
     if recorded_sum != candidate_sum:
         raise ChecksumContractError(
-            "Admin Framework Module checksum does not match the final candidate tree: "
+            f"Admin Framework Module checksum does not match the {source_label}: "
             f"recorded {recorded_sum}, calculated {candidate_sum}"
         )
     if recorded_go_mod_sum != candidate_go_mod_sum:
         raise ChecksumContractError(
-            "Admin Framework go.mod checksum does not match the final candidate tree: "
+            f"Admin Framework go.mod checksum does not match the {source_label}: "
             f"recorded {recorded_go_mod_sum}, calculated {candidate_go_mod_sum}"
         )
     template_go_sum = repository_root / "templates" / "application" / "go.sum"
@@ -840,12 +997,12 @@ def verify_repository(
     )
     if template_framework_sum != candidate_sum:
         raise ChecksumContractError(
-            "Thin Host Framework Module checksum does not match the final candidate tree: "
+            f"Thin Host Framework Module checksum does not match the {source_label}: "
             f"recorded {template_framework_sum}, calculated {candidate_sum}"
         )
     if template_framework_go_mod_sum != candidate_go_mod_sum:
         raise ChecksumContractError(
-            "Thin Host Framework go.mod checksum does not match the final candidate tree: "
+            f"Thin Host Framework go.mod checksum does not match the {source_label}: "
             f"recorded {template_framework_go_mod_sum}, calculated {candidate_go_mod_sum}"
         )
     template_admin_sum, template_admin_go_mod_sum = _recorded_module_sums(
@@ -854,22 +1011,62 @@ def verify_repository(
         version=version,
         label="templates/application/go.sum",
     )
-    candidate_admin_sum, candidate_admin_go_mod_sum, admin_file_count = (
-        calculate_admin_candidate_sums(
-            repository_root,
-            version=version,
-            go_command=go_command,
+    if source_commit is None:
+        candidate_admin_sum, candidate_admin_go_mod_sum, admin_file_count = (
+            calculate_admin_candidate_sums(
+                repository_root,
+                version=version,
+                go_command=go_command,
+                source_commit=component_source_commit,
+            )
         )
-    )
+    else:
+        admin_sources = _git_module_candidate(
+            repository_root,
+            source_directory="admin",
+            label="Admin",
+            source_commit=source_commit,
+            verify_clean=False,
+        )
+        candidate_admin_sum, candidate_admin_go_mod_sum, admin_file_count = (
+            _calculate_module_candidate_sums(
+                repository_root,
+                module=ADMIN_MODULE,
+                source_directory="admin",
+                label="Admin",
+                version=version,
+                go_command=go_command,
+                sources=admin_sources,
+            )
+        )
     if template_admin_sum != candidate_admin_sum:
         raise ChecksumContractError(
-            "Thin Host Admin Module checksum does not match the final candidate tree: "
+            f"Thin Host Admin Module checksum does not match the {source_label}: "
             f"recorded {template_admin_sum}, calculated {candidate_admin_sum}"
         )
     if template_admin_go_mod_sum != candidate_admin_go_mod_sum:
         raise ChecksumContractError(
-            "Thin Host Admin go.mod checksum does not match the final candidate tree: "
+            f"Thin Host Admin go.mod checksum does not match the {source_label}: "
             f"recorded {template_admin_go_mod_sum}, calculated {candidate_admin_go_mod_sum}"
+        )
+    end_paths = [
+        ".mss/release-policy.yaml",
+        "templates/application",
+        "go.work",
+        "admin/go.mod",
+        "admin/go.sum",
+    ]
+    if source_commit is None:
+        end_paths.extend(["mss-boot", "admin", "LICENSE"])
+    _ensure_clean_paths(
+        repository_root,
+        end_paths,
+        label="checksum evidence",
+        reference=head_commit,
+    )
+    if _head_commit(repository_root) != head_commit:
+        raise ChecksumContractError(
+            "HEAD changed while Framework/Admin checksum evidence was being built"
         )
     return {
         "success": True,
@@ -883,7 +1080,228 @@ def verify_repository(
         "adminCandidateFiles": admin_file_count,
         "dependencyMode": "replace-free-file-proxy",
         "checksumDatabaseMode": "explicit-candidate-parity",
+        "sourceMode": "candidate" if source_commit is None else "current-stable",
+        "sourceCommit": component_source_commit,
+        "headCommit": head_commit,
     }
+
+
+def verify_repository(
+    repository_root: Path,
+    *,
+    version: str,
+    go_command: str = "go",
+) -> dict[str, object]:
+    """Verify an unpublished candidate against the clean exact HEAD tree."""
+
+    return _verify_repository_tree(
+        repository_root,
+        version=version,
+        go_command=go_command,
+    )
+
+
+def _resolve_published_source_commit(
+    repository_root: Path,
+    *,
+    source_commit: str,
+    head_commit: str | None = None,
+) -> str:
+    if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+        raise ChecksumContractError(
+            "published stable source commit must be a full lowercase commit SHA"
+        )
+    resolved = _run(
+        ["git", "rev-parse", "--verify", "--end-of-options", f"{source_commit}^{{commit}}"],
+        cwd=repository_root,
+    )
+    if resolved.returncode != 0 or resolved.stdout.strip() != source_commit:
+        raise ChecksumContractError(
+            f"published stable source commit does not resolve exactly: {source_commit}"
+        )
+    ancestry = _run(
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            source_commit,
+            head_commit or "HEAD",
+        ],
+        cwd=repository_root,
+    )
+    if ancestry.returncode == 1:
+        raise ChecksumContractError(
+            "published stable source commit must be an ancestor of HEAD"
+        )
+    if ancestry.returncode != 0:
+        raise ChecksumContractError(
+            "cannot verify published stable source ancestry: "
+            + (ancestry.stderr.strip() or ancestry.stdout.strip())
+        )
+    return source_commit
+
+
+def _verify_published_repository(
+    repository_root: Path,
+    *,
+    version: str,
+    source_commit: str,
+    expected_head_commit: str,
+    go_command: str = "go",
+) -> dict[str, object]:
+    """Verify current adopter metadata against a prevalidated published tree."""
+
+    repository_root = repository_root.resolve()
+    exact_commit = _resolve_published_source_commit(
+        repository_root,
+        source_commit=source_commit,
+        head_commit=expected_head_commit,
+    )
+    _ensure_clean_paths(
+        repository_root,
+        ["admin/go.mod", "admin/go.sum"],
+        label="published Admin metadata",
+        reference=expected_head_commit,
+    )
+    return _verify_repository_tree(
+        repository_root,
+        version=version,
+        go_command=go_command,
+        source_commit=exact_commit,
+        expected_head_commit=expected_head_commit,
+    )
+
+
+def _load_release_policy(
+    repository_root: Path,
+    *,
+    reference: str,
+) -> dict[str, object]:
+    policy_relative = ".mss/release-policy.yaml"
+    _ensure_clean_paths(
+        repository_root,
+        [policy_relative],
+        label="release policy",
+        reference=reference,
+    )
+    module_path = Path(__file__).with_name("check_release_policy.py")
+    spec = importlib.util.spec_from_file_location(
+        "mss_checksum_release_policy",
+        module_path,
+    )
+    if spec is None or spec.loader is None:
+        raise ChecksumContractError("cannot load the canonical release policy parser")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+        return module.load_policy(repository_root / policy_relative)
+    except (OSError, module.PolicyError) as exc:
+        raise ChecksumContractError(f"invalid canonical release policy: {exc}") from exc
+
+
+def _verify_current_stable_tags(
+    repository_root: Path,
+    *,
+    version: str,
+    source_commit: str,
+) -> dict[str, str]:
+    # Docs is deliberately absent: its website-only tag is asynchronous and
+    # must never gate the Framework/Admin distribution identity.
+    tags = {
+        "root": version,
+        "framework": f"mss-boot/{version}",
+        "admin": f"admin/{version}",
+    }
+    for component, tag in tags.items():
+        resolved = _run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                f"refs/tags/{tag}^{{commit}}",
+            ],
+            cwd=repository_root,
+        )
+        if resolved.returncode != 0:
+            raise ChecksumContractError(
+                f"published stable {component} tag is missing: {tag}"
+            )
+        if resolved.stdout.strip() != source_commit:
+            raise ChecksumContractError(
+                f"published stable {component} tag {tag} does not resolve to "
+                f"policy commit {source_commit}"
+            )
+    return tags
+
+
+def verify_current_stable_repository(
+    repository_root: Path,
+    *,
+    version: str,
+    go_command: str = "go",
+) -> dict[str, object]:
+    """Verify the current stable release using only its policy-bound identity."""
+
+    repository_root = repository_root.resolve()
+    head_commit = _head_commit(repository_root)
+    policy = _load_release_policy(repository_root, reference=head_commit)
+    stable_version = policy.get("currentStableVersion")
+    if version != stable_version:
+        raise ChecksumContractError(
+            f"current-stable mode requires policy version {stable_version}, not {version}"
+        )
+    source_commit = policy.get("currentStableCommit")
+    if not isinstance(source_commit, str):
+        raise ChecksumContractError(
+            "release policy currentStableCommit must be a full commit SHA"
+        )
+    exact_commit = _resolve_published_source_commit(
+        repository_root,
+        source_commit=source_commit,
+        head_commit=head_commit,
+    )
+    tags = _verify_current_stable_tags(
+        repository_root,
+        version=version,
+        source_commit=exact_commit,
+    )
+    result = _verify_published_repository(
+        repository_root,
+        version=version,
+        source_commit=exact_commit,
+        expected_head_commit=head_commit,
+        go_command=go_command,
+    )
+    result["sourceTags"] = tags
+    return result
+
+
+def _require_active_future_candidate(
+    repository_root: Path,
+    *,
+    version: str,
+) -> str:
+    repository_root = repository_root.resolve()
+    head_commit = _head_commit(repository_root)
+    policy = _load_release_policy(repository_root, reference=head_commit)
+    stable_version = policy.get("currentStableVersion")
+    next_version = policy.get("nextPublicVersion")
+    target_state = policy.get("releaseTargetState")
+    if (
+        version != next_version
+        or version == stable_version
+        or target_state != "active"
+    ):
+        raise ChecksumContractError(
+            "checksum metadata may be refreshed only for the active future "
+            "candidate declared by release policy"
+        )
+    if _head_commit(repository_root) != head_commit:
+        raise ChecksumContractError(
+            "HEAD changed while future-candidate policy was being verified"
+        )
+    return head_commit
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -891,6 +1309,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=Path("."))
     parser.add_argument("--version", required=True)
     parser.add_argument("--go", default="go", dest="go_command")
+    parser.add_argument(
+        "--source-mode",
+        choices=("candidate", "current-stable"),
+        default="candidate",
+        help=(
+            "verify exact HEAD as a candidate, or derive the immutable current "
+            "stable commit from the canonical release policy"
+        ),
+    )
     parser.add_argument(
         "--write",
         action="store_true",
@@ -903,16 +1330,36 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.write:
+            if args.source_mode != "candidate":
+                raise ChecksumContractError(
+                    "current-stable mode is read-only and cannot refresh metadata"
+                )
+            policy_head_commit = _require_active_future_candidate(
+                args.root,
+                version=args.version,
+            )
             result = refresh_repository_metadata(
+                args.root,
+                version=args.version,
+                go_command=args.go_command,
+                expected_head_commit=policy_head_commit,
+            )
+        elif args.source_mode == "current-stable":
+            result = verify_current_stable_repository(
                 args.root,
                 version=args.version,
                 go_command=args.go_command,
             )
         else:
-            result = verify_repository(
+            policy_head_commit = _require_active_future_candidate(
+                args.root,
+                version=args.version,
+            )
+            result = _verify_repository_tree(
                 args.root,
                 version=args.version,
                 go_command=args.go_command,
+                expected_head_commit=policy_head_commit,
             )
     except (ChecksumContractError, OSError) as exc:
         print(f"Framework/Admin checksum contract failed: {exc}", file=sys.stderr)
