@@ -69,7 +69,7 @@ Distribution release and repair the website independently.
 
 A tagged Go module checksum covers every file in that module tree, including documentation and changelogs. Never edit a previously published nested module tree and continue to claim the old tag or checksum is reproducible. Preserve the file or prepare a new patch version through a separate PR and release.
 
-Do not change `go.mod`, `go.sum`, `go.work`, `go.work.sum`, pnpm lockfiles, or package metadata merely to make documentation validation pass. Do not move or recreate an existing release tag to pick up documentation changes. A source-documentation PR merged into `main` does not silently update an immutable Docs deployment; that requires the repository's explicit Docs release path.
+Do not change `go.mod`, `go.sum`, `go.work`, `go.work.sum`, pnpm lockfiles, or package metadata merely to make documentation validation pass. Core release tags, packages, images, checksums, and module identities remain immutable. The website-only `docs/vX.Y.Z` tag and its GitHub Release are the sole exception: after explicit authorization, the release operator may delete both and recreate the same tag from a qualified merged-main descendant of the corresponding Root commit. Direct force-update is forbidden. A source-documentation PR merged into `main` does not silently update the public Docs deployment; that still requires the repository's explicit Docs release path.
 
 ## Close the source-to-site gap
 
@@ -78,11 +78,11 @@ When the repository has a public Docs domain, source reconciliation is not the s
 1. Before editing, record the visible home page and a nested release route in the available browser, and read the public `/release.json` version and full commit.
 2. After the source PR merges, compare that identity with the exact merged `main` commit. If the site still exposes an older commit or stale visible claims, report the state as `source-updated / deployment-pending`, never complete.
 3. If the user authorized a public-site update, use `mss-release` for the mutation. Publish only from the exact merged-main commit after its Docs build and browser evidence pass.
-4. Preserve an existing coordinated Docs tag. For a correction to the current stable documentation, select the lowest unused positive revision accepted by policy, such as `docs/${VERSION}+docs.1`; this is a Docs component revision, not a new product version.
-5. Wait for the tag-triggered workflow, protected production environment, portable archive checksums, public `/release.json`, and immutable GitHub Release. A successful main-branch Docs build without the tag deployment is preliminary evidence only.
+4. For a correction to the current stable documentation, inspect the exact existing Docs Release and tag, delete the Release, delete the tag, prove both are absent, then recreate the same annotated `docs/${VERSION}` tag at the qualified merged-main commit. Do not create a new `+docs.N` identity.
+5. Wait for the tag-triggered workflow, protected production environment, portable archive checksums, replacement GitHub Release, and public `/release.json`. A successful main-branch Docs build without the tag deployment is preliminary evidence only.
 6. Reopen the production home page and a nested release route, refresh both, verify visible stable-version language, inspect console errors and failed network requests, and save final screenshots.
 
-If publication was not authorized or the tag or environment policy blocks the exact merged commit, stop before creating a tag and provide the exact proposed Docs revision, merged commit, workflow, and policy blocker. Do not request or invent a manual environment approval for the automatic tag path.
+If publication was not authorized or the tag or environment policy blocks the exact merged commit, stop before deleting anything and provide the exact stable Docs tag, merged commit, workflow, and policy blocker. Do not request or invent a manual environment approval for the automatic tag path.
 
 ## Validate proportionally
 

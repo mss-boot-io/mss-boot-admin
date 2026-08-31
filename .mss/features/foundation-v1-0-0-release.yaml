@@ -2,16 +2,20 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-0-0-release
-  displayName: Publish the consolidated Foundation v1.0.0 safely
+  displayName: v1.0.0 historical stable release record
   description: >-
-    Defines the component order, status semantics, compatibility disclosures, migration evidence,
-    artifact identity, and recovery gates required before the consolidated foundation's first
-    stable 1.0 release can be called stable.
+    Historical contract for the first stable consolidated Foundation, published from
+    ee800262c035c5f4242aca1841d077554481d2c4. The remaining goals, requirements,
+    acceptance, and rollout sections preserve the v1.0.0 publication evidence only;
+    they are not current publication authority. v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: foundation-release
+    stable-at-publication: v1.0.0
+    current-stable-now: v1.3.7
     target-version: v1.0.0
-    release-status: stable
+    release-status: historical-stable
+    release-commit: ee800262c035c5f4242aca1841d077554481d2c4
     published-date: 2026-08-09
     compatibility: breaking
 spec:

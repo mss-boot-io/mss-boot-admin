@@ -14,11 +14,6 @@ VERSION_RE = re.compile(
     r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
     r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$"
 )
-DOCS_REVISION_RE = re.compile(
-    r"^(?P<base>v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\."
-    r"(?:0|[1-9][0-9]*))\+docs\.(?P<revision>[1-9][0-9]*)$"
-)
-MAX_DOCS_REVISION = 999
 REQUIRED_KEYS = {
     "mode",
     "releaseBranch",
@@ -31,9 +26,7 @@ REQUIRED_KEYS = {
     "releaseTargetState",
     "immutableStoppedTrains",
     "publicationWorkflowsReady",
-    "docsRevisionPublicationReady",
-    "docsRevisionVersion",
-    "docsRevisionCommit",
+    "docsTagMutable",
     "stablePromotionReady",
     "stablePromotionVersion",
     "stablePromotionCommit",
@@ -345,7 +338,7 @@ def load_policy(path: Path) -> dict[str, object]:
         )
     for key in (
         "publicationWorkflowsReady",
-        "docsRevisionPublicationReady",
+        "docsTagMutable",
         "stablePromotionReady",
         "publicPrereleases",
     ):
@@ -391,35 +384,9 @@ def load_policy(path: Path) -> dict[str, object]:
         raise PolicyError(
             "release policy stablePromotionCommit must be disabled until promotion is ready"
         )
-    docs_revision_version = policy["docsRevisionVersion"]
-    docs_revision_commit = policy["docsRevisionCommit"]
-    if policy["docsRevisionPublicationReady"] is True:
-        if not isinstance(docs_revision_version, str):
-            raise PolicyError(
-                "release policy docsRevisionVersion must be a docs revision when publication is ready"
-            )
-        docs_revision_match = DOCS_REVISION_RE.fullmatch(docs_revision_version)
-        if docs_revision_match is None:
-            raise PolicyError(
-                "release policy docsRevisionVersion must use vX.Y.Z+docs.N when publication is ready"
-            )
-        if docs_revision_match.group("base") != policy["currentStableVersion"]:
-            raise PolicyError(
-                "release policy docsRevisionVersion must revise currentStableVersion"
-            )
-        if int(docs_revision_match.group("revision")) > MAX_DOCS_REVISION:
-            raise PolicyError(
-                f"release policy docsRevisionVersion exceeds maximum revision {MAX_DOCS_REVISION}"
-            )
-        if not isinstance(docs_revision_commit, str) or not re.fullmatch(
-            r"[0-9a-f]{40}", docs_revision_commit
-        ):
-            raise PolicyError(
-                "release policy docsRevisionCommit must be a full commit SHA when publication is ready"
-            )
-    elif docs_revision_version != "disabled" or docs_revision_commit != "disabled":
+    if policy["docsTagMutable"] is not True:
         raise PolicyError(
-            "release policy docs revision version and commit must be disabled until publication is ready"
+            "release policy docsTagMutable must remain true so the website can be redeployed independently"
         )
     target_state = policy["releaseTargetState"]
     if target_state not in {"active", "stopped"}:
@@ -479,15 +446,8 @@ def check_public_ref(
 ) -> None:
     if intent not in {"qualify", "publish", "promote"}:
         raise PolicyError(f"unsupported release intent: {intent}")
-    docs_revision = (
-        DOCS_REVISION_RE.fullmatch(version) if component == "docs" else None
-    )
-    if not VERSION_RE.fullmatch(version) and docs_revision is None:
+    if not VERSION_RE.fullmatch(version):
         raise PolicyError(f"invalid release version: {version}")
-    if docs_revision is not None and int(docs_revision.group("revision")) > MAX_DOCS_REVISION:
-        raise PolicyError(
-            f"docs revision exceeds maximum supported value {MAX_DOCS_REVISION}"
-        )
     expected = release_ref(policy, component, version)
     if tag != expected:
         raise PolicyError(
@@ -516,30 +476,14 @@ def check_public_ref(
             f"{stopped_version}; qualify and publish are permanently forbidden"
         )
 
-    target = policy["nextPublicVersion"]
-    if docs_revision is not None:
-        stable = policy["currentStableVersion"]
-        if docs_revision.group("base") != stable:
-            raise PolicyError(
-                f"docs revision base {docs_revision.group('base')} is forbidden "
-                f"while current stable is {stable}"
-            )
-        if policy["docsRevisionPublicationReady"] is not True:
-            raise PolicyError(
-                "docs revision qualification and publication remain disabled until policy "
-                "binds an exact new revision tag, current-stable baseline, and new "
-                "merged-main source"
-            )
-        if version != policy["docsRevisionVersion"]:
-            raise PolicyError(
-                f"docs revision {version} does not match reviewed exact revision "
-                f"{policy['docsRevisionVersion']}"
-            )
-        if commit != policy["docsRevisionCommit"]:
-            raise PolicyError(
-                "docs revision commit does not match the reviewed exact merged-main source"
-            )
-    elif version != target:
+    target = (
+        policy["currentStableVersion"]
+        if component == "docs"
+        else policy["nextPublicVersion"]
+    )
+    if component == "docs" and policy["docsTagMutable"] is not True:
+        raise PolicyError("Docs tag replacement is disabled by release policy")
+    if version != target:
         raise PolicyError(
             f"public version {version} is forbidden while the reviewed target is {target}"
         )
@@ -568,7 +512,7 @@ def check_public_ref(
             )
     if (
         intent in {"publish", "promote"}
-        and docs_revision is None
+        and component != "docs"
         and policy["publicationWorkflowsReady"] is not True
     ):
         raise PolicyError(

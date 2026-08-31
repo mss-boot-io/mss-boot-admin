@@ -76,8 +76,8 @@ Distribution Tag 不重复昂贵验证，也不接受 promotion、readiness run 
 ## 三-A、Docs 网站异步候补（不阻断发布）
 
 - [ ] 仅在准备发布网站时检查 `docs/v*` 身份；该 Tag 只表示网站发布，不是 Distribution Tag
-- [ ] 初始 Docs Tag 精确绑定已存在的 Root Release commit；后续修订保持 Root 祖先关系并使用最低未占用 `+docs.N`
-- [ ] Docs 源来自受审 merged-main，受保护部署、不可变 Release、归档校验和和 `release.json` 身份一致
+- [ ] Docs Tag 指向已存在 Root Release commit 或其受审 merged-main 后代；更新时先删同名 Release，再删 Tag，确认均不存在后同名重建，禁止 force-update
+- [ ] Docs 源来自受审 merged-main，受保护部署、替换 Release、归档校验和和 `release.json` 身份一致
 - [ ] 在内置浏览器刷新首页与嵌套路由，检查可见版本、控制台和失败网络请求
 - [ ] 若任一项失败，记录“网站部署待办”并只修复 Docs；不得阻止或回退 Framework、Admin、Admin Web、Root、镜像、npm、GitHub Latest、`currentStableVersion` 或采用路径
 

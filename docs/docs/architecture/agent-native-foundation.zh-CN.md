@@ -114,8 +114,9 @@ v1.3.5 与 v1.3.6 缺少完整证据链，不能与 v1.3.7 混用。
 镜像）与 Root（含 Root 镜像）。Root Tag 不发布 npm；完整组件台账通过后，由单独评审的
 一次性策略从精确 Root Tag 手工调度 npm 发布，核验 provenance 后再推进 npm `latest`
 与 GitHub Latest。Docs Tag 只发布网站，可独立异步候补，失败不阻断组件、稳定别名或
-采用。每个不可变身份都不能移动；发布后的组件修复使用下一补丁版本，纯文档修订使用
-新的 `docs/vX.Y.Z+docs.N`。
+采用。核心不可变身份都不能移动；发布后的组件修复使用下一补丁版本。纯文档修订先通过
+PR 合入 main，再由受控操作者删除同名 Docs Release 和 Tag 后重新创建 `docs/vX.Y.Z`；
+禁止直接 force-update。
 
 外部 [mss-shop](/getting-started/mss-shop) 是 package-first 路径和单租户业务扩展的
 独立采用证明，不属于 Foundation 发版门禁；它必须固定已完成公共对账的协调版本，不能

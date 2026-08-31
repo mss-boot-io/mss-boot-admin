@@ -165,7 +165,8 @@ with the package-first v1.3.3 Distribution.
 
 ## [web/antd-v6/v1.3.2] - 2026-08-23
 
-Status: **published / current stable component**. The Admin Web package, Admin Go
+Status: **published / historical previous-stable component**. At the v1.3.2
+publication checkpoint, the Admin Web package, Admin Go
 module, Framework module, root distribution, and independently released Docs were
 published from exact merged-main commit
 `635fbb03a82976941e527d8ac1000fec0624abac`. The npm package tarball SHA-256 is
@@ -174,9 +175,11 @@ integrity is
 `sha512-24K4Js0wk5J44AK8/3EyRksfn1pR7NViv0zG17myMwzKFmXNTOv9BOZJdk4SpWVLUop3DJKkBXYwsEFixZ+6lA==`,
 and the frontend image digest is
 `sha256:f52ef4664cfd419356805c74567f7317b4a2086467d729366ee2097efbf9ac1e`.
-The public npm `latest` tag resolves to `1.3.2`. Future publication uses npm
-Trusted Publishing bound to repository `mss-boot-io/mss-boot-admin`, workflow
-`npm-release.yml`, and environment `release-v6`; the one-time bootstrap token
+At that checkpoint the public npm `latest` tag resolved to `1.3.2`; current
+`latest` resolves to `1.3.7`. The v1.3.2 publisher used environment
+`release-v6`; current npm Trusted Publishing is bound to repository
+`mss-boot-io/mss-boot-admin`, workflow `npm-release.yml`, and environment
+`npm-auto`; the one-time bootstrap token
 and GitHub secret are absent.
 
 The v1.3.1 Admin Web tag, package, image, and Release were never published after

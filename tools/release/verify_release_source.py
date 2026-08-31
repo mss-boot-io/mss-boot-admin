@@ -278,10 +278,22 @@ def verify_release_source(
             f"refs/tags/{docs_root_tag}",
         )
         root_tag_commit = git(root, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
-        if root_tag_commit != commit:
+        root_ancestry = run_command(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                root_tag_commit,
+                commit,
+            ],
+            accepted_returncodes={0, 1},
+        )
+        if root_ancestry.returncode != 0:
             raise SourceError(
                 f"remote Root tag {docs_root_tag} resolves to {root_tag_commit}, "
-                f"not candidate {commit}"
+                f"which is not an ancestor of Docs candidate {commit}"
             )
 
     if git(root, "status", "--porcelain=v1", "--untracked-files=no"):

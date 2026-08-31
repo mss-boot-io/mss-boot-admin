@@ -974,6 +974,7 @@ spec:
         separately reviewed promotion authority, official npm is manually dispatched from the exact
         Root tag and Docs follows independently without gating the Distribution. Reconcile public Go,
         npm, GitHub Release, images, stable aliases, and installed-consumer probes; reconcile Docs on
-        its own site ledger. Any repair requires a
-        follow-up PR and a new merged-main commit; no workflow may mutate an already-public Release
-        or reuse historical evidence.
+        its own site ledger. Any repair requires a follow-up PR and a new merged-main commit. Core
+        workflows may not mutate an already-public Release or reuse historical evidence. The current
+        stable website-only Docs Release and tag are the sole replaceable identities: the controlled
+        operator deletes both and recreates the same tag, while direct update remains blocked.

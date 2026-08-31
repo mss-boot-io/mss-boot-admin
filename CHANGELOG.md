@@ -9,16 +9,21 @@ tag namespaces.
 ### Changed
 
 - Define Docs as an asynchronous website-only publication. A `docs/v*` tag now
-  identifies the deployed site revision and retains its own Root-ancestor,
-  immutable-tag, revision-order, protected-deployment, checksum, `release.json`,
-  and browser checks, while Docs absence or failure never blocks Framework,
+  identifies the currently deployed site source and may be deleted then
+  recreated at a later qualified merged-main descendant. Controlled creation
+  and deletion, no in-place update, Root ancestry, protected deployment,
+  checksum, `release.json`, and browser checks remain, while Docs absence or failure never blocks Framework,
   Admin, Admin Web, Root, images, npm, GitHub Latest, current-stable policy, or
   adopter availability.
+- Reconcile active human documentation, Agent guidance, machine-readable feature
+  memory, ADR status notes, and component changelog labels so v1.3.7 is the sole
+  current stable and adoptable Distribution while older releases remain clearly
+  time-scoped historical evidence.
 
 ### Fixed
 
 - Preserve the release-notes file's trailing newline when the Docs workflow
-  reconciles an immutable GitHub Release. The final check remains a strict body
+  reconciles the replacement GitHub Release. The final check remains a strict body
   equality check, but no longer reports a false failure after a successful
   publication solely because shell command substitution removed the final LF.
 
@@ -82,7 +87,8 @@ blocking components, stable aliases, current stable, or adoption.
 - Use one reviewed merged-main commit and one complete non-publishing v1.3.7
   preview before the first formal component tag. Any later source repair must
   use another unused patch version rather than a late artifact or moved tag;
-  website-only corrections use the independent immutable Docs revision path.
+  website-only corrections use the independent controlled Docs same-tag
+  replacement path.
 
 ## [v1.3.6] - 2026-08-27
 
@@ -94,7 +100,8 @@ Container run `33079323174` failed because the preview had skipped the Root OCI
 artifact, npm run `33079323187` failed with `ENEEDAUTH`, and Docs was never
 created. The Root and component identities are already public and immutable;
 the missing Root image, official npm package, and Docs must not be added later.
-v1.3.2 remains the only coordinated stable and rollback baseline.
+At this failure checkpoint v1.3.2 remained the only coordinated stable and
+rollback baseline. v1.3.7 is now the current stable and adoptable Distribution.
 
 ### Added
 
@@ -216,8 +223,8 @@ v1.3.2 remains the only coordinated stable and rollback baseline.
 - Consolidate all release-tag creation under one lwnmengjing-only ruleset and
   retire the Root promotion workflow, write-enabled DeployKey, environment
   secret, protected environment, and root-only creation ruleset.
-- Replace incomplete v1.3.5 quick-start and deep-link commands with explicit
-  v1.3.2 stable and v1.3.5 immutable-partial availability pages. Source Docs
+- At the v1.3.5 recovery checkpoint, replace incomplete quick-start and deep-link
+  commands with explicit v1.3.2 stable and v1.3.5 immutable-partial availability pages. Source Docs
   changes do not claim that the public site has moved from `v1.3.2+docs.1`.
 
 ## [v1.3.5] - 2026-08-26
@@ -416,15 +423,18 @@ attached to the exact merged-main commit.
 
 ## [v1.3.2] - 2026-08-23
 
-Status: **published / current stable**. Root, `mss-boot/v1.3.2`,
+Status: **published / historical previous stable**. At its publication checkpoint,
+Root, `mss-boot/v1.3.2`,
 `admin/v1.3.2`, `web/antd-v6/v1.3.2`, `docs/v1.3.2`, and
 `@mss-boot-io/admin-web@1.3.2` were qualified and published from exact merged-main
 commit `635fbb03a82976941e527d8ac1000fec0624abac`. Public checksums, npm provenance,
 multi-architecture image digests, Docs identity, and immutable Release assets are
 indexed in [issue #519](https://github.com/mss-boot-io/mss-boot-admin/issues/519).
-The public npm `latest` tag resolves to `1.3.2`; npm Trusted Publishing is bound
-to repository `mss-boot-io/mss-boot-admin`, workflow `npm-release.yml`, and
-environment `release-v6`. The one-time bootstrap npm token plus GitHub
+At that checkpoint the public npm `latest` tag resolved to `1.3.2`; current
+`latest` resolves to `1.3.7`. The v1.3.2 publisher used environment
+`release-v6`; the current Trusted Publisher is bound to repository
+`mss-boot-io/mss-boot-admin`, workflow `npm-release.yml`, and environment
+`npm-auto`. The one-time bootstrap npm token plus GitHub
 `NPM_TOKEN` secret have been removed.
 
 The v1.3.1 train is immutable component-partial history. Framework
@@ -614,8 +624,8 @@ complete coordinated train was v1.2.3.
 ## [v1.1.0] - 2026-08-11
 
 Status: **published / historical**. This section is retained as immutable release
-history. The next complete coordinated train was v1.2.3; the current stable train
-is v1.3.2.
+history. The next complete coordinated train was v1.2.3; v1.3.2 later became
+stable, and the current stable train is v1.3.7.
 
 ### Changed
 

@@ -75,7 +75,7 @@ spec:
         - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
         - v1.3.7 is current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
         - publicPrereleases remains false, so v1.3.7 uses the exact stable-form version only and no rc tag or public prerelease is created.
-        - A failed gate requires another pull request, another merged-main commit, and a new unused patch version after any v1.3.7 public identity exists.
+        - A failed Distribution gate requires another pull request, another merged-main commit, and a new unused patch version after any immutable v1.3.7 core public identity exists. The sole exception is the Docs website pointer, which may be deleted and recreated under its separate contract without changing Distribution identity.
     - id: pass-root-image-preview-mode
       title: Make Root image preview explicit
       description: Reusable workflow behavior is selected by a typed caller contract instead of inherited event context.
@@ -120,17 +120,18 @@ spec:
         - The first irreversible Framework publication performs one cheap exact preview lookup; Admin does not repeat it and still resolves and tests the exact public Framework with GOWORK off through the public Go proxy.
         - The Root tag starts Root assets and the Root image from the same preview evidence but leaves GitHub Latest unchanged and does not start official npm publication.
         - Docs is an asynchronous website-only publication after the base Root Release exists. It may complete before or after stable promotion and current-stable reconciliation, and its failure or absence does not invalidate the Distribution ledger.
-        - A docs/v* tag identifies one immutable website publication. It is not a Distribution component tag, adopter-availability signal, npm prerequisite, or stable-alias authority.
+        - A docs/v* tag is a replaceable website deployment pointer. It is not a Distribution component tag, adopter-availability signal, npm prerequisite, or stable-alias authority.
     - id: publish-docs-site-asynchronously
       title: Publish the documentation website independently
-      description: Docs uses its own immutable tag and deployment ledger without joining the Distribution dependency graph.
+      description: Docs uses its own replaceable tag and deployment ledger without joining the Distribution dependency graph.
       priority: should
       actor: release-operator
       module: package-first-distribution
       rules:
         - Docs publication may start only after its base Root Release exists, but no Distribution component, image, npm publication, stable alias, current-stable update, or adopter path waits for Docs.
         - A docs/vX.Y.Z tag identifies the website publication for that version; it does not certify the Distribution or change package availability.
-        - The Docs workflow retains exact-tag resolution, Root-ancestor and merged-source checks, lowest-unused revision ordering, protected deployment, immutable Release assets, checksums, release.json identity, and browser reconciliation.
+        - The Docs workflow retains exact-tag resolution, Root-ancestor and merged-source checks, protected deployment, replacement Release assets, checksums, release.json identity, and browser reconciliation.
+        - The authorized operator may delete the current stable Docs Release and tag, prove both are absent, and recreate the same docs/vX.Y.Z tag at a later qualified merged-main commit; direct force-update is prohibited.
         - A Docs failure is recorded as website deployment pending and repaired only through the Docs path; it does not stop, roll back, or invalidate the Distribution release.
     - id: reconcile-complete-v137-ledger
       title: Prove the complete adopter boundary
@@ -146,7 +147,7 @@ spec:
         - The exact Root-tag workflow_dispatch publishes or reconciles official npmjs latest through OIDC first, verifies its immutable identity and provenance, and only then promotes the matching Root Release to GitHub Latest.
         - The post-promotion adopter ledger adds official npmjs and proves Root tools, Framework, Admin, Admin Web, npmjs, both images, checksums, provenance, and Release notes agree on v1.3.7 and the reviewed release commit.
         - A subsequent reviewed reconciliation atomically updates currentStableVersion, currentStableCommit, adopter availability, and checked-in human and Agent source guidance as soon as the Distribution ledger and stable aliases are exact; it does not wait for Docs publication.
-        - Docs tag, Release, deployment, and public-site truth are reconciled separately from checked-in source guidance. A missing or failed website deployment is recorded as pending without changing Distribution stability. Any later site update preserves existing tags and uses a separately reviewed docsRevisionVersion plus docsRevisionCommit authorization for the lowest unused +docs.N tag.
+        - Docs tag, Release, deployment, and public-site truth are reconciled separately from checked-in source guidance. A missing or failed website deployment is recorded as pending without changing Distribution stability. Any later site update uses the controlled delete-then-recreate path for the same current-stable Docs tag.
   constraints:
     - id: merged-main-only
       type: operations
@@ -223,7 +224,7 @@ spec:
           value: Exact Framework, Admin, Admin Web, Root, image, Go Proxy, installer, and external Thin Host pre-promotion Distribution ledger; reviewed stablePromotionVersion and stablePromotionCommit; OIDC npm latest identity and provenance; subsequent GitHub Latest identity; complete post-promotion adopter ledger; and final current-stable policy evidence. Docs publication evidence is recorded separately and is non-blocking.
     - id: v137-docs-site-follow-up
       requirement: publish-docs-site-asynchronously
-      statement: When the website is published, a docs/v* tag identifies only that immutable site publication and retains Root-ancestor, merged-source, revision-order, protected-deployment, Release, release.json, and browser reconciliation safety without gating the Distribution.
+      statement: When the website is published, the same stable docs/vX.Y.Z tag is a replaceable website pointer. Replacement must delete the previous Docs Release and tag before recreating the same name at a newer qualified merged-main commit; direct tag movement is forbidden. Root ancestry, merged source, forward-only deployment, protected deployment, Release assets, release.json, and browser reconciliation remain required without gating the Distribution.
       level: integration
       phase: post-publication
       required: false
@@ -284,11 +285,11 @@ spec:
       those steps from its own docs/v* website tag and never delays them. Before
       any Docs publication, independently verify its exact tag, Root ancestor,
       merged source, protected deployment, Release assets, checksums, public
-      release.json, and browser state. If later content must replace an immutable
-      Docs tag, merge a separate reviewed authorization that sets
-      docsRevisionPublicationReady, binds docsRevisionVersion to the lowest unused
-      <stable-version>+docs.<N> identity, and binds docsRevisionCommit to that recorded source;
-      publish the website revision and disable the one-shot authority afterward.
+      release.json, and browser state. If later content must replace the website,
+      qualify the new merged-main Docs source, verify Docs governance, delete the
+      old Docs Release and tag, prove both are absent, and recreate the same
+      current-stable docs/vX.Y.Z tag at the recorded source. Do not create a
+      +docs.N identity or force-update the tag.
     rollback: >-
       Stop before the next Distribution tag on any Distribution gate failure.
       A Docs failure stops only the website publication and is recorded for
@@ -296,5 +297,5 @@ spec:
       Distribution components, stable aliases, currentStable, or adopter
       availability. Existing adopters use
       the matching v1.3.7 Admin, frontend, configuration, and lock. Never move a
-      public tag, complete v1.3.5 or v1.3.6, mix patch versions, or restore a
+      core public tag, complete v1.3.5 or v1.3.6, mix patch versions, or restore a
       stored npm publication token.

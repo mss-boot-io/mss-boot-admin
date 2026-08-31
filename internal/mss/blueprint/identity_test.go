@@ -182,9 +182,7 @@ spec:
         docs: docs/v1.3.6
         npm: "@mss-boot-io/admin-web@1.3.6"
   publicationWorkflowsReady: false
-  docsRevisionPublicationReady: false
-  docsRevisionVersion: disabled
-  docsRevisionCommit: disabled
+  docsTagMutable: true
   stablePromotionReady: false
   stablePromotionVersion: v1.1.0
   stablePromotionCommit: disabled
@@ -209,7 +207,7 @@ spec:
 	if policy.Spec.DistributionVersion != "v1.1.0" || policy.Spec.DistributionComponents != "root,framework,admin,frontend" || policy.Spec.AdminTagTemplate != "admin/{version}" {
 		t.Fatalf("Admin Distribution release contract = %#v", policy.Spec)
 	}
-	if policy.Spec.ReleaseTargetState != "active" || policy.Spec.DocsRevisionPublicationReady == nil || *policy.Spec.DocsRevisionPublicationReady || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.1.0" || policy.Spec.NpmPackageTemplate != "@mss-boot-io/admin-web@{npmVersion}" {
+	if policy.Spec.ReleaseTargetState != "active" || policy.Spec.DocsTagMutable == nil || !*policy.Spec.DocsTagMutable || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.1.0" || policy.Spec.NpmPackageTemplate != "@mss-boot-io/admin-web@{npmVersion}" {
 		t.Fatalf("extended release contract = %#v", policy.Spec)
 	}
 	tests := []struct {
@@ -226,13 +224,13 @@ spec:
 		{name: "missing Admin component", data: strings.Replace(valid, "root,framework,admin,frontend", "root,framework,frontend", 1), want: "distributionComponents"},
 		{name: "invalid Admin tag", data: strings.Replace(valid, "admin/{version}", "admin/v1.1.0", 1), want: "adminTagTemplate must contain exactly one {version} placeholder"},
 		{name: "invalid target state", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: pending", 1), want: "releaseTargetState must equal active or stopped"},
-		{name: "missing docs publication boolean", data: strings.Replace(valid, "  docsRevisionPublicationReady: false\n", "", 1), want: "boolean controls are required"},
+		{name: "missing docs publication boolean", data: strings.Replace(valid, "  docsTagMutable: true\n", "", 1), want: "boolean controls are required"},
 		{name: "missing stable promotion boolean", data: strings.Replace(valid, "  stablePromotionReady: false\n", "", 1), want: "boolean controls are required"},
-		{name: "missing lifecycle string", data: strings.Replace(valid, "  docsRevisionCommit: disabled\n", "", 1), want: "boolean controls are required"},
-		{name: "empty lifecycle string", data: strings.Replace(valid, "docsRevisionCommit: disabled", "docsRevisionCommit: \"\"", 1), want: "lifecycle authorization fields are required"},
+		{name: "missing lifecycle string", data: strings.Replace(valid, "  stablePromotionCommit: disabled\n", "", 1), want: "boolean controls are required"},
+		{name: "empty lifecycle string", data: strings.Replace(valid, "stablePromotionCommit: disabled", "stablePromotionCommit: \"\"", 1), want: "lifecycle authorization fields are required"},
 		{name: "promotion version mismatch", data: strings.Replace(valid, "stablePromotionVersion: v1.1.0", "stablePromotionVersion: v1.2.0", 1), want: "stablePromotionVersion must equal nextPublicVersion"},
 		{name: "promotion commit enabled early", data: strings.Replace(valid, "stablePromotionCommit: disabled", "stablePromotionCommit: 1111111111111111111111111111111111111111", 1), want: "stablePromotionCommit must be disabled"},
-		{name: "docs revision enabled early", data: strings.Replace(valid, "docsRevisionVersion: disabled", "docsRevisionVersion: v1.0.0+docs.1", 1), want: "docs revision authorization must be disabled"},
+		{name: "mutable docs disabled", data: strings.Replace(valid, "docsTagMutable: true", "docsTagMutable: false", 1), want: "docsTagMutable must remain true"},
 		{name: "stopped target version mismatch", data: strings.Replace(valid, "releaseTargetState: active", "releaseTargetState: stopped", 1), want: "stopped target must belong to immutableStoppedTrains"},
 		{name: "duplicate stopped version", data: strings.Replace(valid, "- version: v1.3.6", "- version: v1.3.5", 1), want: "duplicates version v1.3.5"},
 		{name: "abbreviated stopped commit", data: strings.Replace(valid, "b1fe47a3a83209574e09d53526b122dd2cbc5277", "b1fe47a3", 1), want: "commit must be a full commit"},
@@ -250,10 +248,13 @@ spec:
 	}
 
 	t.Run("legacy policy without lifecycle authorization remains compatible", func(t *testing.T) {
-		legacy := valid
+		legacy := strings.Replace(
+			valid,
+			"  docsTagMutable: true\n",
+			"  docsRevisionPublicationReady: false\n",
+			1,
+		)
 		for _, line := range []string{
-			"  docsRevisionVersion: disabled\n",
-			"  docsRevisionCommit: disabled\n",
 			"  stablePromotionReady: false\n",
 			"  stablePromotionVersion: v1.1.0\n",
 			"  stablePromotionCommit: disabled\n",
@@ -294,11 +295,17 @@ spec:
 	})
 
 	t.Run("docs revision exact binding", func(t *testing.T) {
+		legacy := strings.Replace(
+			valid,
+			"  docsTagMutable: true\n",
+			"  docsRevisionPublicationReady: false\n  docsRevisionVersion: disabled\n  docsRevisionCommit: disabled\n",
+			1,
+		)
 		ready := strings.NewReplacer(
 			"docsRevisionPublicationReady: false", "docsRevisionPublicationReady: true",
 			"docsRevisionVersion: disabled", "docsRevisionVersion: v1.0.0+docs.1",
 			"docsRevisionCommit: disabled", "docsRevisionCommit: 2222222222222222222222222222222222222222",
-		).Replace(valid)
+		).Replace(legacy)
 		for _, revision := range []string{"1", "999"} {
 			candidate := strings.Replace(ready, "+docs.1", "+docs."+revision, 1)
 			if _, err := decodeFoundationReleasePolicy([]byte(candidate)); err != nil {
@@ -336,7 +343,7 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode canonical release policy: %v", err)
 	}
-	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "disabled" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
+	if policy.Spec.DocsTagMutable == nil || !*policy.Spec.DocsTagMutable || policy.Spec.DocsRevisionPublicationReady != nil || policy.Spec.StablePromotionReady == nil || *policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
 		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
 	}
 	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || !*policy.Spec.PublicationWorkflowsReady {

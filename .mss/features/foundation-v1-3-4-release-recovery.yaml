@@ -2,16 +2,22 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-3-4-release-recovery
-  displayName: Foundation v1.3.4 package-first recovery release
+  displayName: v1.3.4 immutable partial release record
   description: >-
-    Recovers the coordinated package-first Admin Distribution after the
-    immutable v1.3.3 train stopped at the public Thin Host checksum gate, then
-    proves the corrected public v1.3.4 path with the external mss-shop app.
+    Records the immutable partial v1.3.4 train from
+    d9b210d6672800f84f6403496a3ae871fb2aea9f: Framework, Admin, and Admin Web
+    published, while pre-Root qualification rejected a Thin Host frozen lock that
+    discarded the frontend tarball URL; Root, Docs, and npmjs did not complete.
+    The remaining goals, requirements, acceptance, and rollout sections preserve
+    historical intent and evidence only; they are not current publication authority.
+    v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: complete-admin-distribution
+    current-stable-now: v1.3.7
     target-version: v1.3.4
-    release-status: preparation
+    release-status: immutable-partial
+    release-commit: d9b210d6672800f84f6403496a3ae871fb2aea9f
 spec:
   problem: >-
     The immutable v1.3.3 train published Framework, Admin, and Admin Web from
