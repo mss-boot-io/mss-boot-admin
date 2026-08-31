@@ -1,17 +1,14 @@
 ---
 title: 安全基线
 order: 7
-description: v1.3.7 候选 Admin 身份、授权、密钥、浏览器与供应链最低要求
+description: v1.3.7 稳定版 Admin 身份、授权、密钥、浏览器与供应链最低要求
 ---
 
-# v1.3.7 候选安全基线
+# v1.3.7 稳定版安全基线
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
-本页不是工具安装、应用创建、升级或部署指引。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或采用。
 :::
 
 ## 身份与会话
@@ -47,16 +44,21 @@ description: v1.3.7 候选 Admin 身份、授权、密钥、浏览器与供应�
 
 ## 供应链与发布
 
-- v1.3.5 已公开标签、组件 Release、包与镜像保持不可变，不补附缺失制品；
-- 原计划的 `SHA256SUMS.tools-v1.3.5` 只是一项未发布资产身份，不能用于安装；
-- 已公开 Go Module 的公共解析与完整发行资格必须区分；
-- 官方 npmjs 1.3.5 未发布，GitHub Packages 或本地 tarball 不能替代；
-- 未来完整版本从合入 `main` 的精确干净提交资格，并冻结标签、Release 和 digest。
+- v1.3.7 的 Root 工具、Go Module、官方 npmjs 包和多架构镜像都来自同一个精确
+  merged-main 提交；安装时固定版本或 digest，并核验 checksum、npm provenance 与来源；
+- v1.3.5 与 v1.3.6 是永久停止的部分发布列车，已公开标签、Release、包与镜像保持不可变，
+  不补附缺失制品，也不与 v1.3.7 混用；
+- v1.3.5 的 `SHA256SUMS.tools-v1.3.5` 只是未发布资产身份，v1.3.6 的 Root Release/工具
+  也不能补齐其失败的 Root image 与官方 npm；
+- GitHub Packages、本地 tarball、源码 checkout 或 `replace` 不能替代官方 npmjs 与公共
+  Go Module 对账；
+- Docs Tag 只发布网站，独立不可变且可异步候补，不参与组件完整性或采用门禁；
+- 后续完整版本同样必须从精确干净的 merged-main 提交资格，并冻结标签、Release 和 digest。
 
 ## 上线门禁
 
 Foundation 贡献者按 `.mss/commands.yaml` 运行源码诊断与验证；一般 `doctor`、`verify`
-合同可以保留，但这些结果不能证明 v1.3.5 下游工具或公共依赖可用。
+合同可以保留，但这些结果不能替代 v1.3.7 公共制品证据，也不能证明已停止列车可用。
 
 同时完成迁移、权限正反例、真实业务流程、浏览器控制台和回滚演练。任何绕过项必须明确
 记录为阻断或剩余风险。

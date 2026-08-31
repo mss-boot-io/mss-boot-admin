@@ -715,7 +715,37 @@ class CurrentDocsContractTest(unittest.TestCase):
             packages.write_text(
                 "go get github.com/mss-boot-io/mss-boot-admin/admin@v1.3.7\n"
                 "go get github.com/mss-boot-io/mss-boot-admin/mss-boot@v1.3.7\n"
-                "$previousGowork\nRemove-Item Env:GOWORK\n",
+                "set -eu\n"
+                "mktemp -d\n"
+                "trap - EXIT INT TERM\n"
+                "go mod init mss-boot-io.local/v137-public-consumer\n"
+                "$previousGowork\n[guid]::NewGuid()\n"
+                "New-Item -ItemType Directory -Path $consumerDir -ErrorAction Stop\n"
+                "Push-Location -LiteralPath $consumerDir -ErrorAction Stop\n"
+                "go mod init mss-boot-io.local/v137-public-consumer\n"
+                "$LASTEXITCODE -ne 0\n"
+                "$LASTEXITCODE -ne 0\n"
+                "$LASTEXITCODE -ne 0\n"
+                "$LASTEXITCODE -ne 0\n"
+                "Remove-Item Env:GOWORK\n"
+                "Remove-Item -LiteralPath $consumerDir -Recurse -Force\n",
+                encoding="utf-8",
+            )
+            (root / "README.md").write_text(
+                "existing external consumer module existing frontend package root "
+                "docs/docs/getting-started/packages.md\n"
+                "mss new app demo --module example.com/demo --destination ./demo --write --git-init\n",
+                encoding="utf-8",
+            )
+            (root / "README.zh-CN.md").write_text(
+                "已有外部 consumer module 的根目录 已有 frontend package 的根目录 "
+                "docs/docs/getting-started/packages.md\n"
+                "mss new app demo --module example.com/demo --destination ./demo --write --git-init\n",
+                encoding="utf-8",
+            )
+            quick_start = root / "docs/docs/getting-started/index.md"
+            quick_start.write_text(
+                "mss new app demo --module example.com/demo --destination ./demo --write --git-init\n",
                 encoding="utf-8",
             )
             docker = root / "docs/docs/admin/docker.md"
@@ -741,6 +771,40 @@ class CurrentDocsContractTest(unittest.TestCase):
             self.assertEqual(
                 check_current_docs.package_and_container_contract_errors(root), []
             )
+
+            valid_packages = packages.read_text(encoding="utf-8")
+            packages.write_text(
+                valid_packages.replace("$LASTEXITCODE -ne 0\n", "", 1),
+                encoding="utf-8",
+            )
+            errors = check_current_docs.package_and_container_contract_errors(root)
+            self.assertTrue(any("must fail fast" in error for error in errors))
+            packages.write_text(valid_packages, encoding="utf-8")
+
+            packages.write_text(
+                valid_packages.replace(" -ErrorAction Stop", "", 1),
+                encoding="utf-8",
+            )
+            errors = check_current_docs.package_and_container_contract_errors(root)
+            self.assertTrue(any("New-Item" in error for error in errors))
+            packages.write_text(valid_packages, encoding="utf-8")
+
+            readme = root / "README.md"
+            valid_readme = readme.read_text(encoding="utf-8")
+            readme.write_text(
+                valid_readme.replace("existing external consumer module", "Go packages"),
+                encoding="utf-8",
+            )
+            errors = check_current_docs.package_and_container_contract_errors(root)
+            self.assertTrue(any("separate existing package roots" in error for error in errors))
+            readme.write_text(valid_readme, encoding="utf-8")
+
+            quick_start.write_text(
+                "mss new app demo \\\n  --module example.com/demo \\\n  --destination ./demo \\\n  --write --git-init\n",
+                encoding="utf-8",
+            )
+            errors = check_current_docs.package_and_container_contract_errors(root)
+            self.assertTrue(any("single-line command" in error for error in errors))
 
             dockerfile.write_text("FROM golang:1.26 AS backend\n", encoding="utf-8")
             errors = check_current_docs.package_and_container_contract_errors(root)
@@ -792,7 +856,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             self.assertEqual(
                 check_current_docs.repository_context_errors(
                     root,
-                    immutable_stopped_versions=stopped_versions,
+                    state=candidate_state(),
                 ),
                 [],
             )
@@ -806,7 +870,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             obsolete = "\n".join(
                 check_current_docs.repository_context_errors(
                     root,
-                    immutable_stopped_versions=stopped_versions,
+                    state=candidate_state(),
                 )
             )
             self.assertIn("protected Root tag promotion", obsolete)
@@ -820,7 +884,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             self.assertEqual(
                 check_current_docs.repository_context_errors(
                     root,
-                    immutable_stopped_versions=stopped_versions,
+                    state=candidate_state(),
                 ),
                 [],
             )
@@ -847,7 +911,7 @@ class CurrentDocsContractTest(unittest.TestCase):
             joined = "\n".join(
                 check_current_docs.repository_context_errors(
                     root,
-                    immutable_stopped_versions=stopped_versions,
+                    state=candidate_state(),
                 )
             )
             self.assertIn("stopped-version adopter quick start", joined)

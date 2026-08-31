@@ -372,6 +372,11 @@ def load_policy(path: Path) -> dict[str, object]:
         )
     promotion_commit = policy["stablePromotionCommit"]
     if policy["stablePromotionReady"] is True:
+        if promotion_version == policy["currentStableVersion"]:
+            raise PolicyError(
+                "release policy stable promotion authorization is already consumed: "
+                "stablePromotionVersion must not equal currentStableVersion"
+            )
         if not isinstance(promotion_commit, str) or not re.fullmatch(
             r"[0-9a-f]{40}", promotion_commit
         ):
@@ -546,6 +551,11 @@ def check_public_ref(
         if policy["stablePromotionReady"] is not True:
             raise PolicyError(
                 "stable promotion remains disabled until a reviewed post-reconciliation policy binds it"
+            )
+        if policy["stablePromotionVersion"] == policy["currentStableVersion"]:
+            raise PolicyError(
+                "stable promotion authorization is already consumed because the target "
+                "is current stable"
             )
         if version != policy["stablePromotionVersion"]:
             raise PolicyError(

@@ -2,7 +2,7 @@
 title: mss-boot Admin 采用状态
 hero:
   title: mss-boot Admin
-  description: v1.3.2 当前稳定；v1.3.5/v1.3.6 永久停止；v1.3.7 是未稳定、不可采用的候选
+  description: v1.3.7 当前稳定；v1.3.5/v1.3.6 永久停止；Docs 网站独立异步发布
   actions:
     - text: 查看采用状态
       link: /getting-started
@@ -10,20 +10,20 @@ hero:
       link: /releases/v1-3-5
     - text: 查看 v1.3.6 部分发布
       link: /releases/v1-3-6
-    - text: 查看 v1.3.7 候选
+    - text: 查看 v1.3.7 稳定版
       link: /releases/v1-3-7
     - text: 人类与 Agent 文档边界
       link: /agent
 features:
   - title: Current stable
     emoji: ✅
-    description: v1.3.2 仍是当前稳定基线；稳定命令与资产只从该版本记录进入。
+    description: v1.3.7 是当前稳定基线；安装、创建与升级从快速开始进入。
   - title: Immutable partial
     emoji: 🧊
     description: v1.3.5 与 v1.3.6 各自公开了部分组件或 Root 身份，但都有缺失面，不能补发或拼装。
-  - title: Selected candidate
-    emoji: 🔒
-    description: v1.3.7 尚未稳定且不可采用；候选发布面可能分阶段公开，以远端台账为准。
+  - title: Independent Docs delivery
+    emoji: 📚
+    description: Docs 网站 Tag 与部署可异步候补，不阻断组件发布、稳定别名或采用。
 ---
 
 # 当前采用边界
@@ -37,15 +37,13 @@ v1.3.6 从 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admi
 Admin Web 与 Root Release/工具，但 Root image 和官方 npm 发布失败，Docs 未创建。它也
 是不可续的不可变部分发布，不能用 token、rerun 或 v1.3.7 源码补齐。
 
-v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于
-不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
-对账完成前，不得使用 v1.3.7 安装、创建或升级。Docs 网站通过 `docs/v*` 异步候补，其缺失或
-失败不影响 Distribution 稳定与采用边界。
+v1.3.7 已完成 Framework、Admin、Admin Web、Root、镜像、官方 npm、稳定别名与
+`currentStableVersion` 对账，是当前可采用的协调稳定发行版。Docs 网站通过 `docs/v*`
+独立异步发布；其缺失、延迟或失败不影响 Distribution 稳定与采用边界。
 :::
 
-当前稳定版本仍是 **v1.3.2**。需要可执行的稳定安装资料时，请从
-[v1.3.2 稳定记录](/releases/archive/v1-3-2)进入；不要把本页的部分列车组件事实解释为
-安装、创建或升级指引。
+当前稳定版本是 **v1.3.7**。需要可执行的安装、创建和升级资料时，请从
+[快速开始](/getting-started)进入；历史页只用于审计，不是采用入口。
 
 ## 按任务阅读
 
@@ -57,8 +55,8 @@ v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选 Dis
 | 了解 mss-shop 前置条件 | [mss-shop 范本采用状态](/getting-started/mss-shop) |
 | 审计 v1.3.5 事实 | [v1.3.5 不可变部分发布记录](/releases/v1-3-5) |
 | 审计 v1.3.6 事实 | [v1.3.6 不可变部分发布记录](/releases/v1-3-6) |
-| 阅读当前候选 | [v1.3.7 发布候选说明](/releases/v1-3-7) |
-| 查找当前稳定资料 | [v1.3.2 稳定记录](/releases/archive/v1-3-2) |
+| 阅读当前稳定记录 | [v1.3.7 发布说明](/releases/v1-3-7) |
+| 开始采用稳定版 | [v1.3.7 快速开始](/getting-started) |
 | 阅读其他历史版本 | [历史归档](/releases/archive) |
 
 ## 人类文档与 Agent 合同
@@ -73,5 +71,5 @@ v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选 Dis
 [Agent 协作](/agent)面向阅读文档的人，负责解释上述边界和导航；它不是 Agent 的
 隐藏提示词或可执行合同副本。机器事实变更必须先修改其权威源，再同步人类说明。
 
-配置、开发和 Agent 页面描述产品与仓库合同；在部分发布状态下，它们不能替代
-缺失的 Root、npmjs 与 Docs 发布证据。
+配置、开发和 Agent 页面描述产品与仓库合同。Docs 网站部署是独立的展示面，仓库内
+机器事实、组件发布台账和当前稳定策略仍是采用判断的权威来源。

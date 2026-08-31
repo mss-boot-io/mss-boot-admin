@@ -22,15 +22,26 @@ tag namespaces.
   equality check, but no longer reports a false failure after a successful
   publication solely because shell command substitution removed the final LF.
 
-## [v1.3.7] - 2026-08-29
+## [v1.3.7] - 2026-08-31
 
-Status: **release candidate / not stable or adoptable**. Candidate component
-surfaces can become public in stages; the remote release ledger is authoritative
-until stable promotion and final reconciliation complete. v1.3.7 is the new
-complete-distribution recovery identity after v1.3.6 became an immutable partial
-train. The current stable and rollback baseline remains v1.3.2. No v1.3.7
-installer, package, image, application-creation, or upgrade command is supported
-before one exact merged-main preview and full public reconciliation.
+Status: **published / current stable / adoptable**. Framework, Admin, Admin Web,
+Root tools, backend and frontend images, official npmjs, npm `latest`, GitHub
+Latest, and current-stable policy all reconcile to exact release commit
+`77b53d41092741eac62fa6418c0bdbf87413c7cd`. v1.3.7 completed the
+package-first Distribution recovery after v1.3.6 became immutable partial.
+Docs is an independent website publication and may be updated later without
+blocking components, stable aliases, current stable, or adoption.
+
+### Published identity
+
+- Framework: `mss-boot/v1.3.7`.
+- Admin: `admin/v1.3.7`.
+- Admin Web: `web/antd-v6/v1.3.7` and
+  `@mss-boot-io/admin-web@1.3.7` with Trusted Publishing provenance.
+- Root: `v1.3.7`, GitHub Latest, checksummed installers and six platform tool
+  archives.
+- OCI: exact v1.3.7 backend and frontend multi-architecture digests recorded in
+  the release notes.
 
 ### Fixed
 
@@ -68,10 +79,10 @@ before one exact merged-main preview and full public reconciliation.
   `b1fe47a3a83209574e09d53526b122dd2cbc5277` and preserve its successful
   Framework, Admin, Admin Web, and Root releases alongside the failed container
   and npm runs and absent Docs identity.
-- Require a new reviewed merged-main commit and one complete non-publishing
-  v1.3.7 preview before the first formal component tag. Any defect found after
-  a public v1.3.7 identity requires another unused patch version rather than a
-  late artifact or moved tag.
+- Use one reviewed merged-main commit and one complete non-publishing v1.3.7
+  preview before the first formal component tag. Any later source repair must
+  use another unused patch version rather than a late artifact or moved tag;
+  website-only corrections use the independent immutable Docs revision path.
 
 ## [v1.3.6] - 2026-08-27
 

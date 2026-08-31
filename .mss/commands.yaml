@@ -245,8 +245,8 @@ spec:
       idempotent: true
 
     framework-admin-checksum-verify:
-      command: python3 tools/release/verify_framework_admin_checksum.py --version <version> [--write]
-      description: Fail closed on source drift, generate replace-free local Go proxies from exact HEAD blobs, and verify or deterministically refresh the approved Framework-to-Admin-to-Thin-Host checksum metadata.
+      command: python3 tools/release/verify_framework_admin_checksum.py --version <version> [--source-mode <candidate|current-stable>] [--write]
+      description: Default to a strict exact-HEAD candidate check. Current-stable mode is read-only, derives its immutable source commit only from the canonical release policy, requires the Root, Framework, and Admin tags to peel to that commit, and compares current adopter metadata with the published component trees; the asynchronous Docs website tag is deliberately outside this gate. Metadata refresh is allowed only for the active future candidate declared by policy.
       outputFormats: [json]
       category: release
       idempotent: true

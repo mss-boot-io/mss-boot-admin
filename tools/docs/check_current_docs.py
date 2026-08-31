@@ -1091,11 +1091,67 @@ def package_and_container_contract_errors(
         for marker in (
             f"go get github.com/mss-boot-io/mss-boot-admin/admin@{version}",
             f"go get github.com/mss-boot-io/mss-boot-admin/mss-boot@{version}",
+            "set -eu",
+            "mktemp -d",
+            "trap - EXIT INT TERM",
+            "go mod init mss-boot-io.local/v137-public-consumer",
             "$previousGowork",
+            "[guid]::NewGuid()",
+            "New-Item -ItemType Directory -Path $consumerDir -ErrorAction Stop",
+            "Push-Location -LiteralPath $consumerDir -ErrorAction Stop",
+            "$LASTEXITCODE -ne 0",
             "Remove-Item Env:GOWORK",
+            "Remove-Item -LiteralPath $consumerDir -Recurse -Force",
         ):
             if marker not in text:
                 errors.append(f"{packages.relative_to(root)}: package contract is missing {marker}")
+        if text.count("go mod init mss-boot-io.local/v137-public-consumer") < 2:
+            errors.append(
+                f"{packages.relative_to(root)}: POSIX and PowerShell consumers must each initialize an external Go module"
+            )
+        if text.count("$LASTEXITCODE -ne 0") < 4:
+            errors.append(
+                f"{packages.relative_to(root)}: every PowerShell Go command must fail fast"
+            )
+    if require_adopter_packages:
+        consumer_contexts = (
+            (
+                Path("README.md"),
+                ("existing external consumer module", "existing frontend package root"),
+            ),
+            (
+                Path("README.zh-CN.md"),
+                ("已有外部 consumer module 的根目录", "已有 frontend package 的根目录"),
+            ),
+        )
+        for relative, context_markers in consumer_contexts:
+            path = root / relative
+            if not path.is_file():
+                errors.append(f"missing adopter package context: {relative}")
+                continue
+            text = path.read_text(encoding="utf-8")
+            normalized_text = re.sub(r"\s+", " ", text)
+            for marker in (*context_markers, "docs/docs/getting-started/packages.md"):
+                if marker not in normalized_text:
+                    errors.append(
+                        f"{relative}: Go and npm commands must name their separate existing package roots and link the external procedure"
+                    )
+        for relative in (
+            Path("README.md"),
+            Path("README.zh-CN.md"),
+            Path("docs/docs/getting-started/index.md"),
+        ):
+            path = root / relative
+            if not path.is_file():
+                errors.append(f"missing adopter quick start: {relative}")
+                continue
+            text = path.read_text(encoding="utf-8")
+            if re.search(r"(?m)^mss new app [^\n]*\\\s*$", text) or not re.search(
+                r"(?m)^mss new app [^\\\n]+--write --git-init\s*$", text
+            ):
+                errors.append(
+                    f"{relative}: mss new app must use a PowerShell/POSIX-safe single-line command"
+                )
     docker = root / "docs/docs/admin/docker.md"
     if docker.is_file():
         text = docker.read_text(encoding="utf-8")
@@ -1132,19 +1188,26 @@ def package_and_container_contract_errors(
 
 
 def repository_context_errors(
-    root: Path, *, immutable_stopped_versions: tuple[str, ...]
+    root: Path, *, state: ReleaseDocumentationState
 ) -> list[str]:
     """Reject stale monorepo, contributor, release, and user-visible context."""
 
     errors: list[str] = []
+    immutable_stopped_versions = state.immutable_stopped_versions
+    version = state.distribution_version
     contributor = root / "CONTRIBUTING.md"
     if not contributor.is_file():
         errors.append("missing Foundation contributor contract: CONTRIBUTING.md")
     else:
         text = contributor.read_text(encoding="utf-8")
+        release_markers = (
+            (f"{version} 已完成组件", "是当前可采用版本")
+            if state.operational_onboarding_allowed
+            else (f"{state.current_stable_version} 稳定记录",)
+        )
         for marker in (
-            *(f"{version} 已永久停止" for version in immutable_stopped_versions),
-            "v1.3.2 稳定记录",
+            *(f"{stopped} 已永久停止" for stopped in immutable_stopped_versions),
+            *release_markers,
             "本文只适用于修改 Foundation 本身的贡献者",
             "go run ./cmd/mss context",
             "go run ./cmd/mss verify --changed",
@@ -1170,20 +1233,35 @@ def repository_context_errors(
         errors.append("missing monorepo release contract: MONOREPO.md")
     else:
         normalized = " ".join(monorepo.read_text(encoding="utf-8").split())
+        release_markers = (
+            (
+                f"{version} is the current stable and adoptable Distribution",
+                f"The {version} release ran one non-publishing Root preview",
+                "Framework, Admin, Admin Web, and Root tags were then published in order",
+                "Stable promotion was a separate reviewed policy decision",
+                f"manually dispatched `npm-release.yml` from the exact `{version}` Root tag",
+                "did the workflow promote the exact Root Release to GitHub Latest",
+                "final current-stable policy reconciliation advanced current stable",
+            )
+            if state.operational_onboarding_allowed
+            else (
+                "one non-publishing Root preview",
+                "Framework, Admin, and Admin Web tags in order",
+                "Root tag starts only the Root Release and backend-image candidate",
+                f"GitHub Latest and npmjs `latest` remain {state.current_stable_version}",
+                "Stable promotion is a separate reviewed policy decision",
+                f"manually dispatch `npm-release.yml` from the exact `{version}` Root tag",
+                "promote the exact Root Release to GitHub Latest",
+                "final current-stable policy reconciliation follows through another PR",
+            )
+        )
         for marker in (
             *(
-                f"{version} is permanently stopped as an immutable partial release"
-                for version in immutable_stopped_versions
+                f"{stopped} is permanently stopped as an immutable partial release"
+                for stopped in immutable_stopped_versions
             ),
-            "one non-publishing Root preview",
-            "Framework, Admin, and Admin Web tags in order",
-            "Root tag starts only the Root Release and backend-image candidate",
-            "GitHub Latest and npmjs `latest` remain v1.3.2",
-            "Stable promotion is a separate reviewed policy decision",
-            "manually dispatch `npm-release.yml` from the exact `v1.3.7` Root tag",
+            *release_markers,
             "npm publish --tag latest --provenance",
-            "promote the exact Root Release to GitHub Latest",
-            "final current-stable policy reconciliation follows through another PR",
             "do not repeat expensive qualification",
         ):
             if marker not in normalized:
@@ -1427,7 +1505,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
     errors.extend(
         repository_context_errors(
             root,
-            immutable_stopped_versions=state.immutable_stopped_versions,
+            state=state,
         )
     )
 
@@ -1488,12 +1566,23 @@ def collect_errors(root: Path = ROOT) -> list[str]:
                 f"{ARCHIVE_PREFIX}: expected {sorted(REQUIRED_ARCHIVE_PAGES)}, "
                 f"found {sorted(actual_archive_pages)}"
             )
-        for page in sorted(archive.glob("v*.md")):
+        for page in sorted(archive.glob("*.md")):
             text = page.read_text(encoding="utf-8")
-            if version not in text or "/getting-started" not in text:
+            banner = "\n".join(text.splitlines()[:24])
+            if state.current_stable_version not in banner or "/getting-started" not in banner:
                 errors.append(
                     f"{page.relative_to(root)}: missing read-only historical banner"
                 )
+            if state.operational_onboarding_allowed:
+                expected_stable = f"当前稳定版是 {state.current_stable_version}"
+                stale_markers = ("当前稳定版仍为", "未稳定、不可采用", "候选采用页")
+                if expected_stable not in banner or any(
+                    marker in banner for marker in stale_markers
+                ):
+                    errors.append(
+                        f"{page.relative_to(root)}: historical banner must point to "
+                        f"current stable {state.current_stable_version}, not candidate state"
+                    )
 
     adr_root = root / "docs/adr"
     adr_pages = sorted(adr_root.glob("*.md"))

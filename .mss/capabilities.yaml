@@ -741,8 +741,8 @@ spec:
         - internal/mss
         - tools/install
       guidance: >-
-        The v1.3.7 candidate bundle is intended to distribute checksummed cross-platform tools with
-        embedded release provenance and the matching application Blueprint; only a completely
+        The v1.3.7 stable bundle distributes checksummed cross-platform tools with
+        embedded release provenance and the matching application Blueprint. This completely
         reconciled public bundle creates complete Thin Hosts
         outside a Foundation checkout and upgrades them by exact Admin Distribution version. Exact
         `go install` of cmd/mss and cmd/mss-mcp remains a public command-package compilation path, but
@@ -787,8 +787,8 @@ spec:
         documentation, and semantic browser E2E. The Supplier plan is complete with zero deferred
         projections and is exercised through repository-external Thin Host generation, build,
         authorization, browser, upgrade, preservation, and two-run idempotency gates. Exact
-        v1.3.7 public Go and npm consumption plus the package-first mss-shop exemplar are the current
-        qualification target. Keep the capability beta until that second
+        v1.3.7 public Go and npm consumption now form the stable baseline; the package-first
+        mss-shop exemplar remains the next qualification target. Keep the capability beta until that second
         representative domain proves the schema without weakening deterministic or
         generated/custom ownership boundaries.
 
@@ -822,7 +822,7 @@ spec:
         consume them through coordinated versioned dependencies and add only compile-time modules and
         pages. The external Supplier host has passed GOWORK=off backend, local npm tarball,
         one-runtime, deterministic Thin Host generation and upgrade, authorization, and browser E2E
-        gates; v1.3.0-rc.6 and stable v1.3.2 remain immutable historical evidence. The v1.3.3
+        gates; v1.3.0-rc.6 and the previous stable v1.3.2 remain immutable historical evidence. The v1.3.3
         partial train stopped before root, Docs, and npmjs publication and cannot be reused. The
         v1.3.4 partial train published Framework, Admin, and Admin Web from
         d9b210d6672800f84f6403496a3ae871fb2aea9f, but Root, Docs, and npmjs remained unpublished
@@ -831,9 +831,9 @@ spec:
         stopped after partial publication and cannot be continued. v1.3.6 then published Framework,
         Admin, Admin Web, and Root from b1fe47a3a83209574e09d53526b122dd2cbc5277, while the
         Root image and npm publication failed and Docs was never created; it is also an immutable
-        partial train. The active v1.3.7 target removes
+        partial train. The current stable v1.3.7 Distribution removes
         the Foundation-checkout dependency from application creation and Distribution upgrade, and
-        requires public Go/npm resolution plus post-publication reconciliation. The capability
+        has completed public Go/npm resolution plus post-publication reconciliation. The capability
         remains beta until a
         second representative domain and a later stable-to-stable Thin Host upgrade prove the
         extension and upgrade boundaries again.
@@ -855,7 +855,7 @@ spec:
       paths:
         - cmd/mss-mcp
         - tools/install
-      guidance: The v1.3.7 candidate tool archive installs mss-mcp beside mss after complete Distribution stable promotion and current-stable policy reconciliation; Docs website publication is asynchronous and non-blocking. The server remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
+      guidance: The v1.3.7 stable tool archive installs mss-mcp beside mss from the public Root Release; Distribution stable promotion and current-stable policy reconciliation are complete, while Docs website publication remains asynchronous and non-blocking. The server is a thin protocol adapter over stable CLI packages and write tools default to dry-run.
 
     - id: agent.evals
       displayName: Agent Task Evaluations
@@ -952,7 +952,7 @@ spec:
       guidance: >-
         Treat Unreleased, planned, preview, branches, and local workspace replacements as non-stable.
         Published historical versions remain immutable and their candidate evidence is not reusable.
-        v1.3.2 remains the immutable current stable train, and v1.3.3 remains immutable
+        v1.3.7 is the current stable train; v1.3.2 remains immutable previous-stable history, and v1.3.3 remains immutable
         partial-publication evidence that cannot authorize a later repair. v1.3.4 is also immutable
         partial-publication evidence: Framework, Admin, and Admin Web were published from
         d9b210d6672800f84f6403496a3ae871fb2aea9f, while Root, Docs, and npmjs were not published after
@@ -964,14 +964,16 @@ spec:
         b1fe47a3a83209574e09d53526b122dd2cbc5277, but its Root image and official npm workflows
         failed and Docs was never created. It is an immutable partial train and must not be continued;
         npm recovery uses the exact Trusted Publisher binding and never restores NPM_TOKEN. The
-        reviewed active v1.3.7 version must be built from one exact clean merged-main commit. Pull
+        reviewed v1.3.7 stable version was built from one exact clean merged-main commit. Pull
         requests keep only fast required contexts; the complete local `mss verify --all
         --release-evidence --expect-commit <sha>` result is externally recorded against the full
         commit and tracked-clean state. The Root candidate workflow then stages exact immutable
         artifacts instead of replaying broad quality suites. Formal Framework, Admin, frontend, and
         Root tags created by lwnmengjing publish automatically; the Admin release uniquely resolves
-        the exact public Framework with `GOWORK=off`, while the Root tag also starts the image and
-        official npm workflows and Docs follows later from its independent tag. Reconcile public Go,
-        npm, GitHub Release, image, Docs, and installed-consumer probes. Any repair requires a
+        the exact public Framework with `GOWORK=off`, while the Root tag starts the image. After
+        separately reviewed promotion authority, official npm is manually dispatched from the exact
+        Root tag and Docs follows independently without gating the Distribution. Reconcile public Go,
+        npm, GitHub Release, images, stable aliases, and installed-consumer probes; reconcile Docs on
+        its own site ledger. Any repair requires a
         follow-up PR and a new merged-main commit; no workflow may mutate an already-public Release
         or reuse historical evidence.

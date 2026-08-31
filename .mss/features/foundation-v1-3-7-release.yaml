@@ -4,15 +4,18 @@ metadata:
   name: foundation-v1-3-7-release
   displayName: Foundation v1.3.7 complete release recovery
   description: >-
-    Qualifies a new complete package-first Admin Distribution after v1.3.6
-    became immutable partial, with an explicit reusable-container preview mode
-    and exact credentialless npm Trusted Publishing identity, plus a separately
-    reviewed stable-alias promotion after the complete public Distribution candidate exists.
+    Records the complete package-first Admin Distribution published as v1.3.7
+    after v1.3.6 became immutable partial, including explicit reusable-container
+    preview mode, credentialless npm Trusted Publishing, reviewed stable aliases,
+    and final current-stable reconciliation.
   owner: release-engineering
   labels:
     domain: release-recovery
     target-version: v1.3.7
-    release-status: candidate
+    release-status: stable
+    current-stable: v1.3.7
+    release-commit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
+    published-date: "2026-08-31"
 spec:
   problem: >-
     v1.3.6 published Framework, Admin, Admin Web, and Root releases from commit
@@ -23,7 +26,7 @@ spec:
     merged-main commit must prove the Distribution corrections and rerun its
     complete coordinated ledger; Docs follows independently as a website publication.
   goals:
-    - Select v1.3.7 as the only active candidate while v1.3.2 remains current stable.
+    - Record v1.3.7 as the current stable Distribution after the complete candidate, npm, and stable-alias ledger succeeded.
     - Separate human-facing guidance from executable Agent contracts and validate each documentation change on its own path without making Docs evidence a Root candidate-preview prerequisite.
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
@@ -35,18 +38,18 @@ spec:
     - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
     - Create a v1.3.7 release-candidate tag or any other public prerelease while publicPrereleases remains false.
     - Restore NPM_TOKEN or NODE_AUTH_TOKEN in repository, organization, or environment secrets.
-    - Mark v1.3.7 stable or expose adopter commands before the complete Distribution ledger, reviewed stable promotion, and final current-stable policy reconciliation.
+    - Bypass or erase the completed Distribution ledger, reviewed stable promotion, and final current-stable policy reconciliation that authorized v1.3.7 adoption.
     - Reintroduce runtime dynamic-model, virtual CRUD, browser code generation, or remote executable presentation configuration.
   actors:
     - id: release-operator
       displayName: Release operator
-      description: lwnmengjing freezes the exact merged-main commit, runs the preview, creates candidate tags in order, and later dispatches the reviewed stable promotion from the exact Root tag.
+      description: lwnmengjing froze the exact merged-main commit, ran the preview, created tags in order, and dispatched the reviewed stable promotion from the exact Root tag.
     - id: independent-reviewer
       displayName: Independent reviewer
       description: SullivanPrime reviews the repair pull request and exact Head evidence but does not create release identities.
     - id: thin-host-adopter
       displayName: Thin Host adopter
-      description: May consume v1.3.7 only after every required Distribution surface and stable identity reconciles; Docs may remain pending.
+      description: May consume v1.3.7 because every required Distribution surface and stable identity reconciles; Docs may remain pending.
   modules:
     - name: release-governance
       kind: infrastructure
@@ -62,15 +65,15 @@ spec:
       description: Checksummed tools, Go modules, Admin Web package, images, and external Thin Host qualification; the Docs website is tracked independently.
   requirements:
     - id: select-unused-v137
-      title: Select a new exact candidate identity
-      description: v1.3.7 is the sole active candidate and every partial or stable predecessor remains immutable.
+      title: Select and preserve one exact release identity
+      description: v1.3.7 was the sole active candidate and is now current stable; every partial or stable predecessor remains immutable.
       priority: must
       actor: release-operator
       module: release-governance
       rules:
         - Remote Root, Framework, Admin, Admin Web, npmjs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before Distribution qualification and publication; Docs identity is checked only before its own website tag.
         - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
-        - v1.3.2 remains current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
+        - v1.3.7 is current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
         - publicPrereleases remains false, so v1.3.7 uses the exact stable-form version only and no rc tag or public prerelease is created.
         - A failed gate requires another pull request, another merged-main commit, and a new unused patch version after any v1.3.7 public identity exists.
     - id: pass-root-image-preview-mode
@@ -138,7 +141,7 @@ spec:
       rules:
         - Before promotion, Root tools, Framework, Admin, Admin Web, Root and frontend images, checksums, provenance, and Release notes resolve to the same version and release commit; official npmjs is deliberately absent from this pre-promotion Distribution ledger, and Docs is outside it.
         - Empty-directory installers and external Thin Hosts reject local replacements, copied Foundation source, mixed versions, and mutable image references.
-        - Fresh and v1.3.2 upgrade migrations, authorization positive and negative cases, browser states, presentation recovery mode, and matching-pair rollback pass from release artifacts.
+        - Fresh and previous-stable upgrade migrations, authorization positive and negative cases, browser states, presentation recovery mode, and matching-pair rollback pass from release artifacts.
         - After the immutable Root, component, and image Distribution ledger is complete, a separate reviewed pull request sets stablePromotionReady and binds stablePromotionVersion v1.3.7 plus the exact release commit; this authorization never depends on a Docs tag, Release, deployment, credential, or public site response.
         - The exact Root-tag workflow_dispatch publishes or reconciles official npmjs latest through OIDC first, verifies its immutable identity and provenance, and only then promotes the matching Root Release to GitHub Latest.
         - The post-promotion adopter ledger adds official npmjs and proves Root tools, Framework, Admin, Admin Web, npmjs, both images, checksums, provenance, and Release notes agree on v1.3.7 and the reviewed release commit.
@@ -169,7 +172,7 @@ spec:
   acceptance:
     - id: v137-policy-and-vacancy
       requirement: select-unused-v137
-      statement: Policy accepts only exact v1.3.7 publication with public prereleases disabled, publication workflows ready, stable promotion disabled, and no conflicting remote identity.
+      statement: Policy records exact v1.3.7 current stable with public prereleases disabled, publication workflows ready, consumed stable promotion disabled, and no conflicting remote identity.
       level: contract
       phase: checkpoint
       required: true
@@ -284,14 +287,14 @@ spec:
       release.json, and browser state. If later content must replace an immutable
       Docs tag, merge a separate reviewed authorization that sets
       docsRevisionPublicationReady, binds docsRevisionVersion to the lowest unused
-      v1.3.7+docs.N identity, and binds docsRevisionCommit to that recorded source;
+      <stable-version>+docs.<N> identity, and binds docsRevisionCommit to that recorded source;
       publish the website revision and disable the one-shot authority afterward.
     rollback: >-
       Stop before the next Distribution tag on any Distribution gate failure.
       A Docs failure stops only the website publication and is recorded for
       asynchronous follow-up; it never rolls back or invalidates published
       Distribution components, stable aliases, currentStable, or adopter
-      availability. Existing adopters remain on
-      the matching v1.3.2 Admin, frontend, configuration, and lock. Never move a
+      availability. Existing adopters use
+      the matching v1.3.7 Admin, frontend, configuration, and lock. Never move a
       public tag, complete v1.3.5 or v1.3.6, mix patch versions, or restore a
       stored npm publication token.

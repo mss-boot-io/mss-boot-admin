@@ -453,6 +453,9 @@ func decodeFoundationReleasePolicy(data []byte) (foundationReleasePolicy, error)
 			return foundationReleasePolicy{}, errors.New("committed foundation release policy stablePromotionVersion must equal nextPublicVersion")
 		}
 		if *policy.Spec.StablePromotionReady {
+			if promotionRaw == currentRaw {
+				return foundationReleasePolicy{}, errors.New("committed foundation stable promotion authorization is already consumed because the target is current stable")
+			}
 			if !*policy.Spec.PublicationWorkflowsReady {
 				return foundationReleasePolicy{}, errors.New("committed foundation publication workflows must remain ready during stable promotion")
 			}

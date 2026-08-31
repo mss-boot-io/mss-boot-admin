@@ -10,10 +10,9 @@ must describe the same behavior.
 
 Release-state baseline for this source-only contributor guide: v1.3.5 and
 v1.3.6 are permanently stopped immutable partial trains. The reviewed release
-policy is authoritative for the current stable version. v1.3.7 is the selected
-release train; candidate Distribution surfaces may become public in stages, but
-it is not adoptable until stable aliases and final current-stable policy
-reconciliation complete. Docs is asynchronous and non-blocking: its `docs/v*`
+policy is authoritative for the current stable version. v1.3.7 has completed
+its Distribution surfaces, stable aliases, and final current-stable policy
+reconciliation and is adoptable. Docs is asynchronous and non-blocking: its `docs/v*`
 tag identifies only website publication, and its absence or failure never gates
 Distribution components, aliases, current stable, or adopter availability.
 
@@ -35,7 +34,7 @@ newer train.
   `release.json`, and browser verification without making those checks a
   Distribution release prerequisite.
 - Use a Conventional Commits title, for example
-  `docs(release): prepare v1.3.7 candidate status`.
+  `docs(release): reconcile v1.3.7 stable guidance`.
 - State the applicable version, branch, or commit for current-behavior claims.
 - Use repository-relative source paths and links. Public GitHub links must point
   to `mss-boot-io/mss-boot-admin` unless the target is genuinely external.

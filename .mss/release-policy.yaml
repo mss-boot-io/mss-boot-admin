@@ -6,8 +6,8 @@ spec:
   mode: development-first
   releaseBranch: main
   requireMergedPullRequestSource: true
-  currentStableVersion: v1.3.2
-  currentStableCommit: 635fbb03a82976941e527d8ac1000fec0624abac
+  currentStableVersion: v1.3.7
+  currentStableCommit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
   nextPublicVersion: v1.3.7
   distributionVersion: v1.3.7
   distributionComponents: "root,framework,admin,frontend"
@@ -35,9 +35,9 @@ spec:
   docsRevisionPublicationReady: false
   docsRevisionVersion: disabled
   docsRevisionCommit: disabled
-  stablePromotionReady: true
+  stablePromotionReady: false
   stablePromotionVersion: v1.3.7
-  stablePromotionCommit: 77b53d41092741eac62fa6418c0bdbf87413c7cd
+  stablePromotionCommit: disabled
   publicPrereleases: false
   rootTagTemplate: "{version}"
   frameworkTagTemplate: "mss-boot/{version}"

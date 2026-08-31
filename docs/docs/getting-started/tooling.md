@@ -1,55 +1,84 @@
 ---
-title: v1.3.7 候选工具发布状态
+title: v1.3.7 工具与 MCP
 order: 3
-description: v1.3.7 未稳定 mss/mss-mcp 候选与 v1.3.5/v1.3.6 永久停止工具边界
-keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate mss mss-mcp immutable partial]
+description: v1.3.7 正式 mss、mss-mcp 安装来源、版本验证和客户端配置
+keywords: [v1.3.7 stable mss mss-mcp MCP stdio]
 ---
 
-# v1.3.7 候选工具发布状态
+# v1.3.7 工具与 MCP
 
-:::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止且缺少完整公共工具链；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。`mss`、`mss-mcp`、安装器和校验和可能处于
-不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
-对账完成前，本页不提供安装、创建、开发、验证或升级命令。Docs 网站可异步候补且不阻断
-该采用门禁。
-:::
+v1.3.7 Root Release 同时发布 `mss` 与 `mss-mcp`。两个二进制内置同源
+`management-system` Blueprint，并在 `--version` 中报告 v1.3.7、完整提交和构建时间。
+安装器、归档与校验和必须来自同一个 Root Release；Docs 网站可独立候补，不参与工具
+完整性判断。
 
-## 实际结果
+v1.3.5 与 v1.3.6 已永久停止为不可变部分发布；它们的工具或缺失发布面不能与 v1.3.7
+混用，也不能用源码编译结果补齐。
 
-v1.3.5 原候选合同计划在 Root Release 中提供 Linux、macOS 与 Windows 的 amd64/arm64
-工具归档、安装器、校验和和构建来源证明，但这些资产均未发布。v1.3.6 的 Root Release
-和工具资产已公开，但其 Root image 与官方 npm 发布失败、Docs 未创建，因此工具不能把
-该版本变成完整 Thin Host 发行版。源码命令或旧版本二进制也不能补齐对应公共依赖。
+## 安装与验证
 
-因此，以下能力在 v1.3.5 上只能视为未发布的产品合同，不能作为采用者入口：
+按照[快速开始](/getting-started)下载 `install-mss.sh` 或 `install-mss.ps1`。安装器先
+验证 `SHA256SUMS.tools-v1.3.7`，再同时替换两个命令。完成后运行：
 
-| 工具 | 未来完整发行中的职责 | v1.3.5 状态 |
-| --- | --- | --- |
-| `mss` | 创建、诊断、依赖安装、开发编排、生成、验证与三方升级 | Root 资产缺失 |
-| `mss-mcp` | 向 MCP 客户端暴露相同的确定性、路径受限和默认 dry-run 能力 | Root 资产缺失 |
+```shell
+mss --version
+mss-mcp --version
+```
 
-v1.3.6 的 `mss` 与 `mss-mcp` 资产只保留为不可变发布证据。由于协调发行缺失官方 npm、
-Root image 与 Docs，本页不提供用这些工具创建或升级 Thin Host 的采用命令，也不允许用
-本地包或 v1.3.7 候选源码补齐其依赖图。
+版本、源提交或构建时间不一致时停止使用；不要从 Foundation checkout 临时编译一个
+二进制与正式另一个二进制混用。
 
-## 未来工具的完整性边界
+## `mss` 的人类入口
 
-未来完整版本的工具必须来自该版本 Root Release，且归档摘要、版本、源提交和构建证明
-完全一致。安装过程需先校验归档再替换目标文件，不依赖管理员权限，不修改用户 shell
-配置，也不能把内部发布辅助程序暴露为公共工具。
+`mss` 将创建、诊断、依赖安装、开发编排、规格生成、验证和三方升级收敛为确定性命令。
+常用路径是：
 
-应用创建与 Distribution 升级还必须绑定同一 Release 中的 Blueprint 来源；单独从源码
-编译二进制不能证明这条来源链，必须失败关闭。
+```shell
+mss new app example-admin --module github.com/example/example-admin --destination ./example-admin
+mss new app example-admin --module github.com/example/example-admin --destination ./example-admin --write --git-init
+cd example-admin
+mss doctor --strict
+mss setup
+mss dev --detach
+mss verify --all
+```
 
-## MCP 合同（非部分列车使用指引）
+计划默认只读；会写文件的操作需要显式标志。目标路径受限，未知文件和冲突应失败关闭。
 
-未来的 `mss-mcp` 是 stdio 服务器，并继承 CLI 的路径限制、敏感信息脱敏和默认 dry-run
-规则。客户端通过 MCP 协议的 `tools/list` 发现能力；空目录最多允许
-`mss_plan_application` 返回只读计划。需要项目上下文的能力必须以包含有效
-`.mss/project.yaml` 的 Thin Host 为根，缺失时直接失败，不能猜测 Foundation 源码位置。
+## MCP 协议合同
 
-这些描述只定义产品安全边界，不表示任一部分列车已有完整可采用的 MCP 路径。证据见
-[v1.3.5 不可变部分发布记录](/releases/v1-3-5) 与
-[v1.3.6 不可变部分发布记录](/releases/v1-3-6)，当前稳定入口见
-[v1.3.2 稳定记录](/releases/archive/v1-3-2)。
+`mss-mcp` 是使用标准输入和标准输出通信的 **stdio** 长驻服务器。MCP 客户端先调用
+`tools/list` 核对能力清单。空目录最多允许 `mss_plan_application` 返回新应用的只读
+计划；规格、生成、验证与升级工具需要工作根中存在有效 `.mss/project.yaml`。
+
+下面是客户端配置结构示例。把路径换成目标 Thin Host 的绝对路径；创建新应用时可改为
+一个专用空目录。不要把 Foundation 源码位置或密钥放入配置。
+
+```json
+{
+  "mcpServers": {
+    "mss": {
+      "command": "mss-mcp",
+      "args": ["--root", "/absolute/path/to/example-admin"]
+    }
+  }
+}
+```
+
+启动后用客户端的 MCP inspector 或协议日志确认 initialize 和 `tools/list` 成功。协议
+消息只走 stdout；诊断写 stderr。MCP 写工具继续遵守 dry-run、显式确认、路径限制、未知
+文件拒绝、参数校验和敏感信息脱敏，不因 Agent 调用而获得额外权限。
+
+## 权威与排错
+
+在 Thin Host 内，Agent 先读该仓库自己的 `AGENTS.md`、`.mss/` 和本地 Skills，再选择
+工具；公共网页只是给人类解释这些合同。若客户端能启动但项目工具不可用，依次检查：
+
+1. `mss-mcp --version` 是否精确为 v1.3.7；
+2. `--root` 是否指向预期绝对目录；
+3. 目录是否包含有效 `.mss/project.yaml`；
+4. `tools/list` 返回的名称与当前工具一致；
+5. stderr 是否给出路径、规格或冲突错误。
+
+不要用长期 token、生产配置或本地 `replace` 让检查通过。Foundation 维护工作和 Thin Host
+业务工作具有不同的 Skills 集合，详见[Skills 与 MCP](/agent/skills-and-mcp)。

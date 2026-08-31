@@ -22,6 +22,7 @@ EXPECTED_FRAMEWORK_SUM = "h1:5ZA4aTgFSYIzZuSXG8an1HqssdO6PoxrHdNDhHMPvng="
 EXPECTED_FRAMEWORK_GO_MOD_SUM = "h1:qejH+UcGKJRwGtMQisbYCLg7nYf4TEOe/h6fGJ1nK7Q="
 EXPECTED_ADMIN_SUM = "h1:sQl2Q58DVYF1NTikN8OhUcnbyF949TtU1hbyyLaTSQU="
 EXPECTED_ADMIN_GO_MOD_SUM = "h1:v/KJqYYGo5PYW4PNHnctx3ujxQ5yzt8/ZgD/MmUyzxs="
+EXPECTED_RELEASE_COMMIT = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
 
 
 class FrameworkAdminChecksumTest(unittest.TestCase):
@@ -77,8 +78,46 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
         self._git(root, "add", ".")
         self._git(root, "commit", "-qm", "fixture")
 
-    def test_final_repository_tree_matches_admin_metadata(self):
-        result = CHECKSUM.verify_repository(
+    def _publish_checksum_fixture(
+        self,
+        root: Path,
+        *,
+        admin_tag: str = "release",
+    ) -> str:
+        refreshed = CHECKSUM.refresh_repository_metadata(
+            root,
+            version="v1.3.3",
+            go_command=os.environ.get("MSS_TEST_GO", "go"),
+        )
+        self._git(root, "add", *refreshed["updatedFiles"])
+        self._git(root, "commit", "-qm", "freeze release metadata")
+        release_commit = self._git(root, "rev-parse", "HEAD").stdout.strip()
+
+        policy_text = (
+            (REPOSITORY_ROOT / ".mss" / "release-policy.yaml")
+            .read_text(encoding="utf-8")
+            .replace(EXPECTED_RELEASE_COMMIT, release_commit)
+            .replace("v1.3.7", "v1.3.3")
+        )
+        policy_path = root / ".mss" / "release-policy.yaml"
+        policy_path.parent.mkdir(parents=True)
+        policy_path.write_text(policy_text, encoding="utf-8")
+        self._git(root, "add", policy_path.relative_to(root).as_posix())
+        self._git(root, "commit", "-qm", "record current stable identity")
+        policy_commit = self._git(root, "rev-parse", "HEAD").stdout.strip()
+
+        self._git(root, "tag", "v1.3.3", release_commit)
+        self._git(root, "tag", "mss-boot/v1.3.3", release_commit)
+        if admin_tag == "release":
+            self._git(root, "tag", "admin/v1.3.3", release_commit)
+        elif admin_tag == "policy":
+            self._git(root, "tag", "admin/v1.3.3", policy_commit)
+        elif admin_tag != "missing":
+            self.fail(f"unsupported admin tag fixture mode: {admin_tag}")
+        return release_commit
+
+    def test_published_current_stable_tree_matches_adopter_metadata(self):
+        result = CHECKSUM.verify_current_stable_repository(
             REPOSITORY_ROOT,
             version="v1.3.7",
         )
@@ -97,6 +136,144 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
             EXPECTED_ADMIN_GO_MOD_SUM,
         )
         self.assertEqual(result["dependencyMode"], "replace-free-file-proxy")
+        self.assertEqual(result["sourceMode"], "current-stable")
+        self.assertEqual(result["sourceCommit"], EXPECTED_RELEASE_COMMIT)
+        self.assertEqual(
+            result["sourceTags"],
+            {
+                "root": "v1.3.7",
+                "framework": "mss-boot/v1.3.7",
+                "admin": "admin/v1.3.7",
+            },
+        )
+
+    def test_current_stable_uses_release_tree_after_later_component_docs_change(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-published-stable-checksum-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            release_commit = self._publish_checksum_fixture(root)
+
+            (root / "mss-boot" / "README.md").write_text(
+                "post-release framework documentation\n",
+                encoding="utf-8",
+            )
+            (root / "admin" / "README.md").write_text(
+                "post-release admin documentation\n",
+                encoding="utf-8",
+            )
+            self._git(root, "add", "mss-boot/README.md", "admin/README.md")
+            self._git(root, "commit", "-qm", "update post-release docs")
+
+            stable = CHECKSUM.verify_current_stable_repository(
+                root,
+                version="v1.3.3",
+                go_command=os.environ.get("MSS_TEST_GO", "go"),
+            )
+            self.assertEqual(stable["sourceMode"], "current-stable")
+            self.assertEqual(stable["sourceCommit"], release_commit)
+            self.assertNotEqual(stable["headCommit"], release_commit)
+            self.assertNotIn("docs", stable["sourceTags"])
+
+            with self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "final candidate tree",
+            ):
+                CHECKSUM.verify_repository(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
+
+    def test_current_stable_rejects_missing_or_mismatched_component_tag(self):
+        for admin_tag, error in (
+            ("missing", "admin tag is missing"),
+            ("policy", "admin tag .* does not resolve"),
+        ):
+            with self.subTest(admin_tag=admin_tag), tempfile.TemporaryDirectory(
+                prefix="mss-published-tag-contract-"
+            ) as directory:
+                root = Path(directory)
+                self._init_checksum_repository(root)
+                self._publish_checksum_fixture(root, admin_tag=admin_tag)
+                with self.assertRaisesRegex(
+                    CHECKSUM.ChecksumContractError,
+                    error,
+                ):
+                    CHECKSUM.verify_current_stable_repository(
+                        root,
+                        version="v1.3.3",
+                        go_command=os.environ.get("MSS_TEST_GO", "go"),
+                    )
+
+    def test_current_stable_rejects_version_outside_policy_identity(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-published-version-contract-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            self._publish_checksum_fixture(root)
+            with self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "requires policy version v1.3.3",
+            ):
+                CHECKSUM.verify_current_stable_repository(
+                    root,
+                    version="v1.3.4",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
+
+    def test_published_source_commit_must_be_exact_and_ancestral(self):
+        with tempfile.TemporaryDirectory(
+            prefix="mss-published-source-identity-"
+        ) as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            head = self._git(root, "rev-parse", "HEAD").stdout.strip()
+            tree = self._git(root, "rev-parse", "HEAD^{tree}").stdout.strip()
+            unrelated = self._git(
+                root,
+                "commit-tree",
+                tree,
+                "-m",
+                "unrelated source",
+            ).stdout.strip()
+
+            for source_commit, error in (
+                (head[:12], "full lowercase"),
+                ("f" * 40, "does not resolve exactly"),
+                (unrelated, "must be an ancestor"),
+            ):
+                with self.subTest(source_commit=source_commit):
+                    with self.assertRaisesRegex(
+                        CHECKSUM.ChecksumContractError,
+                        error,
+                    ):
+                        CHECKSUM._resolve_published_source_commit(
+                            root,
+                            source_commit=source_commit,
+                        )
+
+    def test_current_stable_write_modes_fail_before_refresh(self):
+        for source_mode in ("candidate", "current-stable"):
+            with self.subTest(source_mode=source_mode), mock.patch.object(
+                CHECKSUM,
+                "refresh_repository_metadata",
+            ) as refresh, mock.patch("builtins.print"):
+                exit_code = CHECKSUM.main(
+                    [
+                        "--root",
+                        str(REPOSITORY_ROOT),
+                        "--version",
+                        "v1.3.7",
+                        "--source-mode",
+                        source_mode,
+                        "--write",
+                    ]
+                )
+                self.assertEqual(exit_code, 1)
+                refresh.assert_not_called()
 
     def test_nested_module_inherits_repository_root_license(self):
         with tempfile.TemporaryDirectory(
@@ -306,6 +483,89 @@ class FrameworkAdminChecksumTest(unittest.TestCase):
                 "uncommitted Framework candidate drift",
             ):
                 CHECKSUM.calculate_candidate_sums(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
+
+    def test_candidate_verification_rejects_head_change_before_reporting(self):
+        with tempfile.TemporaryDirectory(prefix="mss-checksum-head-race-") as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            refreshed = CHECKSUM.refresh_repository_metadata(
+                root,
+                version="v1.3.3",
+                go_command=os.environ.get("MSS_TEST_GO", "go"),
+            )
+            self._git(root, "add", *refreshed["updatedFiles"])
+            self._git(root, "commit", "-qm", "refresh checksums")
+            head = self._git(root, "rev-parse", "HEAD").stdout.strip()
+
+            with mock.patch.object(
+                CHECKSUM,
+                "_head_commit",
+                side_effect=(head, "f" * 40),
+            ), self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "HEAD changed while .* evidence",
+            ):
+                CHECKSUM.verify_repository(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
+
+    def test_checksum_refresh_rejects_head_change_before_writing(self):
+        with tempfile.TemporaryDirectory(prefix="mss-checksum-write-race-") as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            head = self._git(root, "rev-parse", "HEAD").stdout.strip()
+
+            with mock.patch.object(
+                CHECKSUM,
+                "_head_commit",
+                side_effect=(head, "f" * 40),
+            ), mock.patch.object(
+                CHECKSUM,
+                "_write_if_changed",
+            ) as write, self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "HEAD changed before refreshed checksum metadata could be written",
+            ):
+                CHECKSUM.refresh_repository_metadata(
+                    root,
+                    version="v1.3.3",
+                    go_command=os.environ.get("MSS_TEST_GO", "go"),
+                )
+            write.assert_not_called()
+
+    def test_checksum_refresh_rejects_output_tampering_before_success(self):
+        with tempfile.TemporaryDirectory(prefix="mss-checksum-output-race-") as directory:
+            root = Path(directory)
+            self._init_checksum_repository(root)
+            real_write = CHECKSUM._write_if_changed
+            writes = 0
+
+            def write_then_tamper(path: Path, content: bytes) -> bool:
+                nonlocal writes
+                changed = real_write(path, content)
+                writes += 1
+                if writes == 3:
+                    (root / "admin" / "go.sum").write_text(
+                        "concurrent output tampering\n",
+                        encoding="utf-8",
+                    )
+                return changed
+
+            with mock.patch.object(
+                CHECKSUM,
+                "_write_if_changed",
+                side_effect=write_then_tamper,
+            ), self.assertRaisesRegex(
+                CHECKSUM.ChecksumContractError,
+                "metadata changed before success: admin/go.sum",
+            ):
+                CHECKSUM.refresh_repository_metadata(
                     root,
                     version="v1.3.3",
                     go_command=os.environ.get("MSS_TEST_GO", "go"),

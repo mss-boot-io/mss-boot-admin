@@ -1,22 +1,20 @@
 ---
 title: 源码能力与发布边界
 order: 2
-description: v1.3.7 候选源码能力、v1.3.5/v1.3.6 永久停止记录与未开放采用路径
+description: v1.3.7 稳定版源码能力、v1.3.5/v1.3.6 永久停止记录与采用边界
 ---
 
-# v1.3.7 候选源码能力与发布边界
+# v1.3.7 稳定版源码能力与发布边界
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；
-v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，
-必须以远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
-不开放安装、创建或升级命令。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+安装、创建或升级从[快速开始](/getting-started)进入。Docs 网站可通过 `docs/v*` 异步候补，
+其状态不影响组件、稳定别名或采用。
 :::
 
 机器可执行事实以 [`.mss/project.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/project.yaml)
 和 [`.mss/capabilities.yaml`](https://github.com/mss-boot-io/mss-boot-admin/blob/main/.mss/capabilities.yaml)
-为准。源码能力不等于公共制品已经完成对账。
+为准。v1.3.7 的公共制品已经完成对账；后续源码能力仍不能冒充新的公共版本。
 
 ## merged-main 源码能力
 
@@ -33,16 +31,15 @@ v1.3.7 已选为 release candidate，但尚未稳定且不可采用。候选发�
 
 ## v1.3.5 与 v1.3.6 公共结果
 
-- Framework 与 Admin Go Module 已公开；
-- Admin Web 的 GitHub Release、GitHub Packages 与前端镜像已公开；
-- Root Tag 已公开并保持不可变；
-- Root Release 与工具、官方 npmjs、Docs、后端镜像和完整 Thin Host 使用方资格未完成。
+- v1.3.5 公开了 Framework、Admin、Admin Web Release/Packages/前端镜像与 Root Tag，
+  但 Root Release/工具、官方 npmjs、Docs、后端镜像和完整 Thin Host 使用方资格未完成；
+- v1.3.6 从提交 `b1fe47a3a83209574e09d53526b122dd2cbc5277` 公开了 Framework、Admin、
+  Admin Web 与 Root Release/工具，但 Root image workflow 和官方 npm workflow 失败，
+  Docs 未创建。
 
-因此不能用源码、相邻版本、本地替换或其他 registry 补齐部分发布。
-
-v1.3.6 也从提交 `b1fe47a3a83209574e09d53526b122dd2cbc5277`
-公开了 Framework、Admin、Admin Web 与 Root Release/工具；其 Root image workflow 和
-官方 npm workflow 失败，Docs 未创建。它同样不能继续、补发或与 v1.3.7 修复混用。
+两条列车都已永久停止，不能用源码、相邻版本、本地替换或其他 registry 补齐，也不能
+继续、补发或与 v1.3.7 修复混用。v1.3.7 已完成 Root 工具、Go/npm 包、镜像和外部使用方
+公共对账，才成为本页所述的当前可执行采用路径。
 
 ## 明确边界
 
@@ -51,7 +48,7 @@ v1.3.6 也从提交 `b1fe47a3a83209574e09d53526b122dd2cbc5277`
 - 不自动把 UI 权限当作后端授权；
 - 不要求生产凭据完成源码验证；
 - 不在工具设计中加入遥测和采用者登记；
-- `mss-shop` 必须等待 v1.3.7 完成公共对账，且保持单租户边界。
+- `mss-shop` 必须以已完成公共对账的 v1.3.7 为基础，并独立证明其单租户范本边界。
 
-未来版本只有在 Root 工具、Go/npm 包、镜像、Docs 与外部使用方证据全部公开对账后，
-才能把源码能力转成可执行采用路径。
+后续版本只有在 Root 工具、Go/npm 包、镜像与外部使用方证据全部公开对账后，才能把
+源码能力转成新的可执行采用路径；Docs 网站继续在独立链路对账，不加入该采用门禁。

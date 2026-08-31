@@ -1,21 +1,18 @@
 ---
-title: v1.3.7 候选登录与会话排障
+title: v1.3.7 登录与会话排障
 order: 14
 nav:
   order: 1
   title: admin
-description: v1.3.7 候选 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理合同
-keywords: [v1.3.7 v1.3.5 v1.3.2 admin login session cookie csrf troubleshooting]
+description: v1.3.7 稳定版 HttpOnly Cookie 会话、CSRF、刷新、权限和同源代理合同
+keywords: [v1.3.7 v1.3.5 v1.3.6 admin login session cookie csrf troubleshooting]
 ---
 
-# v1.3.7 候选登录与会话排障
+# v1.3.7 登录与会话排障
 
 :::warning
-发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
-为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
-本页不是安装、创建、升级或生产运行手册。Docs 网站可通过 `docs/v*` 异步候补，
-其状态不影响这一采用门禁。
+发布状态：**v1.3.7 是当前稳定版**；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布。
+Docs 网站可通过 `docs/v*` 异步候补，不影响组件、稳定别名或采用。
 :::
 
 浏览器登录使用服务端会话和 HttpOnly Cookie；浏览器不会接收或保存 Admin JWT，
@@ -61,7 +58,7 @@ Cookie、刷新接口是否成功。不要尝试把 Cookie 复制到 localStorag
 
 ## 4. 初始管理员与密码
 
-新数据库没有默认密码。未来完整 Thin Host 的第一次交互式初始化通过内置隐藏提示读取
+新数据库没有默认密码。v1.3.7 Thin Host 的第一次交互式初始化通过内置隐藏提示读取
 用户提供的强密码；非交互自动化只在初始化进程中从密钥存储注入一次性
 `MSS_ADMIN_INITIAL_PASSWORD`。迁移成功后不再需要它。若数据库已经初始化，重新设置
 该环境变量不会重置现有管理员密码。此时应走
