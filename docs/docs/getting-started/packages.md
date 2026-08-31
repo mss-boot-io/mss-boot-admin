@@ -10,8 +10,8 @@ keywords: [v1.3.7 v1.3.6 v1.3.5 v1.3.2 candidate go module npm admin web immutab
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未稳定且不可采用。Go Module、Admin Web npmjs 与 Root 包面可能
-处于不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账
-完成前，不开放安装、创建或升级命令。
+处于不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable
+policy 对账完成前，不开放安装、创建或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
 :::
 
 ## 已公开与缺失的身份

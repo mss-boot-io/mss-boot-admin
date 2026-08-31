@@ -11,8 +11,11 @@ must describe the same behavior.
 Release-state baseline for this source-only contributor guide: v1.3.5 and
 v1.3.6 are permanently stopped immutable partial trains. The reviewed release
 policy is authoritative for the current stable version. v1.3.7 is the selected
-release train; candidate surfaces may become public in stages, but it is not
-adoptable until stable aliases and final policy/Docs reconciliation complete.
+release train; candidate Distribution surfaces may become public in stages, but
+it is not adoptable until stable aliases and final current-stable policy
+reconciliation complete. Docs is asynchronous and non-blocking: its `docs/v*`
+tag identifies only website publication, and its absence or failure never gates
+Distribution components, aliases, current stable, or adopter availability.
 
 Use these locations consistently:
 
@@ -27,6 +30,10 @@ newer train.
 ## Pull requests
 
 - Target `main` through a pull request; do not publish Docs from a topic branch.
+- Treat Docs as its own website delivery path. Retain exact merged source, Root
+  ancestry, immutable tag/revision ordering, protected deployment, checksums,
+  `release.json`, and browser verification without making those checks a
+  Distribution release prerequisite.
 - Use a Conventional Commits title, for example
   `docs(release): prepare v1.3.7 candidate status`.
 - State the applicable version, branch, or commit for current-behavior claims.

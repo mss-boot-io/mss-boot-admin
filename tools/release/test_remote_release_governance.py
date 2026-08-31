@@ -14,30 +14,33 @@ REPOSITORY = "mss-boot-io/mss-boot-admin"
 REPOSITORY_ID = 4242
 RELEASE_ACTOR_ID = 12806223
 
-RELEASE_REFS = [
+CORE_RELEASE_REFS = [
     "refs/tags/admin/v*",
-    "refs/tags/docs/v*",
     "refs/tags/mss-boot/v*",
     "refs/tags/v*",
     "refs/tags/web/antd-v6/v*",
     "refs/tags/web/antd/v*",
 ]
-STOPPED_V135_REFS = [
+DOCS_RELEASE_REFS = ["refs/tags/docs/v*"]
+RELEASE_REFS = CORE_RELEASE_REFS + DOCS_RELEASE_REFS
+CORE_STOPPED_V135_REFS = [
     "refs/tags/admin/v1.3.5",
-    "refs/tags/docs/v1.3.5",
     "refs/tags/mss-boot/v1.3.5",
     "refs/tags/v1.3.5",
     "refs/tags/web/antd/v1.3.5",
     "refs/tags/web/antd-v6/v1.3.5",
 ]
-STOPPED_V136_REFS = [
+DOCS_STOPPED_V135_REFS = ["refs/tags/docs/v1.3.5"]
+STOPPED_V135_REFS = CORE_STOPPED_V135_REFS + DOCS_STOPPED_V135_REFS
+CORE_STOPPED_V136_REFS = [
     "refs/tags/admin/v1.3.6",
-    "refs/tags/docs/v1.3.6",
     "refs/tags/mss-boot/v1.3.6",
     "refs/tags/v1.3.6",
     "refs/tags/web/antd/v1.3.6",
     "refs/tags/web/antd-v6/v1.3.6",
 ]
+DOCS_STOPPED_V136_REFS = ["refs/tags/docs/v1.3.6"]
+STOPPED_V136_REFS = CORE_STOPPED_V136_REFS + DOCS_STOPPED_V136_REFS
 ACTIVE_ENVIRONMENT_POLICIES = {
     "release-auto": [
         {"name": "admin/v*", "type": "tag"},
@@ -194,7 +197,7 @@ else:
                 "id": 101,
                 "name": "release-tags-controlled-creation",
                 "conditions": {
-                    "ref_name": {"include": RELEASE_REFS, "exclude": []}
+                    "ref_name": {"include": list(RELEASE_REFS), "exclude": []}
                 },
                 "rules": [{"type": "creation"}],
                 "bypass_actors": [
@@ -220,7 +223,7 @@ else:
                 "id": 103,
                 "name": "release-tags-immutable",
                 "conditions": {
-                    "ref_name": {"include": RELEASE_REFS, "exclude": []}
+                    "ref_name": {"include": list(RELEASE_REFS), "exclude": []}
                 },
                 "rules": [
                     {"type": "update"},
@@ -254,21 +257,24 @@ else:
             ] = named_items("secrets", [])
         return state
 
-    def run_script(self, state=None):
+    def run_script(self, state=None, scope=None):
         state = self.state if state is None else state
         self.state_path.write_text(json.dumps(state), encoding="utf-8")
         run_environment = os.environ.copy()
         run_environment["PATH"] = f"{self.temp_path}{os.pathsep}{run_environment['PATH']}"
         run_environment["FAKE_GH_STATE"] = str(self.state_path)
+        command = [
+            "bash",
+            str(SCRIPT_PATH),
+            "--repository",
+            REPOSITORY,
+            "--release-actor-login",
+            "lwnmengjing",
+        ]
+        if scope is not None:
+            command.extend(["--scope", scope])
         return subprocess.run(
-            [
-                "bash",
-                str(SCRIPT_PATH),
-                "--repository",
-                REPOSITORY,
-                "--release-actor-login",
-                "lwnmengjing",
-            ],
+            command,
             cwd=REPOSITORY_ROOT,
             env=run_environment,
             text=True,
@@ -277,8 +283,8 @@ else:
             timeout=30,
         )
 
-    def assert_rejected(self, state, message):
-        result = self.run_script(state)
+    def assert_rejected(self, state, message, scope=None):
+        result = self.run_script(state, scope=scope)
         self.assertNotEqual(result.returncode, 0, msg=result.stdout)
         self.assertIn(message, result.stderr)
 
@@ -292,17 +298,19 @@ else:
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("OWNER/REPO", self.content)
         self.assertIn("--release-actor-login LOGIN", self.content)
+        self.assertIn("--scope core|docs", self.content)
         self.assertIn("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", self.content)
         self.assertNotRegex(self.content, re.compile(r"gh auth token|Authorization:"))
         self.assertNotRegex(self.content, re.compile(r"secrets\[[^]]+\]\.value"))
         self.assertIn("gh api --paginate", self.content)
         self.assertIn("jq -s -e", self.content)
 
-    def test_valid_simplified_governance_contract_is_reported(self):
+    def test_default_core_governance_contract_is_reported_without_docs_state(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         report = json.loads(result.stdout)
         self.assertTrue(report["success"])
+        self.assertEqual(report["scope"], "core")
         self.assertEqual(report["releaseActor"], "lwnmengjing")
         self.assertEqual(report["controlledCreationRuleset"], 101)
         self.assertEqual(report["stoppedV135CreationRuleset"], 102)
@@ -320,7 +328,6 @@ else:
                 ],
                 "releaseV6Auto": ["refs/tags/web/antd-v6/v*"],
                 "npmAuto": ["refs/tags/v*"],
-                "prod": ["refs/tags/docs/v*"],
             },
         )
         self.assertEqual(
@@ -331,9 +338,23 @@ else:
                 "releaseAuto": [],
                 "releaseV6Auto": [],
                 "npmAuto": [],
-                "prod": [],
             },
         )
+        self.assertNotIn("docsCredential", report)
+
+    def test_explicit_docs_governance_contract_is_reported(self):
+        result = self.run_script(scope="docs")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        report = json.loads(result.stdout)
+        self.assertTrue(report["success"])
+        self.assertEqual(report["scope"], "docs")
+        self.assertEqual(report["releaseActor"], "lwnmengjing")
+        self.assertEqual(report["controlledCreationRuleset"], 101)
+        self.assertEqual(report["stoppedV135CreationRuleset"], 102)
+        self.assertEqual(report["stoppedV136CreationRuleset"], 104)
+        self.assertEqual(report["immutableRuleset"], 103)
+        self.assertEqual(report["environments"], {"prod": ["refs/tags/docs/v*"]})
+        self.assertEqual(report["environmentSecrets"], {"prod": []})
         self.assertEqual(
             report["docsCredential"],
             {
@@ -343,6 +364,11 @@ else:
                 "environmentOverride": False,
             },
         )
+
+    def test_invalid_scope_is_rejected_before_any_remote_call(self):
+        result = self.run_script(scope="everything")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--scope must be core or docs", result.stderr)
 
     def test_retired_environments_are_non_bypassable_and_allow_no_refs(self):
         state = copy.deepcopy(self.state)
@@ -378,8 +404,18 @@ else:
             "npm-auto environment must have no required reviewers and no administrator bypass",
         )
 
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/environments/prod"][
+            "can_admins_bypass"
+        ] = True
+        self.assert_rejected(
+            state,
+            "prod environment must have no required reviewers and no administrator bypass",
+            scope="docs",
+        )
+
     def test_each_active_environment_requires_its_exact_tag_policies(self):
-        for name in ACTIVE_ENVIRONMENT_POLICIES:
+        for name in ("release-auto", "release-v6-auto", "npm-auto"):
             with self.subTest(environment=name):
                 state = copy.deepcopy(self.state)
                 endpoint = (
@@ -392,8 +428,20 @@ else:
                     f"{name} environment deployment branch or tag policies are not exact",
                 )
 
+        state = copy.deepcopy(self.state)
+        endpoint = (
+            f"/repos/{REPOSITORY}/environments/prod/"
+            "deployment-branch-policies?per_page=100"
+        )
+        state[endpoint]["branch_policies"][0]["name"] += "-wrong"
+        self.assert_rejected(
+            state,
+            "prod environment deployment branch or tag policies are not exact",
+            scope="docs",
+        )
+
     def test_environment_secret_name_sets_are_exact_and_docs_secret_is_org_scoped(self):
-        for name in ALL_ENVIRONMENTS:
+        for name in ("release", "release-v6", "release-auto", "release-v6-auto", "npm-auto"):
             with self.subTest(environment=name):
                 state = copy.deepcopy(self.state)
                 endpoint = (
@@ -406,12 +454,23 @@ else:
                 )
 
         state = copy.deepcopy(self.state)
+        endpoint = (
+            f"/repositories/{REPOSITORY_ID}/environments/prod/"
+            "secrets?per_page=100"
+        )
+        state[endpoint] = named_items("secrets", ["UNEXPECTED_SECRET"])
+        self.assert_rejected(
+            state, "prod environment secret names are not exact", scope="docs"
+        )
+
+        state = copy.deepcopy(self.state)
         state[
             f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100"
         ] = named_items("secrets", ["UNRELATED_ORG_SECRET"])
         self.assert_rejected(
             state,
             "CF_API_TOKEN must be available to this repository from organization Actions secrets",
+            scope="docs",
         )
 
         state = copy.deepcopy(self.state)
@@ -421,6 +480,7 @@ else:
         self.assert_rejected(
             state,
             "repository-level CF_API_TOKEN would override the organization secret",
+            scope="docs",
         )
 
     def test_docs_secret_checks_all_repository_and_organization_pages(self):
@@ -433,7 +493,7 @@ else:
                 named_items("secrets", ["CF_API_TOKEN"]),
             ]
         }
-        result = self.run_script(state)
+        result = self.run_script(state, scope="docs")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
 
         state = copy.deepcopy(self.state)
@@ -446,11 +506,12 @@ else:
         self.assert_rejected(
             state,
             "repository-level CF_API_TOKEN would override the organization secret",
+            scope="docs",
         )
 
     def test_readiness_run_variable_is_absent_at_repository_and_every_environment(self):
         self.assertIn(
-            "for environment_name in release release-v6 release-auto release-v6-auto npm-auto prod; do",
+            "for environment_name in release release-v6 release-auto release-v6-auto npm-auto; do",
             self.content,
         )
         state = copy.deepcopy(self.state)
@@ -469,6 +530,7 @@ else:
         self.assert_rejected(
             state,
             "the retired RELEASE_READINESS_RUN_ID variable is still present in prod",
+            scope="docs",
         )
 
     def test_retired_root_promotion_environment_and_deploy_key_are_absent(self):
@@ -486,7 +548,61 @@ else:
             state, "the retired root-promotion environment is still present"
         )
 
-    def test_controlled_creation_stop_freeze_and_immutability_are_exact(self):
+    def test_core_scope_does_not_read_or_validate_docs_governance(self):
+        state = copy.deepcopy(self.state)
+        for endpoint in (
+            f"/repos/{REPOSITORY}/actions/secrets?per_page=100",
+            f"/repos/{REPOSITORY}/actions/organization-secrets?per_page=100",
+            f"/repos/{REPOSITORY}/environments/prod",
+            f"/repos/{REPOSITORY}/environments/prod/deployment-branch-policies?per_page=100",
+            f"/repositories/{REPOSITORY_ID}/environments/prod/variables?per_page=100",
+            f"/repositories/{REPOSITORY_ID}/environments/prod/secrets?per_page=100",
+        ):
+            del state[endpoint]
+        state[f"/repos/{REPOSITORY}/environments?per_page=100"][
+            "environments"
+        ] = [
+            item
+            for item in state[f"/repos/{REPOSITORY}/environments?per_page=100"][
+                "environments"
+            ]
+            if item["name"] != "prod"
+        ]
+        for ruleset_id in (101, 102, 103, 104):
+            includes = state[
+                f"/repos/{REPOSITORY}/rulesets/{ruleset_id}?includes_parents=true"
+            ]["conditions"]["ref_name"]["include"]
+            includes[:] = [
+                ref for ref in includes if not ref.startswith("refs/tags/docs/")
+            ]
+
+        result = self.run_script(state)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(json.loads(result.stdout)["scope"], "core")
+
+    def test_docs_scope_does_not_read_or_validate_core_environments_or_tag_refs(self):
+        state = copy.deepcopy(self.state)
+        for name in ("release", "release-v6", "release-auto", "release-v6-auto", "npm-auto"):
+            for endpoint in (
+                f"/repos/{REPOSITORY}/environments/{name}",
+                f"/repos/{REPOSITORY}/environments/{name}/deployment-branch-policies?per_page=100",
+                f"/repositories/{REPOSITORY_ID}/environments/{name}/variables?per_page=100",
+                f"/repositories/{REPOSITORY_ID}/environments/{name}/secrets?per_page=100",
+            ):
+                del state[endpoint]
+        for ruleset_id in (101, 102, 103, 104):
+            includes = state[
+                f"/repos/{REPOSITORY}/rulesets/{ruleset_id}?includes_parents=true"
+            ]["conditions"]["ref_name"]["include"]
+            includes[:] = [
+                ref for ref in includes if ref.startswith("refs/tags/docs/")
+            ]
+
+        result = self.run_script(state, scope="docs")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(json.loads(result.stdout)["scope"], "docs")
+
+    def test_core_controlled_creation_stop_freeze_and_immutability_are_exact(self):
         state = copy.deepcopy(self.state)
         rulesets_endpoint = (
             f"/repos/{REPOSITORY}/rulesets?includes_parents=true&per_page=100"
@@ -498,7 +614,7 @@ else:
         ]
         self.assert_rejected(
             state,
-            "exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern release-tag creation",
+            "exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern core release-tag creation",
         )
 
         state = copy.deepcopy(self.state)
@@ -519,7 +635,7 @@ else:
         state = copy.deepcopy(self.state)
         state[f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true"][
             "conditions"
-        ]["ref_name"]["include"].remove("refs/tags/docs/v1.3.6")
+        ]["ref_name"]["include"].remove("refs/tags/admin/v1.3.6")
         self.assert_rejected(
             state,
             "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
@@ -531,7 +647,7 @@ else:
         ][0]["actor_id"] = 999
         self.assert_rejected(
             state,
-            "Root, component, and Docs creation authority must belong only to the explicit release actor",
+            "core release-tag creation authority must belong only to the explicit release actor",
         )
 
         state = copy.deepcopy(self.state)
@@ -552,7 +668,7 @@ else:
         state = copy.deepcopy(self.state)
         state[f"/repos/{REPOSITORY}/rulesets/102?includes_parents=true"][
             "conditions"
-        ]["ref_name"]["include"].remove("refs/tags/docs/v1.3.5")
+        ]["ref_name"]["include"].remove("refs/tags/admin/v1.3.5")
         self.assert_rejected(
             state,
             "v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset",
@@ -570,7 +686,100 @@ else:
         ]
         self.assert_rejected(
             state,
-            "release tag immutability must cover every release tag with no bypass",
+            "core release tag immutability must cover every release tag with no bypass",
+        )
+
+    def test_docs_scope_rejects_broad_or_cross_scope_tag_patterns(self):
+        cases = (
+            (
+                101,
+                "include",
+                "refs/tags/*",
+                "docs release-tag creation authority must belong only to the explicit release actor",
+            ),
+            (
+                101,
+                "exclude",
+                "refs/tags/**",
+                "docs release-tag creation authority must belong only to the explicit release actor",
+            ),
+            (
+                103,
+                "include",
+                "~ALL",
+                "docs release tag immutability must cover every release tag with no bypass",
+            ),
+            (
+                103,
+                "exclude",
+                "refs/tags/*",
+                "docs release tag immutability must cover every release tag with no bypass",
+            ),
+        )
+        for ruleset_id, condition, pattern, message in cases:
+            with self.subTest(
+                ruleset_id=ruleset_id, condition=condition, pattern=pattern
+            ):
+                state = copy.deepcopy(self.state)
+                state[
+                    f"/repos/{REPOSITORY}/rulesets/{ruleset_id}?includes_parents=true"
+                ]["conditions"]["ref_name"][condition].append(pattern)
+                self.assert_rejected(state, message, scope="docs")
+
+    def test_docs_controlled_creation_stop_freeze_and_immutability_are_exact(self):
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/101?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].remove("refs/tags/docs/v*")
+        state[f"/repos/{REPOSITORY}/rulesets/101?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].append("refs/tags/docs/release-v*")
+        self.assert_rejected(
+            state,
+            "docs release-tag creation authority must belong only to the explicit release actor",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].remove("refs/tags/docs/v1.3.6")
+        state[f"/repos/{REPOSITORY}/rulesets/104?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].append("refs/tags/docs/v1.3.6-wrong")
+        self.assert_rejected(
+            state,
+            "v1.3.6 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/102?includes_parents=true"][
+            "bypass_actors"
+        ] = [
+            {
+                "actor_id": RELEASE_ACTOR_ID,
+                "actor_type": "User",
+                "bypass_mode": "always",
+            }
+        ]
+        self.assert_rejected(
+            state,
+            "v1.3.5 stopped-tag creation must be blocked by the exact no-bypass ruleset",
+            scope="docs",
+        )
+
+        state = copy.deepcopy(self.state)
+        state[f"/repos/{REPOSITORY}/rulesets/103?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].remove("refs/tags/docs/v*")
+        state[f"/repos/{REPOSITORY}/rulesets/103?includes_parents=true"][
+            "conditions"
+        ]["ref_name"]["include"].append("refs/tags/docs/release-v*")
+        self.assert_rejected(
+            state,
+            "docs release tag immutability must cover every release tag with no bypass",
+            scope="docs",
         )
 
 

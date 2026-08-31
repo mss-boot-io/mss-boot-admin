@@ -13,8 +13,9 @@ keywords: [v1.3.7 v1.3.5 v1.3.2 admin login session cookie csrf troubleshooting]
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须以
-远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页不是安装、创建、
-升级或生产运行手册。
+远端发布台账为准；完整 Distribution stable promotion 和最终 current-stable policy 对账完成前，
+本页不是安装、创建、升级或生产运行手册。Docs 网站可通过 `docs/v*` 异步候补，
+其状态不影响这一采用门禁。
 :::
 
 浏览器登录使用服务端会话和 HttpOnly Cookie；浏览器不会接收或保存 Admin JWT，

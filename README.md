@@ -4,10 +4,13 @@
 
 mss-boot is an agent-native management-system foundation. **v1.3.7 is the
 selected complete package-first release candidate, but it is not stable or
-adoptable.** Candidate surfaces may be at different public stages; use the
-remote release ledger as authority. Until stable promotion and the final
-policy/Docs reconciliation complete, do not install, create, or upgrade with
-v1.3.7. v1.3.5 and v1.3.6 are immutable partial trains. No identity from either
+adoptable.** Candidate Distribution surfaces may be at different public stages;
+use the remote release ledger as authority. Until stable promotion and the final
+`currentStableVersion` policy reconciliation complete, do not install, create,
+or upgrade with v1.3.7. The Docs website is an asynchronous, non-blocking
+publication: a `docs/v*` tag identifies only a website deployment and never
+controls package availability or adoption. v1.3.5 and v1.3.6 are immutable
+partial trains. No identity from either
 train may be deleted, moved, recreated, reused, or completed.
 
 ## Current availability
@@ -44,18 +47,21 @@ replacement, or an unpublished package.
 v1.3.7 is the new candidate. It must first pass one non-publishing preview from
 an exact repaired merged-main commit, including a real Root OCI artifact and
 the exact credentialless npm Trusted Publisher binding for `npm-release.yml`
-and `npm-auto`. Its candidate surfaces then publish in governed stages and may
-not all be public at the same time. Until stable promotion and the final
-policy/Docs reconciliation complete, no v1.3.7 download, install, creation, or
-upgrade procedure is supported.
+and `npm-auto`. Its candidate Distribution surfaces then publish in governed
+stages and may not all be public at the same time. Until stable promotion and
+the final current-stable policy reconciliation complete, no v1.3.7 download,
+install, creation, or upgrade procedure is supported. Docs may publish before or
+after that boundary; its absence, failure, or stale site state does not block it.
 
 ## Adopter status
 
 There is no supported v1.3.5 or v1.3.6 installer, empty-directory application
 creation, local setup, or distribution-upgrade procedure. v1.3.7 is now the
-selected candidate for those package-first interfaces, but current onboarding continues
-to withhold executable commands until stable promotion, external Thin Host
-acceptance, and the final policy/Docs reconciliation have completed.
+selected candidate for those package-first interfaces, but current onboarding
+continues to withhold executable commands until stable promotion, external Thin
+Host acceptance, and the final current-stable policy reconciliation have
+completed. Public Docs deployment is tracked separately and is not an adoption
+prerequisite.
 
 Use the [v1.3.2 stable record](./docs/docs/releases/archive/v1-3-2.md)
 for the current stable boundary and the

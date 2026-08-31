@@ -214,9 +214,71 @@ class ReleaseSourceGitTest(unittest.TestCase):
         evidence = self.verify(source_mode="promotion")
         self.assertEqual(evidence["number"], 474)
 
+    def test_docs_base_accepts_exact_root_release_ancestor_after_main_advances(self):
+        run_git(self.work, "tag", "docs/v1.1.0", self.candidate)
+        run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
+        (self.work / "tracked.txt").write_text("later policy\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "later reviewed policy")
+        run_git(self.work, "push", "origin", "main")
+        run_git(self.work, "checkout", "--detach", self.candidate)
+
+        evidence = self.verify(tag="docs/v1.1.0", source_mode="docs")
+        self.assertEqual(evidence["number"], 474)
+
+    def test_docs_base_rejects_candidate_not_on_remote_main(self):
+        (self.work / "tracked.txt").write_text("local docs\n", encoding="utf-8")
+        run_git(self.work, "add", "tracked.txt")
+        run_git(self.work, "commit", "-m", "local docs")
+        local_commit = run_git(self.work, "rev-parse", "HEAD")
+        run_git(self.work, "tag", "docs/v1.1.0", local_commit)
+        run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "not contained"):
+            self.verify(
+                commit=local_commit,
+                tag="docs/v1.1.0",
+                source_mode="docs",
+            )
+
+    def test_docs_base_rejects_commit_without_exact_merged_pr_evidence(self):
+        run_git(self.work, "tag", "docs/v1.1.0", self.candidate)
+        run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "merge/squash"):
+            SOURCE.verify_release_source(
+                repository_root=self.work,
+                policy_path=POLICY_PATH,
+                repository=REPOSITORY,
+                commit=self.candidate,
+                tag="docs/v1.1.0",
+                source_mode="docs",
+                pr_evidence_loader=lambda repository, commit, branch: (
+                    SOURCE.select_pr_merge_evidence(
+                        pr_payload(commit, merged=False),
+                        repository,
+                        commit,
+                        branch,
+                    )
+                ),
+            )
+
+    def test_docs_base_rejects_root_tag_at_another_commit(self):
+        run_git(self.work, "tag", "docs/v1.1.0", self.candidate)
+        run_git(self.work, "push", "origin", "refs/tags/docs/v1.1.0")
+        run_git(self.work, "tag", "-f", "v1.1.0", self.base_commit)
+        run_git(self.work, "push", "--force", "origin", "refs/tags/v1.1.0")
+
+        with self.assertRaisesRegex(SOURCE.SourceError, "Root tag.*not candidate"):
+            self.verify(tag="docs/v1.1.0", source_mode="docs")
+
     def test_promotion_requires_an_exact_remote_tag(self):
         with self.assertRaisesRegex(SOURCE.SourceError, "requires an exact release tag"):
             self.verify(tag=None, source_mode="promotion")
+
+    def test_docs_mode_requires_a_base_docs_tag(self):
+        with self.assertRaisesRegex(SOURCE.SourceError, "base docs/vX.Y.Z"):
+            self.verify(tag="docs/v1.1.0+docs.1", source_mode="docs")
 
     def test_rejects_checkout_that_does_not_match_candidate(self):
         run_git(self.work, "checkout", "--detach", self.base_commit)

@@ -7,9 +7,10 @@ description: 明确隔离的 mss-boot-admin 源码贡献流程
 # Foundation 贡献者入门
 
 > 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7
-> 已选为 release candidate，但尚未稳定且不可采用。候选发布面可能处于不同公开阶段，必须
-> 以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，本页只适用于
-> 修改 Foundation 的贡献者，不是安装、创建或升级指引。
+> 已选为 release candidate，但尚未稳定且不可采用。候选 Distribution 发布面可能处于不同
+> 公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
+> 对账完成前，本页只适用于修改 Foundation 的贡献者，不是安装、创建或升级指引。Docs 网站
+> 可异步候补且不阻断该采用门禁。
 
 ## 获取源码
 

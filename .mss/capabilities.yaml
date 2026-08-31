@@ -855,7 +855,7 @@ spec:
       paths:
         - cmd/mss-mcp
         - tools/install
-      guidance: The v1.3.7 candidate tool archive installs mss-mcp beside mss after complete public reconciliation; it remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
+      guidance: The v1.3.7 candidate tool archive installs mss-mcp beside mss after complete Distribution stable promotion and current-stable policy reconciliation; Docs website publication is asynchronous and non-blocking. The server remains a thin protocol adapter over stable CLI packages and write tools default to dry-run.
 
     - id: agent.evals
       displayName: Agent Task Evaluations

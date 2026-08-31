@@ -70,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          source_mode='release'
+          source_mode='docs'
           if [[ "${DOCS_VERSION}" == *+docs.* ]]; then
             source_mode='promotion'
           fi

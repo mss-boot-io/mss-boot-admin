@@ -9,8 +9,9 @@ description: 面向人类的 Foundation 维护 Skill、Thin Host 分发 Skill �
 :::warning
 发布状态：v1.3.2 仍是当前稳定版；v1.3.5 与 v1.3.6 已永久停止并保持不可变部分发布；v1.3.7 已选
 为 release candidate，但尚未稳定且不可采用。Root Release、`mss` 与 `mss-mcp` 可能处于
-不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 policy/Docs 对账完成前，
-本页不是工具安装、应用创建、升级或 MCP 客户端配置指引。
+不同公开阶段，必须以远端发布台账为准；完整 stable promotion 和最终 current-stable policy
+对账完成前，本页不是工具安装、应用创建、升级或 MCP 客户端配置指引。Docs 网站可异步候补
+且不阻断该采用门禁。
 :::
 
 Skill 描述一类可复用工作流。源码实现由确定性 CLI、生成器和验证器承载，v1.3.7 候选

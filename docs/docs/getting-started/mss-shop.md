@@ -15,10 +15,10 @@ npmjs 包和 Docs，因此不能成为范本的生成、安装或升级基线。
 v1.3.6 公开了 Framework、Admin、Admin Web 与 Root Release/工具，但 Root image 与
 官方 npm 发布失败、Docs 未创建；它同样不可续，也不能作为范本基线。
 
-v1.3.7 已选为 release candidate，但尚未稳定且不可采用。工具、Go Module、npmjs、镜像、
-Docs 与外部使用方路径可能处于不同公开阶段，必须以远端发布台账为准。本页只保留
-source-only 的业务和架构设计；完整 stable promotion 和最终 policy/Docs 对账完成前，不提供
-安装、创建或升级命令。
+v1.3.7 已选为 release candidate，但尚未稳定且不可采用。工具、Go Module、npmjs、镜像与
+外部使用方路径可能处于不同公开阶段，必须以远端发布台账为准。本页只保留 source-only 的
+业务和架构设计；完整 stable promotion 和最终 current-stable policy 对账完成前，不提供安装、
+创建或升级命令。Docs 网站可异步候补且不阻断该采用门禁。
 
 ## 可复现基线要求
 

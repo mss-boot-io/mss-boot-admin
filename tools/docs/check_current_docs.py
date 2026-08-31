@@ -1183,8 +1183,7 @@ def repository_context_errors(
             "manually dispatch `npm-release.yml` from the exact `v1.3.7` Root tag",
             "npm publish --tag latest --provenance",
             "promote the exact Root Release to GitHub Latest",
-            "final stable-policy and human-documentation reconciliation follows "
-            "through another PR",
+            "final current-stable policy reconciliation follows through another PR",
             "do not repeat expensive qualification",
         ):
             if marker not in normalized:

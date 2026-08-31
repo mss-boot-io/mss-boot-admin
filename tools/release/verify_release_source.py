@@ -18,6 +18,7 @@ from check_release_policy import PolicyError, load_policy
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+DOCS_BASE_TAG_RE = re.compile(r"^docs/(v[0-9]+\.[0-9]+\.[0-9]+)$")
 GRAPHQL_QUERY = """
 query($owner: String!, $name: String!, $oid: GitObjectID!) {
   repository(owner: $owner, name: $name) {
@@ -193,10 +194,20 @@ def verify_release_source(
         raise SourceError("commit must be a lowercase full SHA")
     if not remote or remote.startswith("-"):
         raise SourceError("remote must be a named Git remote")
-    if source_mode not in {"release", "promotion"}:
-        raise SourceError("source mode must be release or promotion")
-    if source_mode == "promotion" and tag is None:
-        raise SourceError("promotion source verification requires an exact release tag")
+    if source_mode not in {"release", "promotion", "docs"}:
+        raise SourceError("source mode must be release, promotion, or docs")
+    if source_mode in {"promotion", "docs"} and tag is None:
+        raise SourceError(
+            f"{source_mode} source verification requires an exact release tag"
+        )
+    docs_root_tag: str | None = None
+    if source_mode == "docs":
+        docs_tag_match = DOCS_BASE_TAG_RE.fullmatch(tag or "")
+        if docs_tag_match is None:
+            raise SourceError(
+                "docs source verification requires a base docs/vX.Y.Z tag"
+            )
+        docs_root_tag = docs_tag_match.group(1)
 
     root = Path(git(repository_root, "rev-parse", "--show-toplevel")).resolve()
     shallow = git(root, "rev-parse", "--is-shallow-repository")
@@ -257,6 +268,22 @@ def verify_release_source(
                 f"remote tag {tag} resolves to {tag_commit}, not candidate {commit}"
             )
 
+    if docs_root_tag is not None:
+        git(
+            root,
+            "fetch",
+            "--force",
+            "--no-tags",
+            remote,
+            f"refs/tags/{docs_root_tag}",
+        )
+        root_tag_commit = git(root, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
+        if root_tag_commit != commit:
+            raise SourceError(
+                f"remote Root tag {docs_root_tag} resolves to {root_tag_commit}, "
+                f"not candidate {commit}"
+            )
+
     if git(root, "status", "--porcelain=v1", "--untracked-files=no"):
         raise SourceError("tracked worktree is not clean")
 
@@ -272,7 +299,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tag")
     parser.add_argument("--remote", default="origin")
     parser.add_argument(
-        "--source-mode", choices=("release", "promotion"), default="release"
+        "--source-mode",
+        choices=("release", "promotion", "docs"),
+        default="release",
     )
     args = parser.parse_args(argv)
     try:

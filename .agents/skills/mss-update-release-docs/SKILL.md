@@ -57,6 +57,14 @@ Do not perform a blanket version replacement. Keep a small fact-to-file matrix w
 - Record credentialless publishing or Trusted Publisher facts without exposing tokens, account secrets, private endpoints, or sensitive logs.
 - Prefer exact commands and durable public links over conversational summaries.
 
+Treat the Docs site as an asynchronous website publication, not as a component
+release or adoption authority. A `docs/v*` tag identifies only the website
+revision it deploys. Docs source, credentials, workflow status, GitHub Release,
+or public-site state must never gate Framework, Admin, frontend, Root, images,
+official npm, GitHub Latest, `currentStableVersion`, or adopter availability. A
+Docs failure is `source-updated / deployment-pending`; continue or preserve the
+Distribution release and repair the website independently.
+
 ## Protect immutable boundaries
 
 A tagged Go module checksum covers every file in that module tree, including documentation and changelogs. Never edit a previously published nested module tree and continue to claim the old tag or checksum is reproducible. Preserve the file or prepare a new patch version through a separate PR and release.

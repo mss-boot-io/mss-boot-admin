@@ -20,10 +20,11 @@ This checked-in page documents the Foundation reference projection. Its
 downstream application layout. v1.3.5 and v1.3.6 remain immutable-partial
 trains and must not be used as complete Thin Host baselines. The current stable
 version is the exact value recorded by the reviewed release policy (v1.3.2 at
-this source commit). v1.3.7 is the selected release train; candidate surfaces
-may become public in stages, but
-it is not adoptable until stable aliases and final policy/Docs reconciliation
-complete. The commands below are source-only Foundation validation. The complete
+this source commit). v1.3.7 is the selected release train; candidate Distribution
+surfaces may become public in stages, but it is not adoptable until stable aliases
+and final current-stable policy reconciliation complete. Docs is an asynchronous
+website publication and never blocks that boundary. The commands below are
+source-only Foundation validation. The complete
 v1.3.7 distribution generates business ownership under `internal/modules/**` and
 `web/src/business/**`; its generated repository owns the adopter module page
 and validation contract.

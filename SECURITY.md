@@ -18,8 +18,10 @@ The active `main` branch and the current stable Complete Admin Distribution are
 supported by default. v1.3.2 remains the current stable and rollback baseline.
 v1.3.7 is a release candidate and becomes the supported stable Distribution
 only after its coordinated Framework, Admin, frontend, Root, tools, images,
-official npmjs package, and later Docs have been published and publicly
-reconciled from one exact merged-main commit. v1.3.5 and v1.3.6 are immutable
+and official npmjs package have been published and publicly reconciled from one
+exact merged-main commit, stable aliases converge, and the current-stable policy
+is updated. Docs is an asynchronous website publication and never gates stable
+support or adopter availability. v1.3.5 and v1.3.6 are immutable
 partial trains and never become complete supported Distributions. v1.3.6
 published component and Root identities but lacks the Root image, official
 npmjs package, and Docs; no stored npm token may be introduced to complete it.

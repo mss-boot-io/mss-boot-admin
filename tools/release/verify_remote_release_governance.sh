@@ -3,11 +3,12 @@ set -euo pipefail
 
 usage() {
   printf '%s\n' \
-    'Usage: verify_remote_release_governance.sh --repository OWNER/REPO --release-actor-login LOGIN'
+    'Usage: verify_remote_release_governance.sh --repository OWNER/REPO --release-actor-login LOGIN [--scope core|docs]'
 }
 
 repository=''
 release_actor_login=''
+scope='core'
 while (($#)); do
   case "$1" in
     --repository)
@@ -16,6 +17,10 @@ while (($#)); do
       ;;
     --release-actor-login)
       release_actor_login=${2:-}
+      shift 2
+      ;;
+    --scope)
+      scope=${2:-}
       shift 2
       ;;
     --help)
@@ -38,6 +43,10 @@ if [[ ! "${release_actor_login}" =~ ^[A-Za-z0-9-]+$ ]]; then
   echo '--release-actor-login must be one GitHub login' >&2
   exit 2
 fi
+if [[ "${scope}" != 'core' && "${scope}" != 'docs' ]]; then
+  echo '--scope must be core or docs' >&2
+  exit 2
+fi
 command -v gh >/dev/null
 command -v jq >/dev/null
 
@@ -52,21 +61,23 @@ jq -e '.permissions.admin == true' <<< "${repository_json}" >/dev/null || {
 }
 repository_id="$(jq -er '.id' <<< "${repository_json}")"
 
-repository_secrets="$(gh api --paginate "/repos/${repository}/actions/secrets?per_page=100")"
-if jq -s -e '
-  any(.[]; any(.secrets[]; (.name | ascii_upcase) == "CF_API_TOKEN"))
-' <<< "${repository_secrets}" >/dev/null; then
-  echo 'repository-level CF_API_TOKEN would override the organization secret' >&2
-  exit 1
-fi
+if [[ "${scope}" == 'docs' ]]; then
+  repository_secrets="$(gh api --paginate "/repos/${repository}/actions/secrets?per_page=100")"
+  if jq -s -e '
+    any(.[]; any(.secrets[]; (.name | ascii_upcase) == "CF_API_TOKEN"))
+  ' <<< "${repository_secrets}" >/dev/null; then
+    echo 'repository-level CF_API_TOKEN would override the organization secret' >&2
+    exit 1
+  fi
 
-organization_secrets="$(gh api --paginate "/repos/${repository}/actions/organization-secrets?per_page=100")"
-jq -s -e '
-  ([.[] | .secrets[] | select((.name | ascii_upcase) == "CF_API_TOKEN")] | length) == 1
-' <<< "${organization_secrets}" >/dev/null || {
-  echo 'CF_API_TOKEN must be available to this repository from organization Actions secrets' >&2
-  exit 1
-}
+  organization_secrets="$(gh api --paginate "/repos/${repository}/actions/organization-secrets?per_page=100")"
+  jq -s -e '
+    ([.[] | .secrets[] | select((.name | ascii_upcase) == "CF_API_TOKEN")] | length) == 1
+  ' <<< "${organization_secrets}" >/dev/null || {
+    echo 'CF_API_TOKEN must be available to this repository from organization Actions secrets' >&2
+    exit 1
+  }
+fi
 
 deploy_keys="$(gh api "/repos/${repository}/keys?per_page=100")"
 if jq -e 'any(.[]; .title == "mss-root-tag-promotion")' \
@@ -102,15 +113,56 @@ reject_environment_variable() {
   fi
 }
 
-for environment_name in release release-v6 release-auto release-v6-auto npm-auto prod; do
-  reject_environment_variable "${environment_name}" RELEASE_READINESS_RUN_ID
-done
+if [[ "${scope}" == 'core' ]]; then
+  for environment_name in release release-v6 release-auto release-v6-auto npm-auto; do
+    reject_environment_variable "${environment_name}" RELEASE_READINESS_RUN_ID
+  done
+else
+  reject_environment_variable prod RELEASE_READINESS_RUN_ID
+fi
 
 rulesets="$(gh api "/repos/${repository}/rulesets?includes_parents=true&per_page=100")"
 mapfile -t creation_names < <(
   while IFS= read -r ruleset_id; do
     ruleset="$(gh api "/repos/${repository}/rulesets/${ruleset_id}?includes_parents=true")"
-    if jq -e 'any(.rules[]; .type == "creation")' <<< "${ruleset}" >/dev/null; then
+    if jq -e \
+      --arg scope "${scope}" '
+      def ref_scope($ref):
+        ([
+          "refs/tags/docs/v*",
+          "refs/tags/docs/v1.3.5",
+          "refs/tags/docs/v1.3.6"
+        ] | index($ref)) as $docs_index |
+        ([
+          "refs/tags/admin/v*",
+          "refs/tags/admin/v1.3.5",
+          "refs/tags/admin/v1.3.6",
+          "refs/tags/mss-boot/v*",
+          "refs/tags/mss-boot/v1.3.5",
+          "refs/tags/mss-boot/v1.3.6",
+          "refs/tags/v*",
+          "refs/tags/v1.3.5",
+          "refs/tags/v1.3.6",
+          "refs/tags/web/antd-v6/v*",
+          "refs/tags/web/antd-v6/v1.3.5",
+          "refs/tags/web/antd-v6/v1.3.6",
+          "refs/tags/web/antd/v*",
+          "refs/tags/web/antd/v1.3.5",
+          "refs/tags/web/antd/v1.3.6"
+        ] | index($ref)) as $core_index |
+        if $docs_index != null then
+          "docs"
+        elif $core_index != null then
+          "core"
+        else
+          "ambiguous"
+        end;
+      any(.rules[]; .type == "creation") and
+      any(.conditions.ref_name.include[]?;
+        ref_scope(.) as $ref_scope |
+        $ref_scope == $scope or $ref_scope == "ambiguous"
+      )
+    ' <<< "${ruleset}" >/dev/null; then
       jq -r '.name' <<< "${ruleset}"
     fi
   done < <(jq -r '.[] | select(
@@ -122,7 +174,7 @@ if [[ "${#creation_names[@]}" -ne 3 \
   || "${creation_names[0]}" != "release-tags-controlled-creation" \
   || "${creation_names[1]}" != "v1.3.5-stopped-tags-never-create" \
   || "${creation_names[2]}" != "v1.3.6-stopped-tags-never-create" ]]; then
-  echo 'exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern release-tag creation' >&2
+  echo "exactly the consolidated controlled-creation plus v1.3.5 and v1.3.6 stop rulesets may govern ${scope} release-tag creation" >&2
   exit 1
 fi
 
@@ -145,21 +197,33 @@ controlled_id="$(unique_ruleset_id release-tags-controlled-creation)"
 controlled_ruleset="$(gh api "/repos/${repository}/rulesets/${controlled_id}?includes_parents=true")"
 jq -e \
   --arg repository "${repository}" \
+  --arg scope "${scope}" \
   --argjson release_actor_id "${release_actor_id}" '
-  ([
+  [
     "refs/tags/admin/v*",
-    "refs/tags/docs/v*",
     "refs/tags/mss-boot/v*",
     "refs/tags/v*",
     "refs/tags/web/antd-v6/v*",
     "refs/tags/web/antd/v*"
-  ] | sort) as $expected_refs |
+  ] as $core_refs |
+  ["refs/tags/docs/v*"] as $docs_refs |
+  def ref_scope($ref):
+    if ($docs_refs | index($ref)) != null then
+      "docs"
+    elif ($core_refs | index($ref)) != null then
+      "core"
+    else
+      "ambiguous"
+    end;
+  (if $scope == "docs" then $docs_refs else $core_refs end | sort) as $expected_refs |
   .source_type == "Repository" and
   .source == $repository and
   .target == "tag" and
   .enforcement == "active" and
-  (.conditions.ref_name.include | sort) == $expected_refs and
-  .conditions.ref_name.exclude == [] and
+  all(.conditions.ref_name.include[]?; ref_scope(.) != "ambiguous") and
+  all(.conditions.ref_name.exclude[]?; ref_scope(.) != "ambiguous") and
+  ([.conditions.ref_name.include[] | select(ref_scope(.) == $scope)] | sort) == $expected_refs and
+  ([.conditions.ref_name.exclude[] | select(ref_scope(.) == $scope)] | sort) == [] and
   ([.rules[].type] == ["creation"]) and
   .bypass_actors == [{
     actor_id: $release_actor_id,
@@ -167,7 +231,7 @@ jq -e \
     bypass_mode: "always"
   }]
 ' <<< "${controlled_ruleset}" >/dev/null || {
-  echo 'Root, component, and Docs creation authority must belong only to the explicit release actor' >&2
+  echo "${scope} release-tag creation authority must belong only to the explicit release actor" >&2
   exit 1
 }
 
@@ -180,21 +244,33 @@ verify_stopped_ruleset() {
   ruleset="$(gh api "/repos/${repository}/rulesets/${ruleset_id}?includes_parents=true")"
   jq -e \
     --arg repository "${repository}" \
+    --arg scope "${scope}" \
     --arg version "${version}" '
-    ([
+    [
       "refs/tags/admin/\($version)",
-      "refs/tags/docs/\($version)",
       "refs/tags/mss-boot/\($version)",
       "refs/tags/\($version)",
       "refs/tags/web/antd/\($version)",
       "refs/tags/web/antd-v6/\($version)"
-    ] | sort) as $expected_refs |
+    ] as $core_refs |
+    ["refs/tags/docs/\($version)"] as $docs_refs |
+    def ref_scope($ref):
+      if ($docs_refs | index($ref)) != null then
+        "docs"
+      elif ($core_refs | index($ref)) != null then
+        "core"
+      else
+        "ambiguous"
+      end;
+    (if $scope == "docs" then $docs_refs else $core_refs end | sort) as $expected_refs |
     .source_type == "Repository" and
     .source == $repository and
     .target == "tag" and
     .enforcement == "active" and
-    (.conditions.ref_name.include | sort) == $expected_refs and
-    .conditions.ref_name.exclude == [] and
+    all(.conditions.ref_name.include[]?; ref_scope(.) != "ambiguous") and
+    all(.conditions.ref_name.exclude[]?; ref_scope(.) != "ambiguous") and
+    ([.conditions.ref_name.include[] | select(ref_scope(.) == $scope)] | sort) == $expected_refs and
+    ([.conditions.ref_name.exclude[] | select(ref_scope(.) == $scope)] | sort) == [] and
     .bypass_actors == [] and
     ([.rules[].type] == ["creation"])
   ' <<< "${ruleset}" >/dev/null || {
@@ -210,25 +286,37 @@ stopped_v136_id="$(verify_stopped_ruleset v1.3.6)"
 immutable_id="$(unique_ruleset_id release-tags-immutable)"
 immutable_ruleset="$(gh api "/repos/${repository}/rulesets/${immutable_id}?includes_parents=true")"
 jq -e \
-  --arg repository "${repository}" '
-  ([
+  --arg repository "${repository}" \
+  --arg scope "${scope}" '
+  [
     "refs/tags/admin/v*",
-    "refs/tags/docs/v*",
     "refs/tags/mss-boot/v*",
     "refs/tags/v*",
     "refs/tags/web/antd-v6/v*",
     "refs/tags/web/antd/v*"
-  ] | sort) as $expected_refs |
+  ] as $core_refs |
+  ["refs/tags/docs/v*"] as $docs_refs |
+  def ref_scope($ref):
+    if ($docs_refs | index($ref)) != null then
+      "docs"
+    elif ($core_refs | index($ref)) != null then
+      "core"
+    else
+      "ambiguous"
+    end;
+  (if $scope == "docs" then $docs_refs else $core_refs end | sort) as $expected_refs |
   .source_type == "Repository" and
   .source == $repository and
   .target == "tag" and
   .enforcement == "active" and
-  (.conditions.ref_name.include | sort) == $expected_refs and
-  .conditions.ref_name.exclude == [] and
+  all(.conditions.ref_name.include[]?; ref_scope(.) != "ambiguous") and
+  all(.conditions.ref_name.exclude[]?; ref_scope(.) != "ambiguous") and
+  ([.conditions.ref_name.include[] | select(ref_scope(.) == $scope)] | sort) == $expected_refs and
+  ([.conditions.ref_name.exclude[] | select(ref_scope(.) == $scope)] | sort) == [] and
   .bypass_actors == [] and
   ([.rules[].type] | sort) == ["deletion", "non_fast_forward", "update"]
 ' <<< "${immutable_ruleset}" >/dev/null || {
-  echo 'release tag immutability must cover every release tag with no bypass' >&2
+  echo "${scope} release tag immutability must cover every release tag with no bypass" >&2
   exit 1
 }
 
@@ -300,18 +388,21 @@ verify_retired_environment() {
   }
 }
 
-verify_retired_environment release
-verify_retired_environment release-v6
-verify_active_environment release-auto \
-  'admin/v*|tag' \
-  'mss-boot/v*|tag' \
-  'v*|tag'
-verify_active_environment release-v6-auto \
-  'web/antd-v6/v*|tag'
-verify_active_environment npm-auto \
-  'v*|tag'
-verify_active_environment prod \
-  'docs/v*|tag'
+if [[ "${scope}" == 'core' ]]; then
+  verify_retired_environment release
+  verify_retired_environment release-v6
+  verify_active_environment release-auto \
+    'admin/v*|tag' \
+    'mss-boot/v*|tag' \
+    'v*|tag'
+  verify_active_environment release-v6-auto \
+    'web/antd-v6/v*|tag'
+  verify_active_environment npm-auto \
+    'v*|tag'
+else
+  verify_active_environment prod \
+    'docs/v*|tag'
+fi
 
 verify_environment_secrets() {
   local environment_name=$1
@@ -331,56 +422,86 @@ verify_environment_secrets() {
   }
 }
 
-verify_environment_secrets release
-verify_environment_secrets release-v6
-verify_environment_secrets release-auto
-verify_environment_secrets release-v6-auto
-verify_environment_secrets npm-auto
-verify_environment_secrets prod
+if [[ "${scope}" == 'core' ]]; then
+  verify_environment_secrets release
+  verify_environment_secrets release-v6
+  verify_environment_secrets release-auto
+  verify_environment_secrets release-v6-auto
+  verify_environment_secrets npm-auto
 
-jq -n \
-  --arg repository "${repository}" \
-  --arg inspector "${inspector_login}" \
-  --arg actor "${release_actor_login}" \
-  --argjson controlled_ruleset_id "${controlled_id}" \
-  --argjson stopped_v135_ruleset_id "${stopped_v135_id}" \
-  --argjson stopped_v136_ruleset_id "${stopped_v136_id}" \
-  --argjson immutable_ruleset_id "${immutable_id}" \
-  '{
-    success: true,
-    repository: $repository,
-    inspector: $inspector,
-    releaseActor: $actor,
-    controlledCreationRuleset: $controlled_ruleset_id,
-    stoppedV135CreationRuleset: $stopped_v135_ruleset_id,
-    stoppedV136CreationRuleset: $stopped_v136_ruleset_id,
-    immutableRuleset: $immutable_ruleset_id,
-    retiredResources: {
-      rootPromotionDeployKey: false,
-      rootPromotionEnvironment: false,
-      readinessRunVariables: [],
-      npmToken: false
-    },
-    environments: {
-      release: [],
-      releaseV6: [],
-      releaseAuto: ["refs/tags/admin/v*", "refs/tags/mss-boot/v*", "refs/tags/v*"],
-      releaseV6Auto: ["refs/tags/web/antd-v6/v*"],
-      npmAuto: ["refs/tags/v*"],
-      prod: ["refs/tags/docs/v*"]
-    },
-    environmentSecrets: {
-      release: [],
-      releaseV6: [],
-      releaseAuto: [],
-      releaseV6Auto: [],
-      npmAuto: [],
-      prod: []
-    },
-    docsCredential: {
-      name: "CF_API_TOKEN",
-      source: "organization",
-      repositoryOverride: false,
-      environmentOverride: false
-    }
-  }'
+  jq -n \
+    --arg repository "${repository}" \
+    --arg inspector "${inspector_login}" \
+    --arg actor "${release_actor_login}" \
+    --arg scope "${scope}" \
+    --argjson controlled_ruleset_id "${controlled_id}" \
+    --argjson stopped_v135_ruleset_id "${stopped_v135_id}" \
+    --argjson stopped_v136_ruleset_id "${stopped_v136_id}" \
+    --argjson immutable_ruleset_id "${immutable_id}" \
+    '{
+      success: true,
+      scope: $scope,
+      repository: $repository,
+      inspector: $inspector,
+      releaseActor: $actor,
+      controlledCreationRuleset: $controlled_ruleset_id,
+      stoppedV135CreationRuleset: $stopped_v135_ruleset_id,
+      stoppedV136CreationRuleset: $stopped_v136_ruleset_id,
+      immutableRuleset: $immutable_ruleset_id,
+      retiredResources: {
+        rootPromotionDeployKey: false,
+        rootPromotionEnvironment: false,
+        readinessRunVariables: [],
+        npmToken: false
+      },
+      environments: {
+        release: [],
+        releaseV6: [],
+        releaseAuto: ["refs/tags/admin/v*", "refs/tags/mss-boot/v*", "refs/tags/v*"],
+        releaseV6Auto: ["refs/tags/web/antd-v6/v*"],
+        npmAuto: ["refs/tags/v*"]
+      },
+      environmentSecrets: {
+        release: [],
+        releaseV6: [],
+        releaseAuto: [],
+        releaseV6Auto: [],
+        npmAuto: []
+      }
+    }'
+else
+  verify_environment_secrets prod
+
+  jq -n \
+    --arg repository "${repository}" \
+    --arg inspector "${inspector_login}" \
+    --arg actor "${release_actor_login}" \
+    --arg scope "${scope}" \
+    --argjson controlled_ruleset_id "${controlled_id}" \
+    --argjson stopped_v135_ruleset_id "${stopped_v135_id}" \
+    --argjson stopped_v136_ruleset_id "${stopped_v136_id}" \
+    --argjson immutable_ruleset_id "${immutable_id}" \
+    '{
+      success: true,
+      scope: $scope,
+      repository: $repository,
+      inspector: $inspector,
+      releaseActor: $actor,
+      controlledCreationRuleset: $controlled_ruleset_id,
+      stoppedV135CreationRuleset: $stopped_v135_ruleset_id,
+      stoppedV136CreationRuleset: $stopped_v136_ruleset_id,
+      immutableRuleset: $immutable_ruleset_id,
+      environments: {
+        prod: ["refs/tags/docs/v*"]
+      },
+      environmentSecrets: {
+        prod: []
+      },
+      docsCredential: {
+        name: "CF_API_TOKEN",
+        source: "organization",
+        repositoryOverride: false,
+        environmentOverride: false
+      }
+    }'
+fi

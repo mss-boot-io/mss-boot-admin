@@ -7,7 +7,7 @@ metadata:
     Qualifies a new complete package-first Admin Distribution after v1.3.6
     became immutable partial, with an explicit reusable-container preview mode
     and exact credentialless npm Trusted Publishing identity, plus a separately
-    reviewed stable-alias promotion after the complete public candidate exists.
+    reviewed stable-alias promotion after the complete public Distribution candidate exists.
   owner: release-engineering
   labels:
     domain: release-recovery
@@ -18,22 +18,24 @@ spec:
     v1.3.6 published Framework, Admin, Admin Web, and Root releases from commit
     b1fe47a3a83209574e09d53526b122dd2cbc5277, but its preview omitted the Root
     OCI artifact, its Root container workflow failed, official npm publication
-    failed with ENEEDAUTH, and Docs was not created. Those public identities
-    cannot be completed from repaired source. A new v1.3.7 merged-main commit
-    must prove both corrections and rerun the complete coordinated ledger.
+    failed with ENEEDAUTH, and Docs was not created. Those public Distribution
+    identities cannot be completed from repaired source. A new v1.3.7
+    merged-main commit must prove the Distribution corrections and rerun its
+    complete coordinated ledger; Docs follows independently as a website publication.
   goals:
     - Select v1.3.7 as the only active candidate while v1.3.2 remains current stable.
-    - Separate human-facing guidance from executable Agent contracts and accept both documentation audiences before the Root candidate preview.
+    - Separate human-facing guidance from executable Agent contracts and validate each documentation change on its own path without making Docs evidence a Root candidate-preview prerequisite.
     - Make reusable Root-image preview behavior depend on an explicit validated caller input.
     - Bind npm Trusted Publishing exactly to npm-release.yml and npm-auto without a stored npm token.
     - Requalify the complete package-first tools, Go modules, Admin Web package, images, external Thin Host, presentation configuration, migrations, authorization, and rollback from one new merged-main commit.
     - Keep behavioral, dependency, contract, and browser qualification in a self-bound complete local verifier, while PR checks retain only lightweight server-side governance, security analysis, ordinary Admin tests, and an ordinary independent Framework test when applicable.
-    - Publish immutable candidate tags only after one successful non-publishing preview, complete the component, Root, image, and Docs candidate ledger without moving mutable aliases, and authorize stable promotion later from an exact reviewed version and commit.
+    - Publish immutable candidate tags only after one successful non-publishing preview, complete the Root, component, image, and package distribution ledger without moving mutable aliases, and authorize stable promotion later from an exact reviewed version and commit.
+    - Publish the documentation website asynchronously from its own docs/v* tag; Docs absence or failure never blocks a Distribution component, stable alias, current-stable policy, or adopter availability.
   nonGoals:
     - Continue, repair, rerun, or append artifacts to v1.3.5 or v1.3.6.
     - Create a v1.3.7 release-candidate tag or any other public prerelease while publicPrereleases remains false.
     - Restore NPM_TOKEN or NODE_AUTH_TOKEN in repository, organization, or environment secrets.
-    - Mark v1.3.7 stable or expose adopter commands before complete public reconciliation.
+    - Mark v1.3.7 stable or expose adopter commands before the complete Distribution ledger, reviewed stable promotion, and final current-stable policy reconciliation.
     - Reintroduce runtime dynamic-model, virtual CRUD, browser code generation, or remote executable presentation configuration.
   actors:
     - id: release-operator
@@ -44,7 +46,7 @@ spec:
       description: SullivanPrime reviews the repair pull request and exact Head evidence but does not create release identities.
     - id: thin-host-adopter
       displayName: Thin Host adopter
-      description: May consume v1.3.7 only after every required public surface reconciles.
+      description: May consume v1.3.7 only after every required Distribution surface and stable identity reconciles; Docs may remain pending.
   modules:
     - name: release-governance
       kind: infrastructure
@@ -57,7 +59,7 @@ spec:
     - name: package-first-distribution
       kind: infrastructure
       operation: extend
-      description: Checksummed tools, Go modules, Admin Web package, images, Docs, and external Thin Host qualification.
+      description: Checksummed tools, Go modules, Admin Web package, images, and external Thin Host qualification; the Docs website is tracked independently.
   requirements:
     - id: select-unused-v137
       title: Select a new exact candidate identity
@@ -66,7 +68,7 @@ spec:
       actor: release-operator
       module: release-governance
       rules:
-        - Remote Root, Framework, Admin, Admin Web, npmjs, Docs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before qualification and publication.
+        - Remote Root, Framework, Admin, Admin Web, npmjs, image, Go Proxy, and preview ledgers are checked for conflicting v1.3.7 identities before Distribution qualification and publication; Docs identity is checked only before its own website tag.
         - The source is one clean exact commit already merged into current origin/main through a reviewed pull request.
         - v1.3.2 remains current stable; v1.3.5 and v1.3.6 remain non-adoptable immutable partial trains.
         - publicPrereleases remains false, so v1.3.7 uses the exact stable-form version only and no rc tag or public prerelease is created.
@@ -105,7 +107,7 @@ spec:
       module: release-governance
       rules:
         - The pull-request Head passes mss verify --changed, focused checks selected by its impact plan, affected Codex in-app Browser acceptance, and the lightweight required pull-request checks before merge; broad Agent, Admin, Framework, frontend, Thin Host, container, and multi-database matrices do not block the PR.
-        - Human-facing Docs explain use and maintenance while AGENTS.md, .mss, .agents/skills, and .codex remain the executable Agent contract; the audience map, current-doc checks, Docs build, and representative browser pages pass before preview.
+        - Human-facing Docs explain use and maintenance while AGENTS.md, .mss, .agents/skills, and .codex remain the executable Agent contract; documentation checks qualify documentation changes but never authorize or block Distribution publication.
         - The final preparation pull request enables publicationWorkflowsReady while stable promotion remains disabled and unbound to any commit.
         - After merge, the frozen exact origin/main commit performs the only complete suite by passing mss verify --all --release-evidence --expect-commit with a report that binds the full commit and true trackedCleanBefore/After values.
         - An external review or release ledger records the self-bound report digest and result before preview.
@@ -114,21 +116,34 @@ spec:
         - Framework, Admin, and Admin Web tags are annotated and created in order before Root.
         - The first irreversible Framework publication performs one cheap exact preview lookup; Admin does not repeat it and still resolves and tests the exact public Framework with GOWORK off through the public Go proxy.
         - The Root tag starts Root assets and the Root image from the same preview evidence but leaves GitHub Latest unchanged and does not start official npm publication.
-        - Docs is a later independent candidate tag after the component, package, and image ledger reconciles; it is complete before stable promotion is authorized.
+        - Docs is an asynchronous website-only publication after the base Root Release exists. It may complete before or after stable promotion and current-stable reconciliation, and its failure or absence does not invalidate the Distribution ledger.
+        - A docs/v* tag identifies one immutable website publication. It is not a Distribution component tag, adopter-availability signal, npm prerequisite, or stable-alias authority.
+    - id: publish-docs-site-asynchronously
+      title: Publish the documentation website independently
+      description: Docs uses its own immutable tag and deployment ledger without joining the Distribution dependency graph.
+      priority: should
+      actor: release-operator
+      module: package-first-distribution
+      rules:
+        - Docs publication may start only after its base Root Release exists, but no Distribution component, image, npm publication, stable alias, current-stable update, or adopter path waits for Docs.
+        - A docs/vX.Y.Z tag identifies the website publication for that version; it does not certify the Distribution or change package availability.
+        - The Docs workflow retains exact-tag resolution, Root-ancestor and merged-source checks, lowest-unused revision ordering, protected deployment, immutable Release assets, checksums, release.json identity, and browser reconciliation.
+        - A Docs failure is recorded as website deployment pending and repaired only through the Docs path; it does not stop, roll back, or invalidate the Distribution release.
     - id: reconcile-complete-v137-ledger
       title: Prove the complete adopter boundary
-      description: Stable promotion is blocked until every immutable pre-promotion candidate surface and external-consumer path is public and exact; official npm and stable aliases are then reconciled in a separately authorized promotion.
+      description: Stable promotion is blocked until every immutable Distribution surface and external-consumer path is public and exact; official npm and stable aliases are then reconciled in a separately authorized promotion without waiting for Docs.
       priority: must
       actor: thin-host-adopter
       module: package-first-distribution
       rules:
-        - Before promotion, Root tools, Framework, Admin, Admin Web, Root and frontend images, checksums, provenance, Release notes, and Docs resolve to the same version and release commit; official npmjs is deliberately absent from this pre-promotion candidate ledger.
+        - Before promotion, Root tools, Framework, Admin, Admin Web, Root and frontend images, checksums, provenance, and Release notes resolve to the same version and release commit; official npmjs is deliberately absent from this pre-promotion Distribution ledger, and Docs is outside it.
         - Empty-directory installers and external Thin Hosts reject local replacements, copied Foundation source, mixed versions, and mutable image references.
         - Fresh and v1.3.2 upgrade migrations, authorization positive and negative cases, browser states, presentation recovery mode, and matching-pair rollback pass from release artifacts.
-        - After the immutable component, Root, image, and Docs candidate ledger is complete, a separate reviewed pull request sets stablePromotionReady and binds stablePromotionVersion v1.3.7 plus the exact release commit.
+        - After the immutable Root, component, and image Distribution ledger is complete, a separate reviewed pull request sets stablePromotionReady and binds stablePromotionVersion v1.3.7 plus the exact release commit; this authorization never depends on a Docs tag, Release, deployment, credential, or public site response.
         - The exact Root-tag workflow_dispatch publishes or reconciles official npmjs latest through OIDC first, verifies its immutable identity and provenance, and only then promotes the matching Root Release to GitHub Latest.
-        - The post-promotion adopter ledger adds official npmjs and proves Root tools, Framework, Admin, Admin Web, npmjs, both images, checksums, provenance, Release notes, and Docs agree on v1.3.7 and the reviewed release commit.
-        - v1.3.7 remains non-adoptable until a subsequent reviewed policy and Docs reconciliation pull request updates current-stable truth. If that later merged Docs source must replace the immutable candidate Docs tag, another reviewed authorization binds docsRevisionVersion to the lowest unused +docs.N tag and docsRevisionCommit to that exact earlier merged-main source before publication.
+        - The post-promotion adopter ledger adds official npmjs and proves Root tools, Framework, Admin, Admin Web, npmjs, both images, checksums, provenance, and Release notes agree on v1.3.7 and the reviewed release commit.
+        - A subsequent reviewed reconciliation atomically updates currentStableVersion, currentStableCommit, adopter availability, and checked-in human and Agent source guidance as soon as the Distribution ledger and stable aliases are exact; it does not wait for Docs publication.
+        - Docs tag, Release, deployment, and public-site truth are reconciled separately from checked-in source guidance. A missing or failed website deployment is recorded as pending without changing Distribution stability. Any later site update preserves existing tags and uses a separately reviewed docsRevisionVersion plus docsRevisionCommit authorization for the lowest unused +docs.N tag.
   constraints:
     - id: merged-main-only
       type: operations
@@ -141,13 +156,16 @@ spec:
       statement: npm Trusted Publishing and OIDC replace long-lived npm publication tokens.
     - id: matched-distribution
       type: compatibility
-      statement: Framework, Admin, Admin Web, Root tools, images, npmjs, and Docs use one v1.3.7 version and exact commit; mixed patch versions are unsupported.
+      statement: Framework, Admin, Admin Web, Root tools, images, and npmjs use one v1.3.7 version and exact commit; mixed Distribution patch versions are unsupported. Docs publishes a separately reconciled website identity.
+    - id: docs-site-non-blocking
+      type: operations
+      statement: A docs/v* tag identifies only website publication. Docs credentials, workflow status, Release, and public site state never gate Distribution components, npm, GitHub Latest, currentStable, or adopter availability.
     - id: no-public-prerelease
       type: compatibility
       statement: publicPrereleases is false and no v1.3.7 rc tag, prerelease Release, prerelease package, or prerelease image is part of this train.
     - id: staged-stable-aliases
       type: operations
-      statement: Candidate publication does not move mutable stable aliases; reviewed exact promotion moves npm latest before GitHub Latest, and later policy plus Docs reconciliation closes the stable contract.
+      statement: Candidate publication does not move mutable stable aliases; reviewed exact promotion moves npm latest before GitHub Latest, and later current-stable policy reconciliation closes the Distribution contract independently of Docs.
   acceptance:
     - id: v137-policy-and-vacancy
       requirement: select-unused-v137
@@ -159,7 +177,7 @@ spec:
         - type: command
           value: python3 -m unittest tools/release/test_check_release_policy.py
         - type: report
-          value: Sanitized Root, component, npmjs, image, Docs, Go Proxy, and preview vacancy ledger for v1.3.7.
+          value: Sanitized Root, component, npmjs, image, Go Proxy, and preview vacancy ledger for v1.3.7; Docs vacancy is checked separately only before a Docs website tag.
     - id: v137-root-image-contract
       requirement: pass-root-image-preview-mode
       statement: Workflow tests and the exact preview prove that reusable invocation uploads the required Root image artifact.
@@ -190,16 +208,25 @@ spec:
       required: true
       evidence:
         - type: report
-          value: Human and Agent audience-map checks, Docs build and browser evidence; self-bound exact-clean merged-main mss verify --all --release-evidence report containing the full commit and true trackedCleanBefore/After values plus its digest; lightweight required PR checks, Codex in-app Browser acceptance evidence, and successful alias-free v1.3.7 Root artifact preview with checksums.
+          value: Human and Agent audience-map review plus a self-bound exact-clean merged-main mss verify --all --release-evidence report containing the full commit and true trackedCleanBefore/After values and its digest; lightweight required PR checks, affected runtime Codex in-app Browser acceptance evidence, and successful alias-free v1.3.7 Root artifact preview with checksums. Docs build and site-browser evidence belong only to the asynchronous Docs publication ledger.
     - id: v137-public-reconciliation
       requirement: reconcile-complete-v137-ledger
-      statement: Every immutable pre-promotion candidate surface and repository-external consumer probe succeeds before a separate reviewed policy authorizes exact stable promotion; npm latest then GitHub Latest converge, the complete adopter ledger adds official npm, and later exact policy plus Docs reconciliation closes adoption.
+      statement: Every immutable Distribution surface and repository-external consumer probe succeeds before a separate reviewed policy authorizes exact stable promotion; npm latest then GitHub Latest converge, the complete adopter ledger adds official npm, and later exact current-stable policy reconciliation closes adoption without waiting for Docs.
       level: integration
       phase: post-publication
       required: true
       evidence:
         - type: report
-          value: Exact Framework, Admin, Admin Web, Root, image, Docs, Go Proxy, installer, and external Thin Host pre-promotion candidate ledger; reviewed stablePromotionVersion and stablePromotionCommit; OIDC npm latest identity and provenance; subsequent GitHub Latest identity; complete post-promotion adopter ledger; final policy and exact Docs revision authorization/reconciliation evidence.
+          value: Exact Framework, Admin, Admin Web, Root, image, Go Proxy, installer, and external Thin Host pre-promotion Distribution ledger; reviewed stablePromotionVersion and stablePromotionCommit; OIDC npm latest identity and provenance; subsequent GitHub Latest identity; complete post-promotion adopter ledger; and final current-stable policy evidence. Docs publication evidence is recorded separately and is non-blocking.
+    - id: v137-docs-site-follow-up
+      requirement: publish-docs-site-asynchronously
+      statement: When the website is published, a docs/v* tag identifies only that immutable site publication and retains Root-ancestor, merged-source, revision-order, protected-deployment, Release, release.json, and browser reconciliation safety without gating the Distribution.
+      level: integration
+      phase: post-publication
+      required: false
+      evidence:
+        - type: report
+          value: Independent Docs workflow, Release assets and checksums, public release.json, and browser evidence, or an explicit source-updated / deployment-pending status.
   risks:
     - id: reusable-event-context
       description: A called workflow could inherit workflow_dispatch and silently skip preview-only image work.
@@ -222,44 +249,49 @@ spec:
     all: mss verify --all --release-evidence --expect-commit <full-sha>
     custom:
       - python3 -m unittest discover -s tools/release -p 'test_*.py'
-      - python3 tools/docs/check_current_docs.py
       - GOWORK=off go test ./internal/mss/...
       - cd mss-boot && GOWORK=off go test ./...
       - cd admin && GOWORK=off go test ./...
       - corepack pnpm@10.34.5 --dir web/antd-v6 lint
       - corepack pnpm@10.34.5 --dir web/antd-v6 test:ci
       - corepack pnpm@10.34.5 --dir web/antd-v6 build:release
-      - corepack pnpm@9.15.9 --dir docs build
   rollout:
     strategy: phased
     migration: >-
-      Merge the final preparation through a reviewed pull request that separates
-      human guidance from executable Agent contracts, corrects the npm Trusted
-      Publisher to npm-release.yml plus npm-auto without creating a token, enables
-      publicationWorkflowsReady, and leaves stable promotion disabled. Complete
-      mss verify --changed, selected focused checks, Docs build and Browser
-      acceptance on the exact PR Head, merge only after required checks pass,
+      Merge the final preparation through a reviewed pull request that corrects
+      the npm Trusted Publisher to npm-release.yml plus npm-auto without creating
+      a token, enables publicationWorkflowsReady, and leaves stable promotion
+      disabled. Complete mss verify --changed and selected focused Distribution
+      checks on the exact PR Head, merge only after required checks pass,
       then freeze the clean exact origin/main commit and run the only complete
       suite with mss verify --all --release-evidence --expect-commit using that
       full SHA. Record the self-bound report digest, run one non-publishing and
       alias-free v1.3.7 Root artifact preview, and inspect every expected artifact.
       As lwnmengjing, create annotated Framework, Admin, Admin Web, and Root tags
-      in order, reconcile both images and package surfaces, and publish the Docs
-      candidate tag without moving stable aliases. After that complete candidate
-      ledger, merge another reviewed pull request that enables exact v1.3.7
+      in order and reconcile both images and package surfaces without moving
+      stable aliases. After that complete Distribution ledger, merge another
+      reviewed pull request that enables exact v1.3.7
       promotion and binds its release commit. Dispatch npm-release.yml from the
       exact Root tag so OIDC publishes or reconciles npm latest first; verify its
       version, gitHead, integrity, and provenance before promoting GitHub Latest.
-      Finally merge a subsequent policy and Docs reconciliation pull request and
-      record that exact merged source commit. If its content must replace the
-      immutable candidate Docs tag, merge a separate reviewed authorization that
-      sets docsRevisionPublicationReady, binds docsRevisionVersion to the lowest
-      unused v1.3.7+docs.N identity, and binds docsRevisionCommit to that recorded
-      source. Publish that exact source through the revision tag, reconcile the
-      public site, disable the one-shot revision authority again, and only then
-      mark v1.3.7 adoptable.
+      Finally merge a subsequent policy reconciliation pull request to advance
+      current stable and adopter availability while atomically aligning checked-in
+      human and Agent source guidance, without requiring a Docs tag, Release,
+      deployment, or public-site evidence. Docs may publish before or after
+      those steps from its own docs/v* website tag and never delays them. Before
+      any Docs publication, independently verify its exact tag, Root ancestor,
+      merged source, protected deployment, Release assets, checksums, public
+      release.json, and browser state. If later content must replace an immutable
+      Docs tag, merge a separate reviewed authorization that sets
+      docsRevisionPublicationReady, binds docsRevisionVersion to the lowest unused
+      v1.3.7+docs.N identity, and binds docsRevisionCommit to that recorded source;
+      publish the website revision and disable the one-shot authority afterward.
     rollback: >-
-      Stop before the next tag on any failed gate. Existing adopters remain on
+      Stop before the next Distribution tag on any Distribution gate failure.
+      A Docs failure stops only the website publication and is recorded for
+      asynchronous follow-up; it never rolls back or invalidates published
+      Distribution components, stable aliases, currentStable, or adopter
+      availability. Existing adopters remain on
       the matching v1.3.2 Admin, frontend, configuration, and lock. Never move a
       public tag, complete v1.3.5 or v1.3.6, mix patch versions, or restore a
       stored npm publication token.
