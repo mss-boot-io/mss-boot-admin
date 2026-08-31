@@ -335,7 +335,7 @@ func TestDecodeCanonicalFoundationReleasePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode canonical release policy: %v", err)
 	}
-	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "disabled" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
+	if policy.Spec.DocsRevisionPublicationReady == nil || policy.Spec.StablePromotionReady == nil || !*policy.Spec.StablePromotionReady || policy.Spec.StablePromotionVersion == nil || *policy.Spec.StablePromotionVersion != "v1.3.7" || policy.Spec.StablePromotionCommit == nil || *policy.Spec.StablePromotionCommit != "77b53d41092741eac62fa6418c0bdbf87413c7cd" || policy.Spec.DocsRevisionVersion == nil || *policy.Spec.DocsRevisionVersion != "disabled" || policy.Spec.DocsRevisionCommit == nil || *policy.Spec.DocsRevisionCommit != "disabled" || len(policy.Spec.ImmutableStoppedTrains) != 2 {
 		t.Fatalf("canonical extended release controls = %#v", policy.Spec)
 	}
 	if policy.Spec.NextPublicVersion != "v1.3.7" || policy.Spec.PublicationWorkflowsReady == nil || !*policy.Spec.PublicationWorkflowsReady {
