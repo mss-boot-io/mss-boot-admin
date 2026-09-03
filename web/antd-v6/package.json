@@ -201,19 +201,19 @@
   "dependencies": {
     "@ant-design/icons": "6.3.2",
     "@ant-design/pro-components": "3.1.14-6",
-    "@biomejs/biome": "2.5.10",
-    "@tanstack/react-query": "5.101.4",
+    "@biomejs/biome": "2.5.11",
+    "@tanstack/react-query": "5.102.8",
     "@tailwindcss/postcss": "4.3.3",
-    "@types/node": "26.2.0",
+    "@types/node": "26.4.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
-    "@umijs/max": "4.7.7",
-    "antd": "6.6.1",
+    "@types/react-dom": "19.2.5",
+    "@umijs/max": "4.7.8",
+    "antd": "6.6.2",
     "antd-style": "4.1.0",
     "clsx": "2.1.1",
     "d": "1.0.2",
     "dayjs": "1.11.23",
-    "happy-dom": "20.11.6",
+    "happy-dom": "20.12.0",
     "less": "4.9.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -225,7 +225,7 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@testing-library/dom": "10.4.1",
-    "@testing-library/react": "16.3.2",
+    "@testing-library/react": "16.3.3",
     "cross-env": "10.1.0"
   },
   "engines": {
@@ -235,8 +235,8 @@
   "pnpm": {
     "overrides": {
       "@ant-design/pro-components": "3.1.14-6",
-      "@tanstack/react-query": "5.101.4",
-      "antd": "6.6.1",
+      "@tanstack/react-query": "5.102.8",
+      "antd": "6.6.2",
       "axios": "0.33.0",
       "react": "19.2.8",
       "react-dom": "19.2.8"
