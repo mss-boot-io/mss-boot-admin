@@ -26,7 +26,7 @@ import (
 func main() {
 	if err := adminapp.ExecuteContext(
 		context.Background(),
-		adminapp.WithBusinessModules(all.Modules()...),
+		adminapp.WithBusinessModules(append(all.Modules(), all.CustomModules()...)...),
 	); err != nil {
 		log.Fatal(err)
 	}
