@@ -8,15 +8,14 @@ and the project uses semantic versioning for nested-module releases.
 
 No unreleased changes are recorded.
 
-## [mss-boot/v1.3.7] - 2026-08-29
+## [mss-boot/v1.3.7] - 2026-08-31
 
-Status: **coordinated v1.3.7 release candidate / not stable or adoptable**.
-Candidate component surfaces can become public in stages; the remote release
-ledger is authoritative until stable promotion and final reconciliation
-complete. The Framework API remains source compatible. This new candidate
-requalifies the domain-neutral Framework from a new merged-main commit because
-the coordinated v1.3.6 train stopped before Root image, official npm, and Docs
-completion.
+Status: **published / coordinated current stable**. The public Framework module,
+Admin, Admin Web, Root tools, images, npm stable alias, and current-stable policy
+reconcile to exact release commit
+`77b53d41092741eac62fa6418c0bdbf87413c7cd`. The Framework API remains source
+compatible. Docs website publication is independent and does not gate this
+stable module or Distribution adoption.
 
 ### Changed
 
@@ -29,10 +28,10 @@ completion.
 
 ### Compatibility
 
-- Candidate preview uses the exact repository workspace before the Framework
-  tag exists. Formal Admin publication must resolve the public v1.3.7
+- The non-publishing preview used the exact repository workspace before the
+  Framework tag existed. Formal Admin publication resolved the public v1.3.7
   Framework with `GOWORK=off` from the same merged-main commit.
-- v1.3.2 remains the coordinated stable and matching-pair rollback baseline.
+- v1.3.7 is the coordinated stable and matching-pair rollback baseline.
 
 ## [mss-boot/v1.3.6] - 2026-08-27
 

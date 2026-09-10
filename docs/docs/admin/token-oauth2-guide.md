@@ -10,6 +10,8 @@ keywords: [admin session token oauth2 pat api security audit]
 
 # V6 browser sessions, PAT, and OAuth2
 
+Applicable baseline: **mss-boot-admin v1.3.7**, the current stable Distribution.
+
 MSS deliberately separates browser authentication from non-browser API automation.
 The V6 application uses a server-side session represented by an HttpOnly cookie;
 automation uses a user-created personal access token (PAT) in the standard

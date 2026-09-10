@@ -26,15 +26,17 @@ class DocsDeploymentStateTest(unittest.TestCase):
         )
 
     def test_exact_public_identity_is_idempotent(self):
-        identity = self.identity("v1.3.7+docs.1")
+        identity = self.identity("v1.3.7")
         self.assertEqual(STATE.deployment_action(identity, identity), "current")
 
-    def test_same_version_with_different_commit_is_rejected(self):
-        with self.assertRaisesRegex(STATE.DeploymentStateError, "not requested"):
+    def test_same_stable_tag_with_different_commit_is_redeployed(self):
+        self.assertEqual(
             STATE.deployment_action(
                 self.identity("v1.3.7", "b" * 40),
                 self.identity("v1.3.7", "a" * 40),
-            )
+            ),
+            "deploy",
+        )
 
     def test_product_rollback_is_rejected(self):
         with self.assertRaisesRegex(STATE.DeploymentStateError, "roll back product"):
@@ -43,34 +45,20 @@ class DocsDeploymentStateTest(unittest.TestCase):
                 self.identity("v1.3.7"),
             )
 
-    def test_revision_must_follow_the_public_base(self):
-        with self.assertRaisesRegex(STATE.DeploymentStateError, "skip its base"):
-            STATE.deployment_action(
-                self.identity("v1.3.7+docs.1"),
-                self.identity("v1.3.2+docs.1"),
-            )
-
-    def test_revision_rollback_and_gap_are_rejected(self):
-        for requested, current, message in (
-            ("v1.3.7", "v1.3.7+docs.1", "roll back revision"),
-            ("v1.3.7+docs.1", "v1.3.7+docs.2", "roll back revision"),
-            ("v1.3.7+docs.3", "v1.3.7+docs.1", "skip a production revision"),
-        ):
-            with self.subTest(requested=requested, current=current):
-                with self.assertRaisesRegex(STATE.DeploymentStateError, message):
-                    STATE.deployment_action(
-                        self.identity(requested, "b" * 40),
-                        self.identity(current),
-                    )
-
-    def test_next_revision_can_advance(self):
+    def test_stable_tag_can_replace_a_historical_revision_identity(self):
         self.assertEqual(
             STATE.deployment_action(
-                self.identity("v1.3.7+docs.2", "b" * 40),
+                self.identity("v1.3.7", "b" * 40),
                 self.identity("v1.3.7+docs.1"),
             ),
             "deploy",
         )
+
+    def test_new_revision_identity_is_rejected(self):
+        with self.assertRaisesRegex(
+            STATE.DeploymentStateError, "reuse the stable"
+        ):
+            STATE.parse_requested_version("v1.3.7+docs.1", "a" * 40)
 
     def test_current_identity_file_is_strict(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,7 +76,7 @@ class DocsDeploymentStateTest(unittest.TestCase):
             with self.assertRaisesRegex(STATE.DeploymentStateError, "mss-boot-docs"):
                 STATE.load_current_identity(path)
 
-    def test_revision_is_bounded_before_arithmetic_or_iteration(self):
+    def test_historical_revision_is_bounded_when_reading_public_identity(self):
         with self.assertRaisesRegex(STATE.DeploymentStateError, "maximum supported"):
             self.identity("v1.3.7+docs.1000")
 

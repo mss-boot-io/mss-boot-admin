@@ -2,18 +2,23 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-2-3-release
-  displayName: Qualify and publish independently versioned v1.2.3 components
+  displayName: v1.2.3 historical previous-stable release record
   description: >-
-    Governs v1.2.3 publication for the independently releasable root foundation,
-    reusable Framework, sole Ant Design 6 frontend, and documentation site. Each
-    component binds its immutable public ref to its own exact commit already merged
-    into main; components that form a runtime pair retain their synchronized contract.
+    Historical contract for the reconciled v1.2.3 train published from
+    260d546851c58f7293b30e76b47d40d8e89f52fe. The remaining goals, requirements,
+    acceptance, and rollout sections preserve its publication evidence only; they are
+    not current publication authority. v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.1.0
+    stable-at-preparation: v1.1.0
+    stable-at-publication: v1.2.3
+    current-stable-now: v1.3.7
     target-version: v1.2.3
-    release-status: preparation
+    release-status: historical-stable
+    release-commit: 260d546851c58f7293b30e76b47d40d8e89f52fe
+    docs-release-commit: 9a256229774bb255dfe8a618613522fd70538195
+    published-date: 2026-08-19
 spec:
   problem: >-
     The immutable v1.2.2 Framework and frontend releases completed and root

@@ -1409,18 +1409,21 @@ exit 66
             ],
         )
 
-    def test_docs_base_is_exact_root_and_revision_is_exactly_authorized(self):
+    def test_docs_base_tag_is_replaceable_with_merged_source_and_root_ancestry(self):
         workflow = self.workflows["docs.yml"]
         self.assertNotIn("actions", workflow["permissions"])
+        self.assertEqual(
+            workflow["jobs"]["build"]["if"],
+            "${{ github.event.deleted != true }}",
+        )
         steps = workflow["jobs"]["build"]["steps"]
         source = next(
             step
             for step in steps
             if step.get("name") == "Verify merged-main release source"
         )["run"]
-        self.assertIn("source_mode='release'", source)
-        self.assertIn("source_mode='promotion'", source)
-        self.assertIn('--source-mode "${source_mode}"', source)
+        self.assertIn("--source-mode docs", source)
+        self.assertNotIn("promotion", source)
 
         policy = next(
             step
@@ -1428,25 +1431,17 @@ exit 66
             if step.get("name") == "Enforce reviewed docs release target"
         )["run"]
         for required in (
-            "refs/remotes/origin/main:.mss/release-policy.yaml",
-            '--policy "${policy_path}"',
+            "--policy ../.mss/release-policy.yaml",
             '--commit "${GITHUB_SHA}"',
         ):
             self.assertIn(required, policy)
 
-        revision = next(
-            step
-            for step in steps
-            if step.get("name") == "Require the lowest unused docs revision"
+        self.assertFalse(
+            any(
+                step.get("name") == "Require the lowest unused docs revision"
+                for step in steps
+            )
         )
-        self.assertIn("+docs.", revision["if"])
-        for required in (
-            'revision="${DOCS_VERSION##*+docs.}"',
-            'seq 1 "$((revision - 1))"',
-            'show-ref --verify --quiet "${prior_tag}"',
-            "is not the lowest unused revision",
-        ):
-            self.assertIn(required, revision["run"])
 
         predecessor = next(
             step
@@ -1456,13 +1451,10 @@ exit 66
         )
         script = predecessor["run"]
         for required in (
-            'root_tag="${DOCS_VERSION%%+docs.*}"',
+            'root_tag="${DOCS_VERSION}"',
             'git rev-parse "refs/tags/${root_tag}^{commit}"',
-            'if [[ "${DOCS_VERSION}" != *+docs.* ]]; then',
-            'if [[ "${GITHUB_SHA}" != "${root_commit}" ]]; then',
-            'if [[ "${GITHUB_SHA}" == "${root_commit}" ]]; then',
             'merge-base --is-ancestor "${root_commit}" "${GITHUB_SHA}"',
-            "would roll production content back before Root",
+            "would publish content older than Root",
             'gh release view "${root_tag}"',
             "--json tagName,targetCommitish,isDraft,isPrerelease",
             '--arg commit "${root_commit}"',
@@ -1479,6 +1471,15 @@ exit 66
             'workflow_dispatch',
         ):
             self.assertNotIn(forbidden, script)
+
+        release_slot = next(
+            step
+            for step in steps
+            if step.get("name") == "Require a replaceable Docs release slot"
+        )["run"]
+        self.assertIn('gh release view "${GITHUB_REF_NAME}"', release_slot)
+        self.assertIn("delete the previous Docs Release", release_slot)
+        self.assertIn("authoritative not-found response", release_slot)
         self.assertLess(
             steps.index(predecessor),
             next(
@@ -1514,27 +1515,24 @@ exit 66
         )
         self.assertEqual(revalidate["id"], "deployment-state")
         for required in (
-            "git fetch --force --tags origin",
+            "git fetch --force --no-tags origin",
+            'git fetch --force --no-tags origin "refs/tags/${GITHUB_REF_NAME}"',
+            "git rev-parse 'FETCH_HEAD^{commit}'",
             "refs/remotes/origin/main",
             "origin/main:.mss/release-policy.yaml",
             "check_release_policy.py",
             '--commit "${GITHUB_SHA}"',
             'merge-base --is-ancestor "${root_commit}" "${GITHUB_SHA}"',
             "check_docs_deployment_state.py",
-            'predecessor_tag="docs/${predecessor_version}"',
-            'gh release view "${predecessor_tag}"',
-            '["DOCS-BUILD-INFO.txt", "SHA256SUMS.docs", "docs-dist.tar.gz"]',
-            'gh release download "${predecessor_tag}"',
-            "sha256sum --strict --check SHA256SUMS.docs",
-            "./release.json",
+            "predecessor_commit=\"$(jq -er '.commit' \"${current_identity}\")\"",
+            'git merge-base --is-ancestor "${predecessor_commit}" "${GITHUB_SHA}"',
+            "would roll production content back",
             "deploy=true",
             "deploy=false",
         ):
             self.assertIn(required, revalidate["run"])
-        self.assertLess(
-            revalidate["run"].index("check_release_policy.py"),
-            revalidate["run"].index('seq 1 "$((revision - 1))"'),
-        )
+        self.assertNotIn("+docs.", revalidate["run"])
+        self.assertNotIn("gh release download", revalidate["run"])
 
         credential = next(
             step
@@ -1568,7 +1566,7 @@ exit 66
         release = next(
             step
             for step in deployment_steps
-            if step.get("name") == "Reconcile immutable docs GitHub release"
+            if step.get("name") == "Reconcile replaceable docs GitHub release"
         )["run"]
         for required in (
             "--json tagName,targetCommitish,isDraft,isPrerelease,name,body,assets",
@@ -1581,14 +1579,57 @@ exit 66
             "gh release edit",
             "--draft=false",
             "--latest=false",
+            "delete the non-matching Docs Release",
         ):
             self.assertIn(required, release)
+        self.assertNotIn("gh release delete", release)
+        final_reconciliation = release[release.index('final_release="$(') :]
+        self.assertIn('--rawfile body "${notes}"', final_reconciliation)
+        self.assertNotIn("--arg body", final_reconciliation)
+        self.assertIn(".body == $body", final_reconciliation)
         self.assertFalse(
             any(
                 step.get("name") == "Refuse mutation of an existing docs release"
                 for step in steps
             )
         )
+
+    def test_docs_release_runbook_is_actor_bound_fail_closed_and_delete_then_recreate(self):
+        skill = (
+            REPOSITORY_ROOT / ".agents" / "skills" / "mss-release" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        section = skill.split(
+            "### 9. Publish and reconcile the Docs website asynchronously", 1
+        )[1].split("### 10. Reconcile public truth independently", 1)[0]
+        for required in (
+            "test \"$(gh api user --jq .login)\" = 'lwnmengjing'",
+            'GH_TOKEN="$(gh auth token)" python3 tools/release/verify_release_source.py',
+            "verify_remote_release_governance.sh",
+            'jq -e \'.success == true and .tagMode == "delete-then-recreate"\'',
+            'gh release delete "${DOCS_TAG}" --yes',
+            'gh api --method DELETE "/repos/${REPO}/git/refs/tags/${DOCS_TAG}"',
+            "Docs tag absence could not be verified authoritatively",
+            "Docs Release absence could not be verified authoritatively",
+            'gh api --method POST "/repos/${REPO}/git/tags"',
+            'gh api --method POST "/repos/${REPO}/git/refs"',
+            "git fetch --force --no-tags origin \"refs/tags/${DOCS_TAG}\"",
+        ):
+            self.assertIn(required, section)
+        self.assertLess(
+            section.index("verify_remote_release_governance.sh"),
+            section.index('gh release delete "${DOCS_TAG}" --yes'),
+        )
+        self.assertLess(
+            section.index("gh api user --jq .login"),
+            section.index('gh release delete "${DOCS_TAG}" --yes'),
+        )
+        for forbidden in (
+            "git fetch origin main --tags",
+            'git push origin --delete "refs/tags/${DOCS_TAG}"',
+            'git tag -a "${DOCS_TAG}"',
+            '! gh release view "${DOCS_TAG}"',
+        ):
+            self.assertNotIn(forbidden, section)
 
     def test_root_tag_drives_only_root_release_and_image(self):
         root = self.workflows["release.yml"]
@@ -1681,7 +1722,7 @@ exit 66
             step
             for step in steps
             if step.get("name")
-            == "Require reviewed stable promotion and complete candidate ledger"
+            == "Require reviewed stable promotion and complete distribution ledger"
         )
         self.assertEqual(ledger["id"], "promotion")
         ledger_script = ledger["run"]
@@ -1695,16 +1736,18 @@ exit 66
             '"admin/${RELEASE_VERSION}"',
             '"web/antd-v6/${RELEASE_VERSION}"',
             '"${RELEASE_VERSION}"',
-            '"docs/${RELEASE_VERSION}"',
             'test "$(resolve_tag_commit "${release_tag}")" = "${RELEASE_COMMIT}"',
             ".isDraft == false and .isPrerelease == false",
             'releases/latest" --jq .tag_name',
             '"${current_stable}"|"${RELEASE_VERSION}")',
-            "https://docs.mss-boot-io.top/release.json",
-            '.application == "mss-boot-docs"',
-            ".version == $version and .commit == $commit",
         ):
             self.assertIn(required, ledger_script)
+        for forbidden in (
+            '"docs/${RELEASE_VERSION}"',
+            "https://docs.mss-boot-io.top/release.json",
+            '"mss-boot-docs"',
+        ):
+            self.assertNotIn(forbidden, ledger_script)
 
         go_modules = next(
             step

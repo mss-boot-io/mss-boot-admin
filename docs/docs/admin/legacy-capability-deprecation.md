@@ -67,8 +67,8 @@ mss verify --changed
 
 ## `mss` 为什么继续保留
 
-v1.3.7 候选合同计划将 `mss` 作为 Root Release 工具发布，公共对账完成后供 Thin Host
-开发期使用。它与已移除的 Admin 浏览器生成器有不同的信任边界：
+v1.3.7 已将 `mss` 作为 Root Release 工具发布并完成公共对账，供 Thin Host 开发期使用。
+它与已移除的 Admin 浏览器生成器有不同的信任边界：
 
 | `mss` 确定性生成器 | 已移除的 Admin 浏览器生成器 |
 | --- | --- |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when a Docs deployment would skip or roll back public state."""
+"""Validate a replaceable Docs deployment against the public site identity."""
 
 from __future__ import annotations
 
@@ -73,13 +73,21 @@ def load_current_identity(path: Path) -> DocsIdentity:
     return parse_version(version, commit)
 
 
+def parse_requested_version(version: str, commit: str) -> DocsIdentity:
+    identity = parse_version(version, commit)
+    if identity.revision != 0:
+        raise DeploymentStateError(
+            "new Docs deployments must reuse the stable docs/vX.Y.Z identity"
+        )
+    return identity
+
+
 def deployment_action(requested: DocsIdentity, current: DocsIdentity) -> str:
-    if requested.version == current.version:
-        if requested.commit != current.commit:
-            raise DeploymentStateError(
-                f"production {current.version} has commit {current.commit}, not "
-                f"requested {requested.commit}"
-            )
+    if requested.revision != 0:
+        raise DeploymentStateError(
+            "new Docs deployments must reuse the stable docs/vX.Y.Z identity"
+        )
+    if requested.version == current.version and requested.commit == current.commit:
         return "current"
 
     if requested.base < current.base:
@@ -88,22 +96,7 @@ def deployment_action(requested: DocsIdentity, current: DocsIdentity) -> str:
             f"to {requested.version}"
         )
     if requested.base > current.base:
-        if requested.revision != 0:
-            raise DeploymentStateError(
-                f"Docs revision {requested.version} cannot skip its base publication"
-            )
         return "deploy"
-
-    if requested.revision <= current.revision:
-        raise DeploymentStateError(
-            f"Docs deployment would roll back revision {current.version} "
-            f"to {requested.version}"
-        )
-    if requested.revision != current.revision + 1:
-        raise DeploymentStateError(
-            f"Docs deployment would skip a production revision between "
-            f"{current.version} and {requested.version}"
-        )
     return "deploy"
 
 
@@ -115,7 +108,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         current = load_current_identity(args.current)
-        requested = parse_version(args.requested_version, args.requested_commit)
+        requested = parse_requested_version(
+            args.requested_version, args.requested_commit
+        )
         action = deployment_action(requested, current)
     except DeploymentStateError as exc:
         print(f"Docs deployment state rejected: {exc}", file=sys.stderr)

@@ -56,3 +56,17 @@ A docs-only change does not require starting the backend or frontend. When docum
 Pull requests that change only `docs/**` must keep unrelated required contexts as lightweight sentinels and run heavy work only in the Docs workflow. Main-branch Docs pushes likewise must not start Admin, Framework, frontend, Go vulnerability, CodeQL, or repository-mirror work. Changes to shared release tooling or workflow files intentionally fall back to full shared validation.
 
 Architecture and roadmap documents must identify a next executable step and a measurable completion definition; avoid vague “continue improving” conclusions.
+
+## Docs publication identity
+
+- Docs is a non-blocking website track. Its failure or absence never blocks the
+  Admin Distribution, npm, images, GitHub Latest, or stable-version policy.
+- `docs/vX.Y.Z` and its Docs GitHub Release are replaceable deployment pointers,
+  not immutable package identities. Only the authorized release operator may
+  delete both and recreate the same tag.
+- Every replacement must come from a qualified merged-main commit that contains
+  the corresponding Root commit. Direct force-update and stopped-train
+  publication remain prohibited.
+- Keep checksums, protected deployment, public `/release.json`, browser evidence,
+  and workflow/deployment run URLs. Those records identify the currently
+  deployed Docs source after the same tag is reused.

@@ -2,17 +2,22 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-1-0-release
-  displayName: Develop first, then qualify and publish v1.1.0
+  displayName: v1.1.0 historical stable release record
   description: >-
-    Governs the single public train from the published v1.0.0 baseline to v1.1.0. Internal
-    development waves remain untagged; concentrated conformance and publication evidence begin
-    only after feature freeze.
+    Historical contract for the stable v1.1.0 train published from
+    09725430f3e4d1d5622511f6063d8c7cbee3f5cb. The remaining goals, requirements,
+    acceptance, and rollout sections preserve its development and publication evidence only;
+    they are not current publication authority. v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.0.0
+    stable-at-preparation: v1.0.0
+    stable-at-publication: v1.1.0
+    current-stable-now: v1.3.7
     target-version: v1.1.0
-    release-status: development
+    release-status: historical-stable
+    release-commit: 09725430f3e4d1d5622511f6063d8c7cbee3f5cb
+    published-date: 2026-08-11
     strategy: development-first
 spec:
   problem: >-

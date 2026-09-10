@@ -65,7 +65,14 @@ Do not rewrite pushed history to hide intermediate fixes. Follow-up repair commi
 - Pre-merge CI, local validation, browser evidence, and release rehearsals may support review, but they are preliminary evidence only and must never authorize a public tag, artifact, package, image, or GitHub Release.
 - A release candidate must be frozen from the exact commit that is already merged into `main`. After fetching the remote, release tooling must fail closed unless the frozen commit is contained in `origin/main`, the checkout matches that commit, and the tracked worktree is clean.
 - If any defect or release-gate failure requires a change after freeze, make a follow-up pull request, merge it into `main`, select the new merged `main` commit, and rerun every affected qualification phase. Do not bypass a failed gate with a manual release exception or publish artifacts built from an unmerged repair.
-- Release tags are created only after the merged-`main` checks pass. Never move or reuse an immutable tag to incorporate a later fix.
+- Release tags are created only after the merged-`main` checks pass. Root,
+  Framework, Admin, frontend, package, image, checksum, and stopped-train
+  identities are immutable and must never be moved or reused. The sole exception
+  is the website-only `docs/vX.Y.Z` tag and its Docs GitHub Release: the authorized
+  release operator may delete both and recreate the same tag at a qualified
+  merged-main descendant of the corresponding Root commit. Direct force-update
+  remains prohibited, and the public `/release.json` commit plus workflow and
+  deployment records become the current Docs audit identity.
 - Repository rulesets and release workflows must enforce this PR-to-`main` boundary. If their enforcement is absent or fails, stop publication and repair the governance path through another pull request before continuing.
 
 ## Canonical commands

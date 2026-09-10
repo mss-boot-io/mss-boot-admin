@@ -2,16 +2,23 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-3-1-release
-  displayName: Foundation v1.3.1 release repair and qualification
+  displayName: v1.3.1 immutable partial release record
   description: >-
-    Prepare the coordinated v1.3.1 Admin Distribution after the immutable v1.3.0
-    train stopped at the Admin module qualification gate.
+    Records the immutable partial v1.3.1 train from
+    4830fee162326788732e476a04d24f47b8fd570a: Framework published, the Admin tag
+    was created, independent checksum qualification stopped Admin before Release
+    publication, and Admin Web, Root, Docs, and npmjs did not complete. The remaining
+    goals, requirements, acceptance, and rollout sections preserve historical intent
+    and evidence only; they are not current publication authority. v1.3.7 is the
+    current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.2.3
+    stable-at-preparation: v1.2.3
+    current-stable-now: v1.3.7
     target-version: v1.3.1
-    release-status: preparation
+    release-status: immutable-partial
+    release-commit: 4830fee162326788732e476a04d24f47b8fd570a
 spec:
   problem: >-
     The v1.3.0 Framework release completed from the merged main commit, but the

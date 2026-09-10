@@ -2,17 +2,22 @@ apiVersion: mss.io/v1alpha1
 kind: Feature
 metadata:
   name: foundation-v1-3-0-release
-  displayName: Qualify and publish the stable v1.3.0 Admin Distribution
+  displayName: v1.3.0 immutable partial release record
   description: >-
-    Governs the first stable Complete Admin Distribution across the root foundation,
-    reusable Framework, importable Admin module, complete Admin Web package, container
-    images, and independently published documentation.
+    Records the immutable partial v1.3.0 train from
+    76530526e436eb95652df1dd06e831a90ee73125: Framework published, Admin stopped
+    before Release publication, and Root, Admin Web, Docs, and npmjs did not complete.
+    The remaining goals, requirements, acceptance, and rollout sections preserve
+    historical intent and evidence only; they are not current publication authority.
+    v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.2.3
+    stable-at-preparation: v1.2.3
+    current-stable-now: v1.3.7
     target-version: v1.3.0
-    release-status: preparation
+    release-status: immutable-partial
+    release-commit: 76530526e436eb95652df1dd06e831a90ee73125
 spec:
   problem: >-
     The immutable v1.3.0-rc.6 train proved the complete four-component distribution

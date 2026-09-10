@@ -4,15 +4,16 @@ metadata:
   name: foundation-v1-3-2-release
   displayName: Foundation v1.3.2 checksum repair and complete release
   description: >-
-    Records the coordinated v1.3.2 Admin Distribution published from one exact
+    Historical release contract for the coordinated v1.3.2 Admin Distribution published from one exact
     merged-main commit after the immutable v1.3.1 train stopped at independent
-    Admin qualification.
+    Admin qualification. v1.3.7 is the current stable Distribution.
   owner: release-engineering
   labels:
     domain: release-governance
-    current-stable: v1.3.2
+    stable-at-publication: v1.3.2
+    current-stable-now: v1.3.7
     target-version: v1.3.2
-    release-status: stable
+    release-status: historical-previous-stable
     published-date: 2026-08-23
     release-commit: 635fbb03a82976941e527d8ac1000fec0624abac
 spec:
@@ -23,7 +24,7 @@ spec:
     The v1.3.2 repair used a new patch version, an executable parity gate over the
     final Framework tree, and one frozen merged-main commit for the complete train.
   goals:
-    - Keep v1.3.2 as the reconciled public release in policy, qualification, commands, and generated application contracts.
+    - Record v1.3.2 as the reconciled public release at its publication checkpoint; current policy, commands, and generated application contracts use v1.3.7.
     - Preserve every v1.3.1 tag, Release, workflow result, and partial-publication record as immutable evidence.
     - Calculate the v1.3.2 Framework Module and go.mod sums from the final tracked tree and compare them with Admin metadata before tagging.
     - Publish Framework, Admin, Admin Web, root, and Docs from one exact clean commit already merged into main.
@@ -60,7 +61,7 @@ spec:
   requirements:
     - id: target-v132-only
       title: Select one coordinated patch target
-      description: Every active machine-readable release surface resolves the stable v1.3.2 target.
+      description: At the v1.3.2 publication checkpoint, every machine-readable release surface resolved the stable v1.3.2 target; this file is historical evidence, not current release authority.
       priority: must
       actor: release-manager
       module: release-governance
@@ -69,7 +70,7 @@ spec:
         - The frontend package uses 1.3.2 and Docs uses the independent docs/v1.3.2 namespace.
         - The initial Docs release remains at docs/v1.3.2; later current-stable site corrections use unused docs/v1.3.2+docs.N revisions without changing the product version.
         - The release policy rejects v1.3.1, prereleases, and every unreviewed later version.
-        - Current stable is v1.3.2 at exact commit 635fbb03a82976941e527d8ac1000fec0624abac after publication and public reconciliation.
+        - At this release checkpoint, current stable became v1.3.2 at exact commit 635fbb03a82976941e527d8ac1000fec0624abac; v1.3.7 is now current stable.
     - id: preserve-v131-history
       title: Preserve the incomplete v1.3.1 train
       description: The earlier train remains immutable evidence and cannot be repaired by moving refs.
@@ -129,7 +130,7 @@ spec:
       statement: npmjs publication is the final artifact mutation and reuses the already-qualified frontend Release tarball without rebuilding.
     - id: protected-credentials
       type: security
-      statement: Qualification uses no production secret; the one-time GitHub bootstrap secret was removed after initial npmjs publication, npm Trusted Publishing is bound to mss-boot-io/mss-boot-admin npm-release.yml in release-v6 with only npm publish allowed, and the npm-side bootstrap token is revoked. Future publication uses matching OIDC identity and fails closed otherwise.
+      statement: Qualification used no production secret; the one-time GitHub bootstrap secret was removed after initial npmjs publication, and the npm-side bootstrap token was revoked. The v1.3.2 checkpoint used the release-v6 Trusted Publisher environment; current v1.3.7 publication uses the exact mss-boot-io/mss-boot-admin, npm-release.yml, npm-auto OIDC identity and fails closed without a token fallback.
   acceptance:
     - id: checkpoint-v132-contract
       requirement: target-v132-only

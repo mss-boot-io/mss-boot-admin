@@ -4,15 +4,16 @@ metadata:
   name: foundation-v1-3-5-release-recovery
   displayName: Foundation v1.3.5 immutable partial-train recovery
   description: >-
-    Records the stopped v1.3.5 distribution, permanently closes every v1.3.5
+    Historical recovery contract that records the stopped v1.3.5 distribution, permanently closes every v1.3.5
     publication path, repairs future release governance, and removes incomplete
-    adopter instructions without selecting another version.
+    adopter instructions without selecting another version. v1.3.7 is now current stable.
   owner: release-engineering
   labels:
     domain: release-recovery
     target-version: v1.3.5
     release-status: immutable-partial
     release-commit: 396f60615cdfa589353b16ef9d3531e249e65432
+    current-stable-now: v1.3.7
     evidence-issue: "537"
 spec:
   problem: >-
@@ -30,7 +31,7 @@ spec:
     - Reduce every future release to one successful exact-commit preview followed by lwnmengjing pushing the coordinated formal tags, with no second publish dispatch or run-ID input.
     - Keep Docs independent so a later docs tag can publish corrected documentation without blocking Root packages, images, tools, or npmjs.
     - Restrict release preview and tag creation to lwnmengjing while SullivanPrime remains the independent pull-request reviewer.
-    - Replace incomplete operational onboarding with truthful v1.3.2 stable and v1.3.5 immutable-partial status pages.
+    - At the recovery checkpoint, replace incomplete operational onboarding with truthful v1.3.2 stable and v1.3.5 immutable-partial status pages; active guidance now points to v1.3.7.
   nonGoals:
     - Delete, move, recreate, reuse, or append publication authority to any v1.3.5 tag, Release, package, image, checksum, or workflow evidence.
     - Select, qualify, tag, publish, or deploy another distribution or Docs revision in this recovery change.
@@ -46,7 +47,7 @@ spec:
       description: SullivanPrime reviews the merged source change but is not a second manual action in the tag-driven release path.
     - id: documentation-reader
       displayName: Documentation reader
-      description: Sees the current stable boundary and stopped v1.3.5 facts without unavailable commands.
+      description: Sees the stopped v1.3.5 facts and the current v1.3.7 stable boundary without unavailable commands.
   modules:
     - name: release-governance
       kind: infrastructure
@@ -79,7 +80,7 @@ spec:
         - Exact immutable stopped refs cover Root, Framework, Admin, Admin Web, Docs, and the official npm package identity.
         - The active v1.3.5-stopped-tags-never-create ruleset has no bypass and blocks creation of the exact Root, Framework, Admin, v6 frontend, legacy frontend, and Docs tag refs.
         - Existing release tags remain protected from update, deletion, and non-fast-forward changes with no bypass.
-        - Docs revision publication stays disabled until a later pull request binds one exact revision, the current-stable baseline, and a fresh merged-main source.
+        - At this recovery checkpoint Docs revision publication stayed disabled pending a later reviewed source; the current v1.3.7 policy instead uses the controlled same-tag Docs replacement contract.
     - id: simplify-future-tag-publication
       title: Make future formal releases tag-driven
       description: One successful preview authorizes later formal tags for an explicitly selected unused version.
@@ -112,11 +113,11 @@ spec:
       actor: documentation-reader
       module: documentation
       rules:
-        - Current stable remains v1.3.2 and v1.3.5 is labeled immutable-partial throughout active entry pages.
+        - At this recovery checkpoint current stable remained v1.3.2; active entry pages now identify v1.3.7 as current stable and retain v1.3.5 as immutable-partial history.
         - Active status pages contain no version-specific v1.3.5 installer invocation, Admin upgrade, official npmjs install, Root-image pull or run, or Root-tool go-install path.
         - Version-specific unavailable commands and unqualified current-adoption claims are rejected across every active non-archive documentation page, including direct deep links; explicitly labeled source-only and future-contract development guidance remains allowed.
         - Source documentation may be merged without claiming that the public Docs site has moved from v1.3.2+docs.1.
-        - mss-shop remains blocked until a later unused version has complete public tool, package, image, Docs, and external-consumer evidence.
+        - At this recovery checkpoint mss-shop remained blocked; current guidance may adopt the complete v1.3.7 Distribution without waiting for the independently replaceable Docs website.
   constraints:
     - id: merged-main-only
       type: operations
@@ -172,7 +173,7 @@ spec:
           value: Live governance verification confirms lwnmengjing as the sole release-tag creator, zero required environment reviewers, exact environment policies, the v1.3.5 no-bypass stop rule, and absence of Root promotion resources.
     - id: immutable-partial-documentation
       requirement: publish-truthful-status-documentation
-      statement: Source Docs build and Codex in-app Browser validation show the v1.3.2 stable and v1.3.5 immutable-partial status pages, package and tooling availability, mss-shop blocking state, navigation, narrow layout, and representative refreshed deep links without version-specific dead v1.3.5 installer, Admin-upgrade, official-npmjs, Root-image, or Root-tool adoption paths, while clearly labeled source-only and future-contract development guidance remains available.
+      statement: Historical source Docs and browser evidence show that the recovery checkpoint presented v1.3.2 stable and v1.3.5 immutable-partial truthfully; current source guidance presents v1.3.7 as stable while preserving the same v1.3.5 denial and audit facts.
       level: contract
       phase: checkpoint
       required: true

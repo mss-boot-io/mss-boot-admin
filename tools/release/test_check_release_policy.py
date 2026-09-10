@@ -109,6 +109,10 @@ class ReleasePolicyTest(unittest.TestCase):
                 )
 
     def test_stable_promotion_requires_reviewed_exact_commit(self):
+        release_commit = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
+        previous_stable_commit = "635fbb03a82976941e527d8ac1000fec0624abac"
+        self.assertEqual(self.policy["currentStableVersion"], "v1.3.7")
+        self.assertEqual(self.policy["currentStableCommit"], release_commit)
         self.assertIs(self.policy["stablePromotionReady"], False)
         self.assertEqual(self.policy["stablePromotionVersion"], "v1.3.7")
         self.assertEqual(self.policy["stablePromotionCommit"], "disabled")
@@ -119,18 +123,26 @@ class ReleasePolicyTest(unittest.TestCase):
                 "v1.3.7",
                 "@mss-boot-io/admin-web@1.3.7",
                 intent="promote",
-                commit="a" * 40,
+                commit=release_commit,
             )
 
         original = POLICY_PATH.read_text(encoding="utf-8")
-        release_commit = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory) / "policy.yaml"
             candidate.write_text(
                 original.replace(
+                    "  currentStableVersion: v1.3.7\n",
+                    "  currentStableVersion: v1.3.2\n",
+                )
+                .replace(
+                    f"  currentStableCommit: {release_commit}\n",
+                    f"  currentStableCommit: {previous_stable_commit}\n",
+                )
+                .replace(
                     "  stablePromotionReady: false\n",
                     "  stablePromotionReady: true\n",
-                ).replace(
+                )
+                .replace(
                     "  stablePromotionCommit: disabled\n",
                     f"  stablePromotionCommit: {release_commit}\n",
                 ),
@@ -159,115 +171,74 @@ class ReleasePolicyTest(unittest.TestCase):
                     commit="b" * 40,
                 )
 
-    def test_docs_revision_remains_disabled_without_exact_source_binding(self):
-        self.assertIs(self.policy["docsRevisionPublicationReady"], False)
-        self.assertEqual(self.policy["docsRevisionVersion"], "disabled")
-        self.assertEqual(self.policy["docsRevisionCommit"], "disabled")
-        for intent in ("qualify", "publish"):
-            with self.subTest(intent=intent):
-                with self.assertRaisesRegex(POLICY.PolicyError, "docs revision"):
-                    POLICY.check_public_ref(
-                        self.policy,
-                        "docs",
-                        "v1.3.2+docs.1",
-                        "docs/v1.3.2+docs.1",
-                        intent=intent,
-                    )
-
-    def test_reviewed_docs_revision_can_publish_without_reopening_the_distribution(self):
+    def test_consumed_stable_promotion_authorization_cannot_be_reopened(self):
+        release_commit = "77b53d41092741eac62fa6418c0bdbf87413c7cd"
         original = POLICY_PATH.read_text(encoding="utf-8")
-        docs_commit = "c" * 40
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory) / "policy.yaml"
             candidate.write_text(
                 original.replace(
-                    "  docsRevisionPublicationReady: false\n",
-                    "  docsRevisionPublicationReady: true\n",
-                )
-                .replace(
-                    "  docsRevisionVersion: disabled\n",
-                    "  docsRevisionVersion: v1.3.2+docs.1\n",
-                )
-                .replace(
-                    "  docsRevisionCommit: disabled\n",
-                    f"  docsRevisionCommit: {docs_commit}\n",
+                    "  stablePromotionReady: false\n",
+                    "  stablePromotionReady: true\n",
+                ).replace(
+                    "  stablePromotionCommit: disabled\n",
+                    f"  stablePromotionCommit: {release_commit}\n",
                 ),
                 encoding="utf-8",
             )
-            docs_policy = POLICY.load_policy(candidate)
+            with self.assertRaisesRegex(
+                POLICY.PolicyError, "already consumed"
+            ):
+                POLICY.load_policy(candidate)
+
+        reopened = dict(self.policy)
+        reopened["stablePromotionReady"] = True
+        reopened["stablePromotionCommit"] = release_commit
+        with self.assertRaisesRegex(POLICY.PolicyError, "already consumed"):
+            POLICY.check_public_ref(
+                reopened,
+                "npm",
+                "v1.3.7",
+                "@mss-boot-io/admin-web@1.3.7",
+                intent="promote",
+                commit=release_commit,
+            )
+
+    def test_current_stable_docs_tag_is_replaceable_across_merged_commits(self):
+        self.assertIs(self.policy["docsTagMutable"], True)
+        for commit in ("c" * 40, "d" * 40):
             for intent in ("qualify", "publish"):
-                POLICY.check_public_ref(
-                    docs_policy,
-                    "docs",
-                    "v1.3.2+docs.1",
-                    "docs/v1.3.2+docs.1",
-                    intent=intent,
-                    commit=docs_commit,
-                )
+                with self.subTest(commit=commit, intent=intent):
+                    POLICY.check_public_ref(
+                        self.policy,
+                        "docs",
+                        "v1.3.7",
+                        "docs/v1.3.7",
+                        intent=intent,
+                        commit=commit,
+                    )
 
-            with self.assertRaisesRegex(POLICY.PolicyError, "exact revision"):
-                POLICY.check_public_ref(
-                    docs_policy,
-                    "docs",
-                    "v1.3.2+docs.2",
-                    "docs/v1.3.2+docs.2",
-                    intent="publish",
-                    commit=docs_commit,
-                )
-            with self.assertRaisesRegex(POLICY.PolicyError, "merged-main source"):
-                POLICY.check_public_ref(
-                    docs_policy,
-                    "docs",
-                    "v1.3.2+docs.1",
-                    "docs/v1.3.2+docs.1",
-                    intent="publish",
-                    commit="d" * 40,
-                )
-
-    def test_docs_revision_policy_requires_exact_version_and_commit_pair(self):
+    def test_docs_mutable_control_is_required_and_cannot_be_disabled(self):
         original = POLICY_PATH.read_text(encoding="utf-8")
-        replacements = (
-            (
-                "  docsRevisionPublicationReady: false\n",
-                "  docsRevisionPublicationReady: true\n",
-            ),
-            (
-                "  docsRevisionVersion: disabled\n",
-                "  docsRevisionVersion: v1.3.2+docs.1\n",
-            ),
-            (
-                "  docsRevisionCommit: disabled\n",
-                f"  docsRevisionCommit: {'e' * 40}\n",
-            ),
-        )
-        ready = original
-        for old, new in replacements:
-            ready = ready.replace(old, new)
-
         invalid_cases = (
-            ready.replace("v1.3.2+docs.1", "v1.3.7+docs.1"),
-            ready.replace(f"{'e' * 40}\n", "short\n"),
-            original.replace(
-                "  docsRevisionVersion: disabled\n",
-                "  docsRevisionVersion: v1.3.2+docs.1\n",
-            ),
+            original.replace("  docsTagMutable: true\n", ""),
+            original.replace("  docsTagMutable: true\n", "  docsTagMutable: false\n"),
         )
         for candidate_text in invalid_cases:
-            with self.subTest(candidate=candidate_text.splitlines()[-8:]):
+            with self.subTest(candidate=candidate_text.splitlines()[-6:]):
                 with tempfile.TemporaryDirectory() as directory:
                     candidate = Path(directory) / "policy.yaml"
                     candidate.write_text(candidate_text, encoding="utf-8")
                     with self.assertRaises(POLICY.PolicyError):
                         POLICY.load_policy(candidate)
 
-    def test_docs_revision_is_confined_to_current_stable_and_docs_namespace(self):
+    def test_docs_tag_is_confined_to_current_stable_and_docs_namespace(self):
         cases = (
-            ("docs", "v1.2.3+docs.1", "docs/v1.2.3+docs.1", "current stable"),
-            ("docs", "v1.3.2+docs.0", "docs/v1.3.2+docs.0", "invalid"),
-            ("docs", "v1.3.2+docs.01", "docs/v1.3.2+docs.01", "invalid"),
-            ("docs", "v1.3.2+other.1", "docs/v1.3.2+other.1", "invalid"),
-            ("root", "v1.3.2+docs.1", "v1.3.2+docs.1", "invalid"),
-            ("docs", "v1.3.2+docs.1", "docs/v1.3.2", "does not match"),
+            ("docs", "v1.3.2", "docs/v1.3.2", "reviewed target"),
+            ("docs", "v1.3.7+docs.1", "docs/v1.3.7+docs.1", "invalid"),
+            ("docs", "v1.3.7+other.1", "docs/v1.3.7+other.1", "invalid"),
+            ("root", "v1.3.7+docs.1", "v1.3.7+docs.1", "invalid"),
+            ("docs", "v1.3.7", "docs/v1.3.8", "does not match"),
         )
         for component, version, tag, message in cases:
             with self.subTest(component=component, version=version, tag=tag):
@@ -276,14 +247,17 @@ class ReleasePolicyTest(unittest.TestCase):
                         self.policy, component, version, tag, intent="qualify"
                     )
 
-        with self.assertRaisesRegex(POLICY.PolicyError, "maximum supported"):
-            POLICY.check_public_ref(
-                self.policy,
-                "docs",
-                "v1.3.2+docs.1000",
-                "docs/v1.3.2+docs.1000",
-                intent="qualify",
-            )
+    def test_docs_publication_is_independent_of_core_publication_switch(self):
+        disabled = dict(self.policy)
+        disabled["publicationWorkflowsReady"] = False
+        POLICY.check_public_ref(
+            disabled,
+            "docs",
+            "v1.3.7",
+            "docs/v1.3.7",
+            intent="publish",
+            commit="e" * 40,
+        )
 
     def test_policy_requires_pr_merged_main_release_source(self):
         self.assertEqual(self.policy["releaseBranch"], "main")
@@ -437,7 +411,7 @@ class ReleasePolicyTest(unittest.TestCase):
         replacements = (
             ("  publicPrereleases: false\n", "  publicPrereleases: true\n"),
             ("  nextPublicVersion: v1.3.7\n", "  nextPublicVersion: v1.3.7-rc.01\n"),
-            ("  currentStableVersion: v1.3.2\n", "  currentStableVersion: v1.3.2-rc.1\n"),
+            ("  currentStableVersion: v1.3.7\n", "  currentStableVersion: v1.3.7-rc.1\n"),
         )
         for old, new in replacements:
             with self.subTest(replacement=new.strip()):
@@ -938,7 +912,8 @@ class ReleasePolicyTest(unittest.TestCase):
             for step in build_steps
             if step.get("name") == "Enforce reviewed docs release target"
         )["run"]
-        self.assertIn("refs/remotes/origin/main:.mss/release-policy.yaml", policy)
+        self.assertIn("--policy ../.mss/release-policy.yaml", policy)
+        self.assertIn("--source-mode docs", source)
         for required in (
             "dist/release.json",
             "DOCS-BUILD-INFO.txt",

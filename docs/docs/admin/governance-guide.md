@@ -10,6 +10,8 @@ keywords: [admin governance permission rbac casbin organization single tenant]
 
 # 权限与组织治理说明
 
+适用基线：当前稳定版 **mss-boot-admin v1.3.7**。
+
 Admin 是单租户管理系统。它把身份验证、角色授权、组织数据范围和业务服务
 校验放在后端权威边界中；菜单或按钮是否可见只改善体验，不能代替后端授权。
 

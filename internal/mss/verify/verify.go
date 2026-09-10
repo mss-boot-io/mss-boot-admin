@@ -137,7 +137,6 @@ func PlanChecks(ctx *project.Context, options Options) (Plan, error) {
 			if hasFrontendApplication(ctx, "web/antd-v6") {
 				add(frontendQualification(ctx.Root), "full local verification includes dependency policy, lint, unit, release build, delivery, and browser qualification")
 			}
-			add(docsBuild(ctx.Root), "full verification includes documentation build")
 		}
 	} else {
 		for _, changed := range plan.ChangedFiles {
@@ -861,6 +860,7 @@ func releaseWorkflowContractTest(root string) command.Spec {
 			"tools.release.test_container_workflow",
 			"tools.release.test_workflow_governance",
 			"tools.release.test_check_release_policy",
+			"tools.docs.test_check_current_docs",
 		},
 		Environment: map[string]string{"CI": "true"},
 		Timeout:     20 * time.Minute,
@@ -1253,6 +1253,8 @@ func releaseWorkflowContractSensitive(path string) bool {
 		strings.HasPrefix(path, "tools/verification/") ||
 		path == ".mss/release-policy.yaml" ||
 		path == ".mss/release-qualification.json" ||
+		(strings.HasPrefix(path, ".mss/features/foundation-") &&
+			strings.HasSuffix(path, "-release.yaml")) ||
 		path == ".mss/commands.yaml" ||
 		path == ".agents/skills/mss-release/SKILL.md" ||
 		path == "Makefile"

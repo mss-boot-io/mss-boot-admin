@@ -287,7 +287,6 @@ func TestFoundationModeAllOwnsLocalReleaseQualification(t *testing.T) {
 		"agent-skills-validation",
 		"backend-doctor-strict",
 		"backend-release-qualification",
-		"docs-build",
 		"foundation-compatibility",
 		"framework-release-qualification",
 		"frontend-qualification",
@@ -354,6 +353,7 @@ func TestReleaseWorkflowContractSensitivity(t *testing.T) {
 		".github/workflows/container.yml",
 		".mss/release-policy.yaml",
 		".mss/release-qualification.json",
+		".mss/features/foundation-v1-3-7-release.yaml",
 		".mss/commands.yaml",
 		".agents/skills/mss-release/SKILL.md",
 		"Makefile",
@@ -372,6 +372,10 @@ func TestReleaseWorkflowContractSensitivity(t *testing.T) {
 		if releaseWorkflowContractSensitive(path) {
 			t.Errorf("release workflow contract unexpectedly selected %q", path)
 		}
+	}
+	spec := releaseWorkflowContractTest(t.TempDir())
+	if !containsString(spec.Args, "tools.docs.test_check_current_docs") {
+		t.Fatalf("release workflow contract must validate checked-in current docs: %q", spec.Args)
 	}
 }
 
