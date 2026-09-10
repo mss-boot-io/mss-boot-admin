@@ -105,6 +105,7 @@ describe('operations business safety helpers', () => {
 
     const recharge = {
       status: 'applied_unverified',
+      source: 'manual',
       before_budget: 0,
       after_budget: 0,
       before_budget_usd_micro: null,
@@ -113,6 +114,10 @@ describe('operations business safety helpers', () => {
     expect(canReconcileRecharge(recharge)).toBe(true);
     expect(canReconcileRecharge({ ...recharge, status: 'approved' })).toBe(true);
     expect(canReconcileRecharge({ ...recharge, status: 'completed' })).toBe(false);
+    expect(canReconcileRecharge({ ...recharge, source: 'sales_order' })).toBe(false);
+    expect(canReconcileRecharge({ ...recharge, source: 'sales_order', status: 'approved' })).toBe(
+      false,
+    );
     expect(rechargeBudgetMicroRange(recharge)).toBeUndefined();
     expect(
       rechargeBudgetMicroRange({

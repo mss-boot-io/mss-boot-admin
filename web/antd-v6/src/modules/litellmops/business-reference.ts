@@ -73,6 +73,7 @@ export function availableManagementActions(
 }
 
 export function canReconcileRecharge(record: RechargeRecord): boolean {
+  if (record.source === 'sales_order') return false;
   return [
     'approved',
     'executing',

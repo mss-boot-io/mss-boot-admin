@@ -206,6 +206,8 @@ export interface RechargeRecord {
   reason: string;
   business_reference?: string;
   idempotency_key?: string;
+  source?: string;
+  source_ref?: string;
   status: RechargeStatus | string;
   last_error_code?: string;
   uncertain_since?: string | null;
