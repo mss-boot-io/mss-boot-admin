@@ -169,8 +169,10 @@ export interface SalesProduct {
   title: string;
   price_cny_fen: number;
   credit_usd_micro: number;
+  raise_keys: boolean;
   enabled: boolean;
   auto_apply: boolean;
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -183,8 +185,19 @@ export interface SalesProductInput {
   title: string;
   price_cny_fen: number;
   credit_usd_micro: number;
+  raise_keys: boolean;
   enabled: boolean;
   auto_apply: boolean;
+}
+
+export interface SalesProductPatch {
+  title: string;
+  price_cny_fen: number;
+  credit_usd_micro: number;
+  raise_keys: boolean;
+  enabled: boolean;
+  auto_apply: boolean;
+  version: number;
 }
 
 export type SalesOrderStatus =
@@ -245,10 +258,18 @@ export interface SalesOrderInput {
   note?: string;
 }
 
-export interface SalesOrderParams extends OpsListParams {
+export interface SalesProductParams extends Omit<OpsListParams, 'query'> {
+  channel?: string;
+  shop?: string;
+  enabled?: 'true' | 'false';
+}
+
+export interface SalesOrderParams extends Omit<OpsListParams, 'query'> {
+  channel?: string;
+  shop?: string;
   status?: SalesOrderStatus;
-  payment_status?: SalesPaymentStatus;
-  source_trust?: string;
+  external_order_id?: string;
+  user_email?: string;
 }
 
 export interface UserListParams extends OpsListParams {

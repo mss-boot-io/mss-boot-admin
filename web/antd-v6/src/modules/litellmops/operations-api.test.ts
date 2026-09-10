@@ -74,4 +74,51 @@ describe('LiteLLM operations API', () => {
     });
     expect('import' in operationsAPI.sales).toBe(false);
   });
+
+  it('carries the product CAS version and sends only supported list filters', async () => {
+    const patch = {
+      title: '10 USD credit',
+      price_cny_fen: 1_000,
+      credit_usd_micro: 10_000_000,
+      raise_keys: true,
+      enabled: true,
+      auto_apply: false,
+      version: 7,
+    };
+    await operationsAPI.sales.updateProduct('product/1', patch);
+    await operationsAPI.sales.products({
+      page: 1,
+      page_size: 20,
+      channel: 'xianyu',
+      shop: 'shop',
+      enabled: 'true',
+    });
+    await operationsAPI.sales.orders({
+      page: 2,
+      page_size: 20,
+      status: 'received',
+      external_order_id: 'external-1',
+      user_email: 'buyer@example.com',
+    });
+
+    expect(requestMock).toHaveBeenNthCalledWith(1, '/litellmops/sales/products/product%2F1', {
+      method: 'PATCH',
+      data: patch,
+      skipErrorHandler: true,
+    });
+    expect(requestMock).toHaveBeenNthCalledWith(2, '/litellmops/sales/products', {
+      params: { page: 1, page_size: 20, channel: 'xianyu', shop: 'shop', enabled: 'true' },
+      skipErrorHandler: true,
+    });
+    expect(requestMock).toHaveBeenNthCalledWith(3, '/litellmops/sales/orders', {
+      params: {
+        page: 2,
+        page_size: 20,
+        status: 'received',
+        external_order_id: 'external-1',
+        user_email: 'buyer@example.com',
+      },
+      skipErrorHandler: true,
+    });
+  });
 });

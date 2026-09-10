@@ -11,7 +11,6 @@ import type {
   ManagedUserInput,
   ManagedUserPatch,
   OneTimeKeyResult,
-  OpsListParams,
   OpsPage,
   RechargeRecord,
   RechargeRequest,
@@ -20,6 +19,8 @@ import type {
   SalesOrderParams,
   SalesProduct,
   SalesProductInput,
+  SalesProductParams,
+  SalesProductPatch,
   UserListParams,
 } from './contract';
 
@@ -90,11 +91,11 @@ export const operationsAPI = {
     resetSpend: (id: string): Promise<ManagedKey> => action(`${base}/keys/${encodeURIComponent(id)}/reset-spend`),
   },
   sales: {
-    products: (params: OpsListParams): Promise<OpsPage<SalesProduct>> =>
+    products: (params: SalesProductParams): Promise<OpsPage<SalesProduct>> =>
       request(`${base}/sales/products`, { params, skipErrorHandler: true }),
     createProduct: (data: SalesProductInput): Promise<SalesProduct> =>
       request(`${base}/sales/products`, { method: 'POST', data, skipErrorHandler: true }),
-    updateProduct: (id: string, data: Partial<SalesProductInput>): Promise<SalesProduct> =>
+    updateProduct: (id: string, data: SalesProductPatch): Promise<SalesProduct> =>
       request(`${base}/sales/products/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         data,

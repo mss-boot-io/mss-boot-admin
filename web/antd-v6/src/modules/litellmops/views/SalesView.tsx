@@ -27,12 +27,13 @@ import {
 import { useMemo, useState } from 'react';
 import { availableOrderActions, type SalesOrderAction } from '../business-reference';
 import type {
-  OpsListParams,
   SalesOrder,
   SalesOrderInput,
   SalesOrderParams,
   SalesProduct,
   SalesProductInput,
+  SalesProductParams,
+  SalesProductPatch,
 } from '../contract';
 import {
   formatCnyFen,
@@ -64,6 +65,7 @@ interface ProductForm {
   title: string;
   price_cny: number;
   credit_usd: number;
+  raise_keys: boolean;
   enabled: boolean;
   auto_apply: boolean;
 }
@@ -75,27 +77,33 @@ function mutationErrorMessage(error: unknown): string {
 function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
   const { message } = App.useApp();
   const client = useQueryClient();
-  const [params, setParams] = useState<OpsListParams>({ page: 1, page_size: 20 });
+  const [params, setParams] = useState<SalesProductParams>({ page: 1, page_size: 20 });
   const [editing, setEditing] = useState<SalesProduct | 'new'>();
   const [form] = Form.useForm<ProductForm>();
   const products = useSalesProducts(params);
 
   const save = useMutation({
     mutationFn: async (values: ProductForm) => {
+      const common = {
+        title: values.title.trim(),
+        price_cny_fen: Math.round(values.price_cny * 100),
+        credit_usd_micro: Math.round(values.credit_usd * 1_000_000),
+        raise_keys: values.raise_keys,
+        enabled: values.enabled,
+        auto_apply: values.auto_apply,
+      };
+      if (editing && editing !== 'new') {
+        const patch: SalesProductPatch = { ...common, version: editing.version };
+        return operationsAPI.sales.updateProduct(editing.id, patch);
+      }
       const payload: SalesProductInput = {
         channel: values.channel.trim(),
         shop: values.shop.trim(),
         external_item_id: values.external_item_id.trim(),
         sku: values.sku.trim(),
-        title: values.title.trim(),
-        price_cny_fen: Math.round(values.price_cny * 100),
-        credit_usd_micro: Math.round(values.credit_usd * 1_000_000),
-        enabled: values.enabled,
-        auto_apply: values.auto_apply,
+        ...common,
       };
-      return editing === 'new'
-        ? operationsAPI.sales.createProduct(payload)
-        : operationsAPI.sales.updateProduct(editing?.id as string, payload);
+      return operationsAPI.sales.createProduct(payload);
     },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['litellmops', 'sales-products'] });
@@ -121,6 +129,7 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
             external_item_id: '1083851032724',
             enabled: true,
             auto_apply: false,
+            raise_keys: true,
             price_cny: 10,
           },
     );
@@ -165,6 +174,12 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
       render: (enabled) => (enabled ? t('litellmops.common.yes') : t('litellmops.common.no')),
     },
     {
+      title: t('litellmops.sales.product.raiseKeys'),
+      dataIndex: 'raise_keys',
+      width: 120,
+      render: (enabled) => (enabled ? t('litellmops.common.yes') : t('litellmops.common.no')),
+    },
+    {
       title: t('litellmops.common.actions'),
       key: 'actions',
       fixed: 'right',
@@ -185,8 +200,13 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
         <Space wrap>
           <Input.Search
             allowClear
-            placeholder={t('litellmops.sales.product.search')}
-            onSearch={(query) => setParams((current) => ({ ...current, page: 1, query: query || undefined }))}
+            placeholder={t('litellmops.sales.product.channelFilter')}
+            onSearch={(channel) => setParams((current) => ({ ...current, page: 1, channel: channel || undefined }))}
+          />
+          <Input.Search
+            allowClear
+            placeholder={t('litellmops.sales.product.shopFilter')}
+            onSearch={(shop) => setParams((current) => ({ ...current, page: 1, shop: shop || undefined }))}
           />
           {canWrite ? (
             <Button type="primary" onClick={() => openEditor()}>
@@ -230,20 +250,20 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
         <Alert type="warning" showIcon message={t('litellmops.sales.product.autoWarning')} />
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="channel" label={t('litellmops.sales.product.channel')} rules={[{ required: true }]}>
-            <Input autoComplete="off" />
+            <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
           <Form.Item name="shop" label={t('litellmops.sales.product.shop')} rules={[{ required: true }]}>
-            <Input autoComplete="off" />
+            <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
           <Form.Item
             name="external_item_id"
             label={t('litellmops.sales.product.externalItem')}
             rules={[{ required: true }]}
           >
-            <Input autoComplete="off" />
+            <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
           <Form.Item name="sku" label={t('litellmops.sales.product.sku')}>
-            <Input autoComplete="off" />
+            <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
           <Form.Item name="title" label={t('litellmops.sales.product.title')} rules={[{ required: true }]}>
             <Input />
@@ -258,6 +278,9 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
             <Switch />
           </Form.Item>
           <Form.Item name="auto_apply" label={t('litellmops.sales.product.autoApply')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="raise_keys" label={t('litellmops.sales.product.raiseKeys')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>
@@ -304,7 +327,7 @@ function OrderDetail({ id, onClose, t }: { id?: string; onClose: () => void; t: 
             </Descriptions.Item>
             <Descriptions.Item label={t('litellmops.sales.order.before')}>{formatUsd(order.data.before_budget)}</Descriptions.Item>
             <Descriptions.Item label={t('litellmops.sales.order.target')}>{formatUsd(order.data.target_after)}</Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.source')}>{order.data.source_trust}</Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.source')}>{t(`litellmops.sales.source.${order.data.source_trust}`)}</Descriptions.Item>
             <Descriptions.Item label={t('litellmops.common.updatedAt')}>{formatDateTime(order.data.updated_at)}</Descriptions.Item>
             {order.data.error_message || order.data.error_code || order.data.last_error_code ? (
               <Descriptions.Item label={t('litellmops.common.error')} span={2}>
@@ -461,9 +484,9 @@ function OrdersPanel({
     { title: t('litellmops.sales.order.product'), dataIndex: 'product_title', width: 170, render: (value, order) => value || order.product_id || '—' },
     { title: t('litellmops.sales.order.paid'), dataIndex: 'paid_cny_fen', width: 110, render: formatCnyFen },
     { title: t('litellmops.sales.order.credit'), dataIndex: 'credit_usd_micro', width: 110, render: formatUsdMicro },
-    { title: t('litellmops.sales.order.payment'), dataIndex: 'payment_status', width: 110, render: (value) => <Tag>{value}</Tag> },
+    { title: t('litellmops.sales.order.payment'), dataIndex: 'payment_status', width: 110, render: (value) => <Tag>{t(`litellmops.sales.payment.${value}`)}</Tag> },
     { title: t('litellmops.common.status'), dataIndex: 'status', width: 160, render: (value) => <OrderStatusTag status={value} /> },
-    { title: t('litellmops.sales.order.source'), dataIndex: 'source_trust', width: 110, render: (value) => <Tag color={value === 'trusted' ? 'success' : 'default'}>{value}</Tag> },
+    { title: t('litellmops.sales.order.source'), dataIndex: 'source_trust', width: 110, render: (value) => <Tag color={value === 'trusted' ? 'success' : 'default'}>{t(`litellmops.sales.source.${value}`)}</Tag> },
     { title: t('litellmops.common.updatedAt'), dataIndex: 'updated_at', width: 180, render: formatDateTime },
     {
       title: t('litellmops.common.actions'),
@@ -503,8 +526,13 @@ function OrdersPanel({
           <Space wrap>
             <Input.Search
               allowClear
-              placeholder={t('litellmops.sales.order.search')}
-              onSearch={(query) => setParams((current) => ({ ...current, page: 1, query: query || undefined }))}
+              placeholder={t('litellmops.sales.order.externalId')}
+              onSearch={(external_order_id) => setParams((current) => ({ ...current, page: 1, external_order_id: external_order_id || undefined }))}
+            />
+            <Input.Search
+              allowClear
+              placeholder={t('litellmops.sales.order.email')}
+              onSearch={(user_email) => setParams((current) => ({ ...current, page: 1, user_email: user_email || undefined }))}
             />
             <Select
               allowClear
@@ -523,7 +551,7 @@ function OrdersPanel({
                 'reconcile_required',
                 'refund_review',
                 'reversed',
-              ].map((value) => ({ value, label: value }))}
+              ].map((value) => ({ value, label: t(`litellmops.sales.status.${value}`) }))}
               onChange={(status) => setParams((current) => ({ ...current, page: 1, status }))}
             />
             {access.canWriteSales ? (

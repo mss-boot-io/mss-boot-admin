@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { operationsAPI } from './operations-api';
-import type { KeyListParams, OpsListParams, SalesOrderParams, UserListParams } from './contract';
+import type { KeyListParams, SalesOrderParams, SalesProductParams, UserListParams } from './contract';
 
 export const operationsQueryKeys = {
   all: ['litellmops'] as const,
@@ -10,7 +10,7 @@ export const operationsQueryKeys = {
   user: (id: string) => ['litellmops', 'managed-user', id] as const,
   recharges: (id: string) => ['litellmops', 'recharges', id] as const,
   keys: (params: KeyListParams) => ['litellmops', 'managed-keys', params] as const,
-  products: (params: OpsListParams) => ['litellmops', 'sales-products', params] as const,
+  products: (params: SalesProductParams) => ['litellmops', 'sales-products', params] as const,
   orders: (params: SalesOrderParams) => ['litellmops', 'sales-orders', params] as const,
   order: (id: string) => ['litellmops', 'sales-order', id] as const,
 };
@@ -63,7 +63,7 @@ export function useManagedKeys(params: KeyListParams) {
   });
 }
 
-export function useSalesProducts(params: OpsListParams) {
+export function useSalesProducts(params: SalesProductParams) {
   return useQuery({
     queryKey: operationsQueryKeys.products(params),
     queryFn: () => operationsAPI.sales.products(params),
