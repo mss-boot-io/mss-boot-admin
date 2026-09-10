@@ -1,6 +1,7 @@
 import { request } from '@umijs/max';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { operationsAPI } from './operations-api';
+import { litellmopsAPI } from './api';
 
 vi.mock('@umijs/max', () => ({ request: vi.fn() }));
 
@@ -67,11 +68,15 @@ describe('LiteLLM operations API', () => {
       data: expect.objectContaining({ adjustment_type: 'credit', source_trust: 'manual' }),
       skipErrorHandler: true,
     });
-    expect(requestMock).toHaveBeenNthCalledWith(2, '/litellmops/sales/orders/order%2F1/refund-review', {
-      method: 'POST',
-      data: { reason: 'manual review required' },
-      skipErrorHandler: true,
-    });
+    expect(requestMock).toHaveBeenNthCalledWith(
+      2,
+      '/litellmops/sales/orders/order%2F1/refund-review',
+      {
+        method: 'POST',
+        data: { reason: 'manual review required' },
+        skipErrorHandler: true,
+      },
+    );
     expect('import' in operationsAPI.sales).toBe(false);
   });
 
@@ -120,5 +125,19 @@ describe('LiteLLM operations API', () => {
       },
       skipErrorHandler: true,
     });
+  });
+
+  it('updates an organization through PATCH without inventing a team update route', async () => {
+    const body = { organization_alias: 'Acme', max_budget: 100, models: ['gpt-5'] };
+    await litellmopsAPI.updateOrg('org/1', body);
+
+    expect(requestMock).toHaveBeenCalledWith('/litellmops/organizations/org%2F1', {
+      method: 'PATCH',
+      data: body,
+      skipErrorHandler: true,
+    });
+    expect('updateTeam' in litellmopsAPI).toBe(false);
+    expect('rechargeOrg' in litellmopsAPI).toBe(false);
+    expect('rechargeTeam' in litellmopsAPI).toBe(false);
   });
 });

@@ -50,9 +50,12 @@ export const litellmopsAPI = {
     models?: string[];
   }): Promise<RemoteOrg> =>
     request(`${base}/organizations`, { method: 'POST', data: body, skipErrorHandler: true }),
-  rechargeOrg: (id: string, body: RechargeRequest) =>
-    request(`${base}/organizations/${encodeURIComponent(id)}/recharge`, {
-      method: 'POST',
+  updateOrg: (
+    id: string,
+    body: { organization_alias?: string; max_budget?: number; models?: string[] },
+  ): Promise<RemoteOrg> =>
+    request(`${base}/organizations/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
       data: body,
       skipErrorHandler: true,
     }),
@@ -83,12 +86,6 @@ export const litellmopsAPI = {
   deleteTeam: (teamId: string) =>
     request(`${base}/teams/${encodeURIComponent(teamId)}`, {
       method: 'DELETE',
-      skipErrorHandler: true,
-    }),
-  rechargeTeam: (teamId: string, body: RechargeRequest) =>
-    request(`${base}/teams/${encodeURIComponent(teamId)}/recharge`, {
-      method: 'POST',
-      data: body,
       skipErrorHandler: true,
     }),
   deleteOrg: (id: string) =>
