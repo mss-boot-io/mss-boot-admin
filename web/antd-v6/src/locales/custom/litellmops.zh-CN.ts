@@ -148,6 +148,9 @@ export default {
   'litellmops.users.beforeAfter': '充值前 → 充值后',
   'litellmops.users.budgetUnknown': '未知（旧记录或回读不可用）',
   'litellmops.users.reconcile': '对账',
+  'litellmops.users.continueRecharge': '继续原充值',
+  'litellmops.users.continueRechargeWarning':
+    '将使用已有持久化记录及其幂等键继续这笔已批准充值；不要新建替代充值。',
   'litellmops.users.reconcileWarning': '将按本条充值记录回读 LiteLLM 权威余额；不要新建充值请求。',
   'litellmops.users.recharge': '充值',
   'litellmops.users.statusUpdated': '用户状态已更新',

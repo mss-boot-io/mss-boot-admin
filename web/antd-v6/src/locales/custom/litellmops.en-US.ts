@@ -149,6 +149,9 @@ export default {
   'litellmops.users.beforeAfter': 'Before → after',
   'litellmops.users.budgetUnknown': 'Unknown (legacy/read-back unavailable)',
   'litellmops.users.reconcile': 'Reconcile',
+  'litellmops.users.continueRecharge': 'Continue original credit',
+  'litellmops.users.continueRechargeWarning':
+    'Continue this approved credit using its existing durable record and idempotency key. Do not create a replacement credit.',
   'litellmops.users.reconcileWarning':
     'Read the authoritative LiteLLM balance for this exact credit record. Do not submit a new credit request.',
   'litellmops.users.recharge': 'Add credit',

@@ -242,13 +242,25 @@ function UserDrawer({
                             loading={reconcile.isPending && reconcile.variables === row.id}
                             onClick={() =>
                               modal.confirm({
-                                title: t('litellmops.users.reconcile'),
-                                content: t('litellmops.users.reconcileWarning'),
+                                title: t(
+                                  row.status === 'approved'
+                                    ? 'litellmops.users.continueRecharge'
+                                    : 'litellmops.users.reconcile',
+                                ),
+                                content: t(
+                                  row.status === 'approved'
+                                    ? 'litellmops.users.continueRechargeWarning'
+                                    : 'litellmops.users.reconcileWarning',
+                                ),
                                 onOk: () => reconcile.mutateAsync(row.id),
                               })
                             }
                           >
-                            {t('litellmops.users.reconcile')}
+                            {t(
+                              row.status === 'approved'
+                                ? 'litellmops.users.continueRecharge'
+                                : 'litellmops.users.reconcile',
+                            )}
                           </Button>
                         ) : null,
                     },

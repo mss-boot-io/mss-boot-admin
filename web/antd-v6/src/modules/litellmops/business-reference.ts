@@ -67,17 +67,19 @@ export function availableManagementActions(
     Number.isFinite(observedAt) &&
     now - createdAt >= 120_000 &&
     now - observedAt >= 5_000;
-  return command.requires_manual_review &&
-    command.status === 'result_unverified' &&
-    manualResolutionReady
+  return command.requires_manual_review && manualResolutionReady
     ? ['reconcile', 'resolve_applied', 'resolve_not_applied']
     : ['reconcile'];
 }
 
 export function canReconcileRecharge(record: RechargeRecord): boolean {
-  return ['executing', 'applied_unverified', 'retryable_failed', 'reconcile_required'].includes(
-    record.status,
-  );
+  return [
+    'approved',
+    'executing',
+    'applied_unverified',
+    'retryable_failed',
+    'reconcile_required',
+  ].includes(record.status);
 }
 
 export function rechargeBudgetMicroRange(record: RechargeRecord): [number, number] | undefined {

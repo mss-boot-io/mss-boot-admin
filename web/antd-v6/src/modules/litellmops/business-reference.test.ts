@@ -86,6 +86,12 @@ describe('operations business safety helpers', () => {
     ]);
     expect(
       availableManagementActions(
+        { ...command, status: 'executing' },
+        Date.parse('2026-09-11T00:03:00Z'),
+      ),
+    ).toEqual(['reconcile', 'resolve_applied', 'resolve_not_applied']);
+    expect(
+      availableManagementActions(
         { ...command, status: 'completed' },
         Date.parse('2026-09-11T00:03:00Z'),
       ),
@@ -105,6 +111,8 @@ describe('operations business safety helpers', () => {
       target_after_usd_micro: null,
     } as RechargeRecord;
     expect(canReconcileRecharge(recharge)).toBe(true);
+    expect(canReconcileRecharge({ ...recharge, status: 'approved' })).toBe(true);
+    expect(canReconcileRecharge({ ...recharge, status: 'completed' })).toBe(false);
     expect(rechargeBudgetMicroRange(recharge)).toBeUndefined();
     expect(
       rechargeBudgetMicroRange({
