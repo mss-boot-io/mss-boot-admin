@@ -131,15 +131,21 @@ mss-boot-admin（admin 应用，litellmops 模块）
 - 模型：读取已配置模型与健康状态，执行启用/停用；新增模型、供应商密钥、路由参数等敏感配置仍走受控 GitOps/LiteLLM 原生管理端。
 - 组织/团队：保留现有创建与成员分配能力，补齐动作级权限与失败审计。
 
+组织/团队充值不在当前安全充值账本覆盖范围内。对应后端路由固定返回 `501 operation_disabled`，前端不得展示充值动作；只有接入与个人充值相同的预留、幂等、租约、绝对目标和对账机制后才可开放。
+
 所有管理动作均以 LiteLLM 1.100.0 实际 schema 为准；客户端只返回稳定的本模块错误码和脱敏摘要，不向前端透传上游响应正文。
 
 ### 5.7 闲鱼订单与商品映射
 
-首期运营来源是“我的闲鱼”：商品位于“我发布的”，成交位于“我卖出的”。因闲鱼桌面网页将卖出订单限制在 App，本模块采用以下分层：
+首期运营来源是“我的闲鱼”：商品位于“我发布的”，成交位于“我卖出的”。“我发布的”仅用于确认商品与外部商品 ID，不是成交订单入口；成交事实必须在闲鱼 App 的“我的闲鱼 → 我卖出的”核对。因闲鱼桌面网页将卖出订单限制在 App，本模块采用以下分层：
 
 1. 手工入单（立即可运营）：录入闲鱼订单号、买家提供的 LiteLLM 注册邮箱、实付金额，选择或自动匹配商品映射。
-2. 授权连接器导入：受保护的服务端接口接收官方开放平台或经授权 ERP 的标准化订单；使用独立 PAT/签名、来源标识、请求时间窗与 payload hash 防重放。
+2. 授权连接器导入：受保护的服务端接口接收官方开放平台或经授权 ERP 的标准化订单；同时要求 Admin PAT、独立连接器 token、HMAC-SHA256 请求签名、±5 分钟时间窗、`channel:shop` 来源白名单与 payload hash 防重放。
 3. 自动充值：仅对“可信来源 + 已付款 + 唯一启用映射 + 精确用户匹配 + auto_apply 开启”的订单自动批准和执行；任一条件不满足即进入人工队列，默认失败关闭。
+
+当前部署默认不配置 `LITELLMOPS_CONNECTOR_SHARED_TOKEN` 和 `LITELLMOPS_CONNECTOR_ALLOWED_SOURCES`，因此导入端点返回 `connector_disabled`；即使商品设置 `auto_apply=true`，也不会启用自动入单或自动充值。
+
+闲鱼官方接入不是复用个人账号网页登录态。订单能力需要申请并获批商家端 B 端 AppKey，淘宝开放平台、闲鱼入驻及合同签约主体须一致，并使用签约企业所有的闲鱼账号。处理用户 ID、订单信息的服务须部署在聚石塔，通过 OAuth 2.0 换取 access token 后调用 TOP API；正向订单查询接口为 `alibaba.idle.isv.order.query`。准入、凭据与聚石塔部署未完成前，只允许手工核单。
 
 商品映射以 `channel + shop + external_item_id (+ sku)` 唯一定位，记录商品名称、人民币分、充值微美元、是否启用及是否允许自动执行。金额采用整数（CNY 分、USD micro）存储；展示时再格式化，禁止浮点作为账本金额。
 
@@ -147,7 +153,7 @@ mss-boot-admin（admin 应用，litellmops 模块）
 
 `received → verified_paid → mapped → approved → executing → applied_unverified → completed`
 
-旁路状态为 `retryable_failed`、`terminal_failed`、`reconcile_required`、`refund_review`、`reversed`。退款不自动扣减已消费额度；所有退款先进入 `refund_review`，由运营核对剩余额度和使用记录后处理。
+旁路状态为 `retryable_failed`、`terminal_failed`、`reconcile_required`、`refund_review`、`reversed`。当前版本的退款接口只要求填写原因并将订单送入 `refund_review`，不自动扣减额度，也没有批准、拒绝、关闭或冲正 API；`reversed` 是后续受控冲正能力的预留状态。
 
 唯一约束为 `(channel, shop, external_order_id, adjustment_type)`；同时保存标准化 payload hash。相同订单与 payload 重放返回原结果，不重新加额；相同订单但 payload 不同必须拒绝并告警。
 
@@ -155,11 +161,15 @@ mss-boot-admin（admin 应用，litellmops 模块）
 
 充值执行必须先在本模块数据库中保留幂等记录，再调用 LiteLLM，禁止“先加额、后记单”。执行器遵循：
 
+同一用户只能有一个未决充值命令。`approved`、`executing`、`applied_unverified`、`retryable_failed`、`reconcile_required` 都会阻止后续直接充值，或阻止其他销售订单在执行阶段创建新的充值记录；运营必须处理原记录，不能用新业务单绕过屏障。
+
 1. 对用户获取带过期时间的串行租约；状态用 compare-and-swap 从 `approved/retryable_failed` 进入 `executing`。
 2. 实读用户与 Key 的当前值，计算并持久化**绝对目标值** `target_after`，同时记录 before 快照和执行尝试。
 3. 调 `/user/update` 与必要的 `/key/update`；不使用可重复累加的远端语义。
-4. 网络超时或未知响应不得盲目重试写操作，先回读 LiteLLM。达到绝对目标即进入 `applied_unverified/completed`；未达到且可证明未写入才允许继续；无法判断进入 `reconcile_required`。
-5. 回读容忍 LiteLLM 缓存传播窗口；每个子步骤和响应只保存脱敏摘要。定时/人工对账负责收敛未确认记录。
+4. 网络超时或未知响应先只读回读 LiteLLM，不立即重写。达到绝对目标即完成；观察到非 before/target 的值则进入 `reconcile_required`。只有未知状态持续超过 2 分钟，且两次相隔至少 5 秒的权威回读都稳定等于原 before，才允许重发**同一个绝对目标值**；不得重新计算增量。
+5. 回读容忍 LiteLLM 缓存传播窗口；每个子步骤和响应只保存脱敏摘要。当前没有后台定时对账器，未确认记录由运营等待传播后在原订单上触发人工“对账回读”。
+
+对账不创建新充值。已有绝对目标的未知结果先按上述只读规则收敛；`retryable_failed` 且尚未持久化目标时，才会在证明未写入后安全续跑原预留。
 
 旧的用户页“直接充值”接口必须复用同一订单与执行器，只能作为兼容入口，不能绕过预留、状态机、审计或幂等约束。客户端 token 由业务事件稳定生成；服务端仍以数据库唯一约束为最终防线。
 
@@ -169,15 +179,15 @@ mss-boot-admin（admin 应用，litellmops 模块）
 | --- | --- |
 | `litellmops_user_snapshot` | user_id(PK)、email、role、models(json)、max_budget、budget_duration、budget_reset_at、spend、synced_at |
 | `litellmops_key_snapshot` | key_hash_prefix(PK)、alias、user_id、max_budget、tpm/rpm/parallel、expires、spend、synced_at |
-| `litellmops_topup_order` | id(PK)、idempotency_key(UK)、user_id、type、amount、params(json)、status(draft/pending/executing/done/failed)、operator、approver、before/after(json)、litellm_response(json)、created_at/updated_at/executed_at |
+| `litellmops_recharge` | id(PK)、user_id/idempotency_key(UK)、amount_usd_micro、before_budget_usd_micro、target_after_usd_micro、source/source_ref、payload_hash、status、uncertain_since、last_observed值/时间、keys_updated、operator/reason、version、timestamps |
 | `litellmops_sales_product` | id(PK)、channel/shop/external_item_id/sku(UK)、title、price_cny_fen、credit_usd_micro、enabled、auto_apply、created_at/updated_at |
 | `litellmops_sales_order` | id(PK)、channel/shop/external_order_id/adjustment_type(UK)、payload_hash、product_id、user_id/email、paid_cny_fen、credit_usd_micro、source_trust、status、operator/approver、timestamps |
-| `litellmops_operation_attempt` | id(PK)、operation/order_id、step、attempt_no、request_digest、result_code、response_digest、started_at/finished_at |
-| `litellmops_user_lease` | user_id(PK)、holder、expires_at、updated_at（跨进程串行化充值） |
+| `litellmops_operation_attempt` | id(PK)、operation_type/operation_id、target_id、step/attempt(UK)、request_digest、result_code、operator、started_at/finished_at |
+| `litellmops_user_lease` | user_id(PK)、holder、lease_until、updated_at（跨进程串行化充值） |
 | `litellmops_settlement` | id(PK)、user_id、period_start/end、usage_summary(json)、amount、status、operator、exported_at |
 | 审计 | 复用 admin 操作日志基建；充值/结算动作强制落审计 |
 
-## 7. 接口设计（模块 REST，前缀 `/admin/litellmops`）
+## 7. 接口设计（模块 REST，前缀 `/admin/api/litellmops`）
 
 - `GET /users`、`GET /users/{id}`（含 Key 列表）、`POST /users/sync`
 - `POST /topup-orders`、`GET /topup-orders`、`GET /topup-orders/{id}`、`POST /topup-orders/{id}/approve`、`POST /topup-orders/{id}/execute`
@@ -186,8 +196,11 @@ mss-boot-admin（admin 应用，litellmops 模块）
 - `POST /users`、`PATCH/DELETE /users/{id}`、`POST /users/{id}/block|unblock`
 - `POST /keys`、`PATCH/DELETE /keys/{id}`、`POST /keys/{id}/block|unblock|rotate|reset-spend`
 - `GET /gateway/models`、`GET /gateway/health`、`POST /gateway/models/{id}/block|unblock`
+- `GET/POST /organizations`、`GET/PATCH/DELETE /organizations/{id}` 及成员/团队管理；`POST /organizations/{id}/recharge` 与 `POST /teams/{teamId}/recharge` 为保留路由，当前固定返回 `501 operation_disabled`
 - `GET/POST/PATCH /sales/products`、`GET/POST /sales/orders`、`GET /sales/orders/{id}`
 - `POST /sales/orders/import`（连接器专用认证）、`POST /sales/orders/{id}/verify|approve|execute|reconcile|refund-review`
+
+`refund-review` 只进入人工复核并保存原因；当前没有自动扣额、批准、拒绝、关闭或冲正接口。
 
 前端页面（antd-v6，「LiteLLM 运营」菜单）：总览/网关、用户与额度、Key、组织/团队、闲鱼订单与商品映射、充值/对账、账单与结算。写操作按钮必须有动作级权限、二次确认与审计提示；所有页面覆盖加载、空态、错误、403 和移动端布局。
 
@@ -198,7 +211,8 @@ mss-boot-admin（admin 应用，litellmops 模块）
 - 快照只存 Key 哈希前缀，不存完整 Key。
 - 模块 RBAC 三角色：`litellmops-admin`（全部）、`litellmops-finance`（充值审批、结算）、`litellmops-readonly`。
 - 充值可配置要求审批人 ≠ 操作人（双人规则）。
-- 连接器凭据与 LiteLLM master key 分离；闲鱼订单导入端点不得使用普通浏览器会话认证。连接器未配置、签名失败、时间窗超限或来源非可信时拒绝自动执行。
+- 连接器凭据与 LiteLLM master key 分离；闲鱼订单导入端点不得使用普通浏览器会话认证。Admin PAT 不能单独获得连接器信任，还必须通过独立 token、HMAC、±5 分钟时间窗与 `channel:shop` 白名单校验。
+- 连接器 Secret 或来源白名单未配置时端点以 `connector_disabled` 失败关闭；签名失败、时间窗超限或来源非可信时拒绝导入和自动执行。
 - NetworkPolicy 最小化出向；模块仅监听集群内。
 
 ## 9. 风险与缓解
@@ -242,3 +256,5 @@ mss-boot-admin（admin 应用，litellmops 模块）
 - `cliproxy/k8s/litellm/values.yaml`：模型与单价配置（账单重算口径来源）。
 - `cliproxy/ops/gpt-5.6-luna-receipt.json`：模型上线回执样例。
 - LiteLLM 1.100.0 Admin API（以镜像内源码为准）。
+- [闲鱼开放平台：小程序快速接入](https://open.goofish.com/doc/quick-start.html)：企业主体、商家端 B 端 AppKey 与订单能力审批。
+- [闲鱼开放平台：服务端接入](https://open.goofish.com/doc/development/dev/server.html)：聚石塔、OAuth/TOP 与订单 API。
