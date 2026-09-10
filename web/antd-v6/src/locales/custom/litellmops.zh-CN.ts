@@ -40,14 +40,16 @@ export default {
   'litellmops.gateway.empty': '暂无可运营模型',
   'litellmops.gateway.modelUpdated': '模型状态已更新',
   'litellmops.gateway.toggleWarning': '确认变更模型 {model} 的流量可用性？该动作会记入审计。',
-  'litellmops.gateway.sensitiveBoundary': '本页只允许模型启停。新增模型、供应商密钥、路由、价格和底层配置仍通过 GitOps 或 LiteLLM 原生后台管理。',
+  'litellmops.gateway.sensitiveBoundary':
+    '本页只允许模型启停。新增模型、供应商密钥、路由、价格和底层配置仍通过 GitOps 或 LiteLLM 原生后台管理。',
   'litellmops.gateway.nativeModels': '打开原生模型配置',
   'litellmops.gateway.nativeRouting': '打开原生路由配置',
   'litellmops.gateway.status.ready': '可用',
   'litellmops.gateway.status.degraded': '降级',
   'litellmops.gateway.status.unavailable': '不可用',
   'litellmops.sales.title': '闲鱼销售与充值',
-  'litellmops.sales.description': '维护商品额度映射，安全处理手工订单、审批、充值、对账和退款人工复核。',
+  'litellmops.sales.description':
+    '维护商品额度映射，安全处理手工订单、审批、充值、对账和退款人工复核。',
   'litellmops.sales.orders': '销售订单',
   'litellmops.sales.products': '商品映射',
   'litellmops.sales.product.create': '新建商品映射',
@@ -68,7 +70,8 @@ export default {
   'litellmops.sales.product.creditUsd': '充值额度（美元）',
   'litellmops.sales.product.autoApply': '允许自动执行',
   'litellmops.sales.product.raiseKeys': '同步提升个人 Key 额度',
-  'litellmops.sales.product.autoWarning': '只有可信来源、已付款、唯一启用映射和唯一用户匹配全部满足时才能自动执行。保存映射不会自动开启连接器。',
+  'litellmops.sales.product.autoWarning':
+    '只有可信来源、已付款、唯一启用映射和唯一用户匹配全部满足时才能自动执行。保存映射不会自动开启连接器。',
   'litellmops.sales.order.create': '录入闲鱼订单',
   'litellmops.sales.order.created': '订单已录入；请继续核验，不会立即充值',
   'litellmops.sales.order.transitioned': '订单状态已更新',
@@ -86,10 +89,14 @@ export default {
   'litellmops.sales.order.target': '绝对目标额度',
   'litellmops.sales.order.search': '搜索订单号或邮箱',
   'litellmops.sales.order.empty': '暂无订单',
-  'litellmops.sales.order.safety': '执行中、已写入待确认或结果不确定的订单不能重复充值；只能等待回读或执行对账。',
-  'litellmops.sales.order.connector': '自动入单仅接受闲鱼官方开放平台或明确授权的服务端连接器。浏览器 Cookie 不会被读取或保存。',
-  'litellmops.sales.order.manualCheck': '请先在闲鱼 App“我的闲鱼 → 我卖出的”核对订单号、商品、实付金额和已付款状态。',
-  'litellmops.sales.order.refundWarning': '退款不会自动扣减已消费额度。请核对原订单、当前剩余额度和后续消费，再记录人工决定。',
+  'litellmops.sales.order.safety':
+    '执行中、已写入待确认或结果不确定的订单不能重复充值；只能等待回读或执行对账。',
+  'litellmops.sales.order.connector':
+    '自动入单仅接受闲鱼官方开放平台或明确授权的服务端连接器。浏览器 Cookie 不会被读取或保存。',
+  'litellmops.sales.order.manualCheck':
+    '请先在闲鱼 App“我的闲鱼 → 我卖出的”核对订单号、商品、实付金额和已付款状态。',
+  'litellmops.sales.order.refundWarning':
+    '提交后只会进入人工复核队列，不会自动扣减额度。请填写原因并核对原订单、当前余额与后续消费。',
   'litellmops.sales.order.refundDecision': '复核决定',
   'litellmops.sales.order.refundReject': '拒绝自动冲正 / 保持人工处理',
   'litellmops.sales.order.refundApprove': '批准受控冲正',
@@ -98,9 +105,11 @@ export default {
   'litellmops.sales.action.approve': '批准',
   'litellmops.sales.action.execute': '执行充值',
   'litellmops.sales.action.reconcile': '对账回读',
-  'litellmops.sales.action.refund-review': '退款复核',
-  'litellmops.sales.action.executeWarning': '将按已保存的绝对目标值写入 LiteLLM。若响应不确定，系统会进入对账状态；不要新建重复订单。',
-  'litellmops.sales.action.auditWarning': '确认业务事实后继续。该动作会追加审计记录，不能用来跳过订单状态机。',
+  'litellmops.sales.action.refund-review': '进入退款人工复核',
+  'litellmops.sales.action.executeWarning':
+    '将按已保存的绝对目标值写入 LiteLLM。若响应不确定，系统会进入对账状态；不要新建重复订单。',
+  'litellmops.sales.action.auditWarning':
+    '确认业务事实后继续。该动作会追加审计记录，不能用来跳过订单状态机。',
   'litellmops.sales.status.received': '已接收',
   'litellmops.sales.status.verified_paid': '已核实付款',
   'litellmops.sales.status.mapped': '已匹配',
@@ -121,8 +130,10 @@ export default {
   'litellmops.sales.source.manual': '人工录入',
   'litellmops.sales.source.untrusted': '未验证来源',
   'litellmops.users.title': '用户运营',
-  'litellmops.users.description': '邀请、创建与维护 LiteLLM 用户，管理模型、预算和限速，并查看可审计的充值历史。',
-  'litellmops.users.policy': '新受邀用户默认赠送 5 美元且不自动重置；新 Key 默认 600,000 TPM。请按实际业务审批调整。',
+  'litellmops.users.description':
+    '邀请、创建与维护 LiteLLM 用户，管理模型、预算和限速，并查看可审计的充值历史。',
+  'litellmops.users.policy':
+    '新受邀用户默认赠送 5 美元且不自动重置；新 Key 默认 600,000 TPM。请按实际业务审批调整。',
   'litellmops.users.detail': '用户详情',
   'litellmops.users.email': '邮箱',
   'litellmops.users.role': '角色',
@@ -145,7 +156,8 @@ export default {
   'litellmops.users.deleteTitle': '删除用户',
   'litellmops.users.deleteWarning': '删除可能影响该用户全部 Key；请确认业务归属并完成审计。',
   'litellmops.users.rechargeTitle': '为 {email} 充值',
-  'litellmops.users.rechargeWarning': '业务引用会作为幂等键复用。请求结果不确定时不要更换引用盲目重试，应先查看历史或对账。',
+  'litellmops.users.rechargeWarning':
+    '业务引用会作为幂等键复用。请求结果不确定时不要更换引用盲目重试，应先查看历史或对账。',
   'litellmops.users.raiseKeys': '同时提升该用户所有个人 Key 的预算上限',
   'litellmops.users.search': '按邮箱搜索',
   'litellmops.users.sync': '立即同步',
@@ -168,7 +180,8 @@ export default {
   'litellmops.recharge.status.reconcile_required': '需要对账',
   'litellmops.keys.title': 'API Key 运营',
   'litellmops.keys.description': '签发和维护用户 Key；UI 会话 Key 默认折叠。',
-  'litellmops.keys.securityPolicy': '原始 Key 仅显示一次，不写入本地存储。轮换会立即使旧 Key 失效，请先确认用户可安全接收新值。',
+  'litellmops.keys.securityPolicy':
+    '原始 Key 仅显示一次，不写入本地存储。轮换会立即使旧 Key 失效，请先确认用户可安全接收新值。',
   'litellmops.keys.alias': '别名',
   'litellmops.keys.prefix': '哈希前缀',
   'litellmops.keys.owner': '归属邮箱',

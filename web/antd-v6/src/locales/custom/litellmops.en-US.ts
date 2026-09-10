@@ -21,9 +21,11 @@ export default {
   'litellmops.common.deleted': 'Deleted',
   'litellmops.common.active': 'Active',
   'litellmops.common.blocked': 'Blocked',
-  'litellmops.common.confirmAudit': 'This write records the operator, before/after values, and a sanitized result.',
+  'litellmops.common.confirmAudit':
+    'This write records the operator, before/after values, and a sanitized result.',
   'litellmops.gateway.title': 'Operations Overview and Gateway',
-  'litellmops.gateway.description': 'Review LiteLLM readiness, model health, and explicit traffic block state.',
+  'litellmops.gateway.description':
+    'Review LiteLLM readiness, model health, and explicit traffic block state.',
   'litellmops.gateway.readiness': 'Gateway readiness',
   'litellmops.gateway.models': 'Models',
   'litellmops.gateway.healthyModels': 'Healthy models',
@@ -39,15 +41,18 @@ export default {
   'litellmops.gateway.lastChecked': 'Last checked',
   'litellmops.gateway.empty': 'No operable models',
   'litellmops.gateway.modelUpdated': 'Model state updated',
-  'litellmops.gateway.toggleWarning': 'Change traffic availability for model {model}? This action is audited.',
-  'litellmops.gateway.sensitiveBoundary': 'This page only blocks or unblocks models. New models, provider credentials, routing, pricing, and infrastructure settings remain in GitOps or the native LiteLLM admin.',
+  'litellmops.gateway.toggleWarning':
+    'Change traffic availability for model {model}? This action is audited.',
+  'litellmops.gateway.sensitiveBoundary':
+    'This page only blocks or unblocks models. New models, provider credentials, routing, pricing, and infrastructure settings remain in GitOps or the native LiteLLM admin.',
   'litellmops.gateway.nativeModels': 'Open native model settings',
   'litellmops.gateway.nativeRouting': 'Open native routing settings',
   'litellmops.gateway.status.ready': 'Ready',
   'litellmops.gateway.status.degraded': 'Degraded',
   'litellmops.gateway.status.unavailable': 'Unavailable',
   'litellmops.sales.title': 'Xianyu Sales and Credits',
-  'litellmops.sales.description': 'Maintain product-to-credit mappings and safely operate manual orders, approval, credit execution, reconciliation, and refund review.',
+  'litellmops.sales.description':
+    'Maintain product-to-credit mappings and safely operate manual orders, approval, credit execution, reconciliation, and refund review.',
   'litellmops.sales.orders': 'Sales orders',
   'litellmops.sales.products': 'Product mappings',
   'litellmops.sales.product.create': 'Create product mapping',
@@ -68,7 +73,8 @@ export default {
   'litellmops.sales.product.creditUsd': 'Credit (USD)',
   'litellmops.sales.product.autoApply': 'Allow automatic execution',
   'litellmops.sales.product.raiseKeys': 'Raise personal key budgets too',
-  'litellmops.sales.product.autoWarning': 'Automatic execution requires a trusted source, paid state, one enabled mapping, and one exact user match. Saving a mapping never enables a connector.',
+  'litellmops.sales.product.autoWarning':
+    'Automatic execution requires a trusted source, paid state, one enabled mapping, and one exact user match. Saving a mapping never enables a connector.',
   'litellmops.sales.order.create': 'Record Xianyu order',
   'litellmops.sales.order.created': 'Order recorded for verification; no credit was applied',
   'litellmops.sales.order.transitioned': 'Order status updated',
@@ -86,10 +92,14 @@ export default {
   'litellmops.sales.order.target': 'Absolute target budget',
   'litellmops.sales.order.search': 'Search order ID or email',
   'litellmops.sales.order.empty': 'No orders',
-  'litellmops.sales.order.safety': 'Never re-credit an executing, applied-unverified, or uncertain order. Wait for read-back or run reconciliation.',
-  'litellmops.sales.order.connector': 'Automatic import accepts only the official Xianyu platform or an explicitly authorized server connector. Browser cookies are never read or stored.',
-  'litellmops.sales.order.manualCheck': 'Verify the order ID, item, paid amount, and paid state in Xianyu App under My Xianyu → Sold before recording it.',
-  'litellmops.sales.order.refundWarning': 'Refunds never automatically subtract consumed credit. Review the original order, current budget, and later usage before recording a decision.',
+  'litellmops.sales.order.safety':
+    'Never re-credit an executing, applied-unverified, or uncertain order. Wait for read-back or run reconciliation.',
+  'litellmops.sales.order.connector':
+    'Automatic import accepts only the official Xianyu platform or an explicitly authorized server connector. Browser cookies are never read or stored.',
+  'litellmops.sales.order.manualCheck':
+    'Verify the order ID, item, paid amount, and paid state in Xianyu App under My Xianyu → Sold before recording it.',
+  'litellmops.sales.order.refundWarning':
+    'This only enters the manual review queue and never subtracts credit automatically. Provide a reason and review the original order, current balance, and later usage.',
   'litellmops.sales.order.refundDecision': 'Review decision',
   'litellmops.sales.order.refundReject': 'Reject reversal / keep for manual handling',
   'litellmops.sales.order.refundApprove': 'Approve controlled reversal',
@@ -98,9 +108,11 @@ export default {
   'litellmops.sales.action.approve': 'Approve',
   'litellmops.sales.action.execute': 'Execute credit',
   'litellmops.sales.action.reconcile': 'Reconcile read-back',
-  'litellmops.sales.action.refund-review': 'Review refund',
-  'litellmops.sales.action.executeWarning': 'This writes the stored absolute target to LiteLLM. An uncertain response enters reconciliation; do not create a duplicate order.',
-  'litellmops.sales.action.auditWarning': 'Continue only after confirming the business facts. This appends an audit record and cannot skip the order state machine.',
+  'litellmops.sales.action.refund-review': 'Send to manual refund review',
+  'litellmops.sales.action.executeWarning':
+    'This writes the stored absolute target to LiteLLM. An uncertain response enters reconciliation; do not create a duplicate order.',
+  'litellmops.sales.action.auditWarning':
+    'Continue only after confirming the business facts. This appends an audit record and cannot skip the order state machine.',
   'litellmops.sales.status.received': 'Received',
   'litellmops.sales.status.verified_paid': 'Payment verified',
   'litellmops.sales.status.mapped': 'Mapped',
@@ -121,8 +133,10 @@ export default {
   'litellmops.sales.source.manual': 'Manual entry',
   'litellmops.sales.source.untrusted': 'Unverified source',
   'litellmops.users.title': 'User operations',
-  'litellmops.users.description': 'Invite, create, and maintain LiteLLM users, model access, budgets, rate limits, and auditable credit history.',
-  'litellmops.users.policy': 'New invited users receive $5 with no automatic reset; new keys default to 600,000 TPM. Change these only with business approval.',
+  'litellmops.users.description':
+    'Invite, create, and maintain LiteLLM users, model access, budgets, rate limits, and auditable credit history.',
+  'litellmops.users.policy':
+    'New invited users receive $5 with no automatic reset; new keys default to 600,000 TPM. Change these only with business approval.',
   'litellmops.users.detail': 'User details',
   'litellmops.users.email': 'Email',
   'litellmops.users.role': 'Role',
@@ -143,9 +157,11 @@ export default {
   'litellmops.users.rechargeAccepted': 'Credit request accepted with status {status}',
   'litellmops.users.blockWarning': 'This immediately changes user access and is audited.',
   'litellmops.users.deleteTitle': 'Delete user',
-  'litellmops.users.deleteWarning': 'Deletion may affect every key owned by this user. Confirm ownership and audit requirements.',
+  'litellmops.users.deleteWarning':
+    'Deletion may affect every key owned by this user. Confirm ownership and audit requirements.',
   'litellmops.users.rechargeTitle': 'Add credit for {email}',
-  'litellmops.users.rechargeWarning': 'The business reference is reused as the idempotency key. If the result is uncertain, keep the reference and reconcile instead of retrying blindly.',
+  'litellmops.users.rechargeWarning':
+    'The business reference is reused as the idempotency key. If the result is uncertain, keep the reference and reconcile instead of retrying blindly.',
   'litellmops.users.raiseKeys': 'Raise the budget limit on all personal keys for this user',
   'litellmops.users.search': 'Search by email',
   'litellmops.users.sync': 'Sync now',
@@ -167,8 +183,10 @@ export default {
   'litellmops.recharge.status.terminal_failed': 'Terminal failure',
   'litellmops.recharge.status.reconcile_required': 'Reconciliation required',
   'litellmops.keys.title': 'API key operations',
-  'litellmops.keys.description': 'Issue and maintain user keys. UI session keys are hidden by default.',
-  'litellmops.keys.securityPolicy': 'Raw keys are shown once and never stored locally. Rotation immediately invalidates the old key; confirm the user can safely receive the replacement.',
+  'litellmops.keys.description':
+    'Issue and maintain user keys. UI session keys are hidden by default.',
+  'litellmops.keys.securityPolicy':
+    'Raw keys are shown once and never stored locally. Rotation immediately invalidates the old key; confirm the user can safely receive the replacement.',
   'litellmops.keys.alias': 'Alias',
   'litellmops.keys.prefix': 'Hash prefix',
   'litellmops.keys.owner': 'Owner email',
@@ -198,11 +216,15 @@ export default {
   'litellmops.keys.actionDone': 'Key operation completed',
   'litellmops.keys.warning.block': 'This key will no longer be able to call models.',
   'litellmops.keys.warning.unblock': 'This key will regain model access.',
-  'litellmops.keys.warning.rotate': 'The old key becomes invalid immediately, and the new raw key is shown once. Continue?',
-  'litellmops.keys.warning.reset-spend': 'Reset recorded spend for this key? This action is audited.',
+  'litellmops.keys.warning.rotate':
+    'The old key becomes invalid immediately, and the new raw key is shown once. Continue?',
+  'litellmops.keys.warning.reset-spend':
+    'Reset recorded spend for this key? This action is audited.',
   'litellmops.keys.warning.remove': 'Revocation cannot be undone. Permanently revoke this key?',
   'litellmops.keys.secretTitle': 'Save the new API key now',
-  'litellmops.keys.secretWarning': 'This is the only time the raw key is shown. It cannot be viewed again after closing.',
+  'litellmops.keys.secretWarning':
+    'This is the only time the raw key is shown. It cannot be viewed again after closing.',
   'litellmops.keys.secretAcknowledge': 'I saved it securely',
-  'litellmops.keys.secretMissing': 'The operation succeeded, but the response did not include a raw key to show.',
+  'litellmops.keys.secretMissing':
+    'The operation succeeded, but the response did not include a raw key to show.',
 };

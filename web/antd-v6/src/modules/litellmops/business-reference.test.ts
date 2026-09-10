@@ -41,15 +41,18 @@ describe('operations business safety helpers', () => {
   });
 
   it('offers only state-machine actions and never blindly retries an uncertain write', () => {
-    expect(availableOrderActions(order('received'))).toEqual(['verify']);
-    expect(availableOrderActions(order('verified_paid'))).toEqual(['match']);
-    expect(availableOrderActions(order('mapped'))).toEqual(['approve']);
-    expect(availableOrderActions(order('approved'))).toEqual(['execute']);
+    expect(availableOrderActions(order('received'))).toEqual(['verify', 'refund-review']);
+    expect(availableOrderActions(order('verified_paid'))).toEqual(['match', 'refund-review']);
+    expect(availableOrderActions(order('mapped'))).toEqual(['approve', 'refund-review']);
+    expect(availableOrderActions(order('approved'))).toEqual(['execute', 'refund-review']);
     expect(availableOrderActions(order('executing'))).toEqual([]);
     expect(availableOrderActions(order('applied_unverified'))).toEqual(['reconcile']);
     expect(availableOrderActions(order('retryable_failed'))).toEqual(['reconcile']);
-    expect(availableOrderActions(order('completed', 'refunded'))).toEqual(['refund-review']);
+    expect(availableOrderActions(order('reconcile_required'))).toEqual(['reconcile']);
+    expect(availableOrderActions(order('completed'))).toEqual(['refund-review']);
+    expect(availableOrderActions(order('terminal_failed'))).toEqual(['refund-review']);
     expect(availableOrderActions(order('refund_review', 'refunded'))).toEqual([]);
-    expect(availableOrderActions(order('received', 'unpaid'))).toEqual([]);
+    expect(availableOrderActions(order('reversed', 'refunded'))).toEqual([]);
+    expect(availableOrderActions(order('received', 'unpaid'))).toEqual(['refund-review']);
   });
 });

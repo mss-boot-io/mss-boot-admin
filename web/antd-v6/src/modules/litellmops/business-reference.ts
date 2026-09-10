@@ -5,8 +5,15 @@ export function createBusinessReference(
   now = new Date(),
   unique = globalThis.crypto.randomUUID(),
 ): string {
-  const timestamp = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-  const safePrefix = prefix.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || 'manual';
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:.TZ]/g, '')
+    .slice(0, 14);
+  const safePrefix =
+    prefix
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-|-$/g, '') || 'manual';
   return `${safePrefix}-${timestamp}-${unique.slice(0, 12)}`;
 }
 
@@ -16,7 +23,13 @@ export function extractOneTimeKey(result: OneTimeKeyResult): string | undefined 
   return typeof result.key === 'string' && result.key ? result.key : undefined;
 }
 
-export type SalesOrderAction = 'verify' | 'match' | 'approve' | 'execute' | 'reconcile' | 'refund-review';
+export type SalesOrderAction =
+  | 'verify'
+  | 'match'
+  | 'approve'
+  | 'execute'
+  | 'reconcile'
+  | 'refund-review';
 
 const actionByStatus: Partial<Record<SalesOrderStatus, SalesOrderAction[]>> = {
   received: ['verify'],
@@ -28,10 +41,17 @@ const actionByStatus: Partial<Record<SalesOrderStatus, SalesOrderAction[]>> = {
   reconcile_required: ['reconcile'],
 };
 
+const refundReviewStatuses = new Set<SalesOrderStatus>([
+  'received',
+  'verified_paid',
+  'mapped',
+  'approved',
+  'completed',
+  'terminal_failed',
+]);
+
 export function availableOrderActions(order: SalesOrder): SalesOrderAction[] {
-  if (order.payment_status === 'refunded' && !['refund_review', 'reversed'].includes(order.status)) {
-    return ['refund-review'];
-  }
-  if (order.payment_status !== 'paid' && order.status !== 'refund_review') return [];
-  return actionByStatus[order.status] ?? [];
+  const actions = order.payment_status === 'paid' ? [...(actionByStatus[order.status] ?? [])] : [];
+  if (refundReviewStatuses.has(order.status)) actions.push('refund-review');
+  return actions;
 }
