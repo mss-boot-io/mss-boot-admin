@@ -60,6 +60,9 @@ func SyncSnapshots(ctx context.Context, db *gorm.DB, client *Client) (*SyncRepor
 				"budget_duration": user.BudgetDuration,
 				"budget_reset_at": user.BudgetResetAt,
 				"spend":           user.Spend,
+				"tpm_limit":       user.TPMLimit,
+				"rpm_limit":       user.RPMLimit,
+				"blocked":         user.Blocked,
 				"synced_at":       now,
 				"updated_at":      now,
 				"deleted_at":      nil,
@@ -81,6 +84,10 @@ func SyncSnapshots(ctx context.Context, db *gorm.DB, client *Client) (*SyncRepor
 			if trimmed := key.Alias; trimmed != "" {
 				alias = &trimmed
 			}
+			modelsJSON, marshalErr := json.Marshal(key.Models)
+			if marshalErr != nil {
+				return marshalErr
+			}
 			values := map[string]any{
 				"key_hash_prefix":       prefix,
 				"alias":                 alias,
@@ -93,6 +100,8 @@ func SyncSnapshots(ctx context.Context, db *gorm.DB, client *Client) (*SyncRepor
 				"max_parallel_requests": key.MaxParallel,
 				"expires":               key.Expires,
 				"is_session_key":        key.IsSession(),
+				"models":                string(modelsJSON),
+				"blocked":               key.Blocked,
 				"synced_at":             now,
 				"updated_at":            now,
 				"deleted_at":            nil,

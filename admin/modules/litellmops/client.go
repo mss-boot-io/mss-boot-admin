@@ -1,6 +1,7 @@
 package litellmops
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,12 +20,46 @@ const (
 	EnvLiteLLMMasterKey = "LITELLMOPS_LITELLM_MASTER_KEY"
 )
 
-// Client reads LiteLLM Admin API list endpoints. It is read-only: this module
-// never calls write endpoints. The master key stays in memory only.
+// Client talks to LiteLLM Admin API. Reads power snapshots and bills; writes
+// are limited to recharge (/user/update, /key/update). The master key stays
+// in process memory only.
 type Client struct {
 	baseURL    string
 	masterKey  string
 	httpClient *http.Client
+}
+
+// UpstreamError is intentionally safe to return to an operator. It never
+// includes the upstream response body, authorization header, or request
+// payload. Uncertain is true when a write may have reached LiteLLM even though
+// the response could not be read completely.
+type UpstreamError struct {
+	Path       string
+	StatusCode int
+	RequestID  string
+	Uncertain  bool
+	Cause      error
+}
+
+func (err *UpstreamError) Error() string {
+	if err == nil {
+		return "litellmops upstream request failed"
+	}
+	message := fmt.Sprintf("litellmops LiteLLM %s request failed", err.Path)
+	if err.StatusCode != 0 {
+		message += fmt.Sprintf(" with status %d", err.StatusCode)
+	}
+	if err.RequestID != "" {
+		message += " (request_id=" + err.RequestID + ")"
+	}
+	return message
+}
+
+func (err *UpstreamError) Unwrap() error { return err.Cause }
+
+func upstreamResultUncertain(err error) bool {
+	var upstream *UpstreamError
+	return errors.As(err, &upstream) && upstream.Uncertain
 }
 
 // NewClient validates explicit configuration.
@@ -33,6 +68,11 @@ func NewClient(baseURL, masterKey string, httpClient *http.Client) (*Client, err
 	masterKey = strings.TrimSpace(masterKey)
 	if baseURL == "" || masterKey == "" {
 		return nil, errors.New("litellmops LiteLLM base URL and master key are required")
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, errors.New("litellmops LiteLLM base URL must be an absolute http(s) origin")
 	}
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -55,6 +95,9 @@ type RemoteUser struct {
 	BudgetDuration *string
 	BudgetResetAt  *time.Time
 	Spend          float64
+	TPMLimit       *int64
+	RPMLimit       *int64
+	Blocked        bool
 }
 
 // RemoteKey is the tolerated shape of one LiteLLM /key/list item. TokenHash
@@ -70,6 +113,8 @@ type RemoteKey struct {
 	MaxParallel *int
 	Expires     *time.Time
 	CreatedAt   *time.Time
+	Models      []string
+	Blocked     bool
 }
 
 // keyHashPrefixLength bounds what the snapshot may persist.
@@ -120,6 +165,153 @@ func (client *Client) getJSON(ctx context.Context, path string, query url.Values
 		return fmt.Errorf("litellmops decode LiteLLM %s response: %w", path, err)
 	}
 	return nil
+}
+
+func (client *Client) postJSON(ctx context.Context, path string, payload any, out any) error {
+	return client.doJSON(ctx, http.MethodPost, path, nil, payload, out)
+}
+
+func (client *Client) doJSON(ctx context.Context, method, path string, query url.Values, payload any, out any) error {
+	endpoint := client.baseURL + path
+	displayPath := safeUpstreamPath(path)
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	var reader io.Reader
+	if payload != nil {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("litellmops encode LiteLLM %s request: %w", path, err)
+		}
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return fmt.Errorf("litellmops build LiteLLM request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+client.masterKey)
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return &UpstreamError{Path: displayPath, Uncertain: method != http.MethodGet, Cause: err}
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return &UpstreamError{Path: displayPath, RequestID: safeRequestID(resp.Header), Uncertain: method != http.MethodGet, Cause: err}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return &UpstreamError{Path: displayPath, StatusCode: resp.StatusCode, RequestID: safeRequestID(resp.Header), Uncertain: method != http.MethodGet && resp.StatusCode >= http.StatusInternalServerError}
+	}
+	if out == nil || len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		return &UpstreamError{Path: displayPath, StatusCode: resp.StatusCode, RequestID: safeRequestID(resp.Header), Uncertain: method != http.MethodGet, Cause: err}
+	}
+	return nil
+}
+
+func safeUpstreamPath(path string) string {
+	if strings.HasPrefix(path, "/key/") && strings.HasSuffix(path, "/reset_spend") {
+		return "/key/{key}/reset_spend"
+	}
+	return path
+}
+
+func safeRequestID(header http.Header) string {
+	for _, key := range []string{"X-Request-ID", "Request-ID", "Trace-ID"} {
+		value := strings.TrimSpace(header.Get(key))
+		if value == "" {
+			continue
+		}
+		if len(value) > 96 {
+			value = value[:96]
+		}
+		return strings.Map(func(r rune) rune {
+			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_.:/", r) {
+				return r
+			}
+			return -1
+		}, value)
+	}
+	return ""
+}
+
+// GetUser loads one user from /user/info.
+func (client *Client) GetUser(ctx context.Context, userID string) (*RemoteUser, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, errors.New("litellmops user id is required")
+	}
+	var envelope map[string]json.RawMessage
+	if err := client.getJSON(ctx, "/user/info", url.Values{"user_id": {userID}}, &envelope); err != nil {
+		return nil, err
+	}
+	item := map[string]any{}
+	for _, key := range []string{"user_info", "user", "data"} {
+		raw, ok := envelope[key]
+		if !ok {
+			continue
+		}
+		if err := json.Unmarshal(raw, &item); err == nil && item["user_id"] != nil {
+			break
+		}
+		item = map[string]any{}
+	}
+	if item["user_id"] == nil {
+		if err := json.Unmarshal(mustRaw(envelope), &item); err != nil || item["user_id"] == nil {
+			return nil, errors.New("litellmops LiteLLM user info is missing user_id")
+		}
+	}
+	user := RemoteUser{
+		UserID:         mapString(item, "user_id"),
+		Email:          mapString(item, "user_email", "email"),
+		Role:           mapString(item, "user_role", "role"),
+		Models:         mapStringSlice(item, "models"),
+		MaxBudget:      mapFloatPtr(item, "max_budget"),
+		BudgetDuration: mapStringPtr(item, "budget_duration"),
+		BudgetResetAt:  mapTimePtr(item, "budget_reset_at"),
+		Spend:          mapFloat(item, "spend"),
+		TPMLimit:       mapInt64Ptr(item, "tpm_limit"),
+		RPMLimit:       mapInt64Ptr(item, "rpm_limit"),
+		Blocked:        mapBool(item, "blocked"),
+	}
+	if user.UserID == "" {
+		return nil, errors.New("litellmops LiteLLM user info is missing user_id")
+	}
+	return &user, nil
+}
+
+func mustRaw(envelope map[string]json.RawMessage) []byte {
+	body := map[string]any{}
+	for key, raw := range envelope {
+		var value any
+		if err := json.Unmarshal(raw, &value); err == nil {
+			body[key] = value
+		}
+	}
+	encoded, _ := json.Marshal(body)
+	return encoded
+}
+
+// UpdateUserBudget sets max_budget through /user/update.
+func (client *Client) UpdateUserBudget(ctx context.Context, userID string, maxBudget float64) error {
+	return client.postJSON(ctx, "/user/update", map[string]any{
+		"user_id":    userID,
+		"max_budget": maxBudget,
+	}, nil)
+}
+
+// UpdateKeyBudget sets max_budget through /key/update. keyToken is the
+// hashed token LiteLLM already stores — never a newly minted secret.
+func (client *Client) UpdateKeyBudget(ctx context.Context, keyToken string, maxBudget float64) error {
+	return client.postJSON(ctx, "/key/update", map[string]any{
+		"key":        keyToken,
+		"max_budget": maxBudget,
+	}, nil)
 }
 
 // listItems pages a list endpoint and returns tolerated per-item maps.
@@ -194,6 +386,9 @@ func (client *Client) ListUsers(ctx context.Context) ([]RemoteUser, error) {
 			BudgetDuration: mapStringPtr(item, "budget_duration"),
 			BudgetResetAt:  mapTimePtr(item, "budget_reset_at"),
 			Spend:          mapFloat(item, "spend"),
+			TPMLimit:       mapInt64Ptr(item, "tpm_limit"),
+			RPMLimit:       mapInt64Ptr(item, "rpm_limit"),
+			Blocked:        mapBool(item, "blocked"),
 		}
 		if user.UserID == "" {
 			return nil, errors.New("litellmops LiteLLM user list item is missing user_id")
@@ -224,6 +419,8 @@ func (client *Client) ListKeys(ctx context.Context) ([]RemoteKey, error) {
 			MaxParallel: mapIntPtr(item, "max_parallel_requests"),
 			Expires:     mapTimePtr(item, "expires"),
 			CreatedAt:   mapTimePtr(item, "created_at"),
+			Models:      mapStringSlice(item, "models"),
+			Blocked:     mapBool(item, "blocked"),
 		}
 		if key.TokenHash == "" {
 			return nil, errors.New("litellmops LiteLLM key list item is missing token hash")
@@ -321,6 +518,20 @@ func mapStringSlice(item map[string]any, keys ...string) []string {
 		return out
 	}
 	return nil
+}
+
+func mapBool(item map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		switch value := item[key].(type) {
+		case bool:
+			return value
+		case string:
+			return strings.EqualFold(strings.TrimSpace(value), "true") || value == "1"
+		case float64:
+			return value != 0
+		}
+	}
+	return false
 }
 
 // mapTimePtr tolerates RFC3339 and naive SQL timestamps (assumed UTC).

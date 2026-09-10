@@ -22,13 +22,80 @@ type authorizationRoute struct {
 	path   string
 }
 
-var authorizationRoutes = map[string]authorizationRoute{
-	PermissionUserList: {method: "GET", path: "/admin/api/litellmops/users"},
-	PermissionUserRead: {method: "GET", path: "/admin/api/litellmops/users/:id"},
-	PermissionKeyList:  {method: "GET", path: "/admin/api/litellmops/keys"},
-	PermissionKeyRead:  {method: "GET", path: "/admin/api/litellmops/keys/:id"},
-	PermissionSync:     {method: "POST", path: "/admin/api/litellmops/sync"},
-	PermissionBills:    {method: "GET", path: "/admin/api/litellmops/bills"},
+var authorizationRoutes = map[string][]authorizationRoute{
+	PermissionUserList: {{method: "GET", path: "/admin/api/litellmops/users"}},
+	PermissionUserRead: {
+		{method: "GET", path: "/admin/api/litellmops/users/:id"},
+		{method: "GET", path: "/admin/api/litellmops/users/:id/recharges"},
+	},
+	PermissionKeyList:  {{method: "GET", path: "/admin/api/litellmops/keys"}},
+	PermissionKeyRead:  {{method: "GET", path: "/admin/api/litellmops/keys/:id"}},
+	PermissionSync:     {{method: "POST", path: "/admin/api/litellmops/sync"}},
+	PermissionBills:    {{method: "GET", path: "/admin/api/litellmops/bills"}},
+	PermissionRecharge: {{method: "POST", path: "/admin/api/litellmops/users/:id/recharge"}},
+	PermissionOrgList:  {{method: "GET", path: "/admin/api/litellmops/organizations"}},
+	PermissionOrgRead:  {{method: "GET", path: "/admin/api/litellmops/organizations/:id"}},
+	PermissionOrgWrite: {
+		{method: "POST", path: "/admin/api/litellmops/organizations"},
+		{method: "PATCH", path: "/admin/api/litellmops/organizations/:id"},
+		{method: "DELETE", path: "/admin/api/litellmops/organizations/:id"},
+		{method: "POST", path: "/admin/api/litellmops/organizations/:id/recharge"},
+		{method: "POST", path: "/admin/api/litellmops/organizations/:id/members"},
+		{method: "POST", path: "/admin/api/litellmops/organizations/:id/members/remove"},
+		{method: "POST", path: "/admin/api/litellmops/organizations/:id/teams"},
+		{method: "POST", path: "/admin/api/litellmops/teams/:teamId/recharge"},
+		{method: "DELETE", path: "/admin/api/litellmops/teams/:teamId"},
+	},
+	PermissionProductRead: {{method: "GET", path: "/admin/api/litellmops/sales/products"}},
+	PermissionProductWrite: {
+		{method: "POST", path: "/admin/api/litellmops/sales/products"},
+		{method: "PATCH", path: "/admin/api/litellmops/sales/products/:id"},
+	},
+	PermissionOrderRead: {
+		{method: "GET", path: "/admin/api/litellmops/sales/orders"},
+		{method: "GET", path: "/admin/api/litellmops/sales/orders/:id"},
+	},
+	PermissionOrderImport: {
+		{method: "POST", path: "/admin/api/litellmops/sales/orders"},
+		{method: "POST", path: "/admin/api/litellmops/sales/orders/import"},
+	},
+	PermissionOrderVerify: {
+		{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/verify"},
+		{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/match"},
+	},
+	PermissionOrderApprove:      {{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/approve"}},
+	PermissionOrderExecute:      {{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/execute"}},
+	PermissionOrderReconcile:    {{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/reconcile"}},
+	PermissionOrderRefundReview: {{method: "POST", path: "/admin/api/litellmops/sales/orders/:id/refund-review"}},
+	PermissionUserWrite: {
+		{method: "POST", path: "/admin/api/litellmops/users"},
+		{method: "POST", path: "/admin/api/litellmops/users/invite"},
+		{method: "PATCH", path: "/admin/api/litellmops/users/:id"},
+		{method: "POST", path: "/admin/api/litellmops/users/:id/block"},
+		{method: "POST", path: "/admin/api/litellmops/users/:id/unblock"},
+		{method: "DELETE", path: "/admin/api/litellmops/users/:id"},
+	},
+	PermissionKeyIssue: {
+		{method: "POST", path: "/admin/api/litellmops/keys"},
+		{method: "POST", path: "/admin/api/litellmops/keys/:id/rotate"},
+	},
+	PermissionKeyWrite: {
+		{method: "PATCH", path: "/admin/api/litellmops/keys/:id"},
+		{method: "POST", path: "/admin/api/litellmops/keys/:id/reset-spend"},
+	},
+	PermissionKeyRevoke: {
+		{method: "POST", path: "/admin/api/litellmops/keys/:id/block"},
+		{method: "POST", path: "/admin/api/litellmops/keys/:id/unblock"},
+		{method: "DELETE", path: "/admin/api/litellmops/keys/:id"},
+	},
+	PermissionGatewayRead: {
+		{method: "GET", path: "/admin/api/litellmops/gateway/models"},
+		{method: "GET", path: "/admin/api/litellmops/gateway/health"},
+	},
+	PermissionGatewayWrite: {
+		{method: "POST", path: "/admin/api/litellmops/gateway/models/:id/block"},
+		{method: "POST", path: "/admin/api/litellmops/gateway/models/:id/unblock"},
+	},
 }
 
 // AdminAuthorizer adapts the module permission contract to the Admin
@@ -59,11 +126,20 @@ func (authorizer *AdminAuthorizer) Authorize(ctx *gin.Context, permission string
 	if authorizer == nil || authorizer.database == nil || authorizer.principal == nil {
 		return ErrAuthorizationUnavailable
 	}
-	route, declared := authorizationRoutes[permission]
+	routes, declared := authorizationRoutes[permission]
 	if !declared || ctx == nil || ctx.Request == nil {
 		return ErrAuthorizationDenied
 	}
-	if ctx.Request.Method != route.method || ctx.FullPath() != route.path {
+	matched := authorizationRoute{}
+	found := false
+	for _, route := range routes {
+		if ctx.Request.Method == route.method && ctx.FullPath() == route.path {
+			matched = route
+			found = true
+			break
+		}
+	}
+	if !found {
 		return ErrAuthorizationDenied
 	}
 	principal := authorizer.principal(ctx)
@@ -83,8 +159,8 @@ func (authorizer *AdminAuthorizer) Authorize(ctx *gin.Context, permission string
 		"p",
 		principal.GetRoleID(),
 		adminpkg.APIAccessType.String(),
-		route.path,
-		route.method,
+		matched.path,
+		matched.method,
 	).Count(&count).Error; err != nil {
 		return fmt.Errorf("%w: read Admin policy", ErrAuthorizationUnavailable)
 	}

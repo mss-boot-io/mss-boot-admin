@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
-	"gorm.io/gorm"
 	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 // registerBusinessRoutes mounts the module routes below the protected /api
@@ -27,17 +27,80 @@ func registerBusinessRoutes(group *gin.RouterGroup, runtime business.Runtime) er
 
 	resource := group.Group("/litellmops")
 	resource.GET("/users", handler.secure(PermissionUserList, handler.listUsers))
+	resource.POST("/users", handler.secure(PermissionUserWrite, handler.createUser))
+	resource.POST("/users/invite", handler.secure(PermissionUserWrite, handler.inviteUser))
 	resource.GET("/users/:id", handler.secure(PermissionUserRead, handler.getUser))
+	resource.PATCH("/users/:id", handler.secure(PermissionUserWrite, handler.updateUser))
+	resource.POST("/users/:id/block", handler.secure(PermissionUserWrite, handler.blockUser))
+	resource.POST("/users/:id/unblock", handler.secure(PermissionUserWrite, handler.unblockUser))
+	resource.DELETE("/users/:id", handler.secure(PermissionUserWrite, handler.deleteUser))
 	resource.GET("/keys", handler.secure(PermissionKeyList, handler.listKeys))
+	resource.POST("/keys", handler.secure(PermissionKeyIssue, handler.issueKey))
 	resource.GET("/keys/:id", handler.secure(PermissionKeyRead, handler.getKey))
+	resource.PATCH("/keys/:id", handler.secure(PermissionKeyWrite, handler.updateKey))
+	resource.POST("/keys/:id/block", handler.secure(PermissionKeyRevoke, handler.blockKey))
+	resource.POST("/keys/:id/unblock", handler.secure(PermissionKeyRevoke, handler.unblockKey))
+	resource.DELETE("/keys/:id", handler.secure(PermissionKeyRevoke, handler.deleteKey))
+	resource.POST("/keys/:id/rotate", handler.secure(PermissionKeyIssue, handler.rotateKey))
+	resource.POST("/keys/:id/reset-spend", handler.secure(PermissionKeyWrite, handler.resetKeySpend))
+	resource.GET("/gateway/models", handler.secure(PermissionGatewayRead, handler.gatewayModels))
+	resource.GET("/gateway/health", handler.secure(PermissionGatewayRead, handler.gatewayHealth))
+	resource.POST("/gateway/models/:id/block", handler.secure(PermissionGatewayWrite, handler.blockModel))
+	resource.POST("/gateway/models/:id/unblock", handler.secure(PermissionGatewayWrite, handler.unblockModel))
 	resource.POST("/sync", handler.secure(PermissionSync, handler.sync))
 	resource.GET("/bills", handler.secure(PermissionBills, handler.bills))
+	resource.POST("/users/:id/recharge", handler.secure(PermissionRecharge, handler.recharge))
+	resource.GET("/users/:id/recharges", handler.secure(PermissionUserRead, handler.listRecharges))
+	resource.GET("/organizations", handler.secure(PermissionOrgList, handler.listOrganizations))
+	resource.POST("/organizations", handler.secure(PermissionOrgWrite, handler.createOrganization))
+	resource.GET("/organizations/:id", handler.secure(PermissionOrgRead, handler.getOrganization))
+	resource.PATCH("/organizations/:id", handler.secure(PermissionOrgWrite, handler.updateOrganization))
+	resource.DELETE("/organizations/:id", handler.secure(PermissionOrgWrite, handler.deleteOrganization))
+	resource.POST("/organizations/:id/recharge", handler.secure(PermissionOrgWrite, handler.rechargeOrganization))
+	resource.POST("/organizations/:id/members", handler.secure(PermissionOrgWrite, handler.addOrganizationMember))
+	resource.POST("/organizations/:id/members/remove", handler.secure(PermissionOrgWrite, handler.deleteOrganizationMember))
+	resource.POST("/organizations/:id/teams", handler.secure(PermissionOrgWrite, handler.createTeam))
+	resource.POST("/teams/:teamId/recharge", handler.secure(PermissionOrgWrite, handler.rechargeTeam))
+	resource.DELETE("/teams/:teamId", handler.secure(PermissionOrgWrite, handler.deleteTeam))
+	resource.GET("/sales/products", handler.secure(PermissionProductRead, handler.listProducts))
+	resource.POST("/sales/products", handler.secure(PermissionProductWrite, handler.createProduct))
+	resource.PATCH("/sales/products/:id", handler.secure(PermissionProductWrite, handler.updateProduct))
+	resource.GET("/sales/orders", handler.secure(PermissionOrderRead, handler.listOrders))
+	resource.POST("/sales/orders", handler.secure(PermissionOrderImport, handler.createOrder))
+	resource.POST("/sales/orders/import", handler.secure(PermissionOrderImport, handler.importOrder))
+	resource.GET("/sales/orders/:id", handler.secure(PermissionOrderRead, handler.getOrder))
+	resource.POST("/sales/orders/:id/verify", handler.secure(PermissionOrderVerify, handler.verifyOrder))
+	resource.POST("/sales/orders/:id/match", handler.secure(PermissionOrderVerify, handler.matchOrder))
+	resource.POST("/sales/orders/:id/approve", handler.secure(PermissionOrderApprove, handler.approveOrder))
+	resource.POST("/sales/orders/:id/execute", handler.secure(PermissionOrderExecute, handler.executeOrder))
+	resource.POST("/sales/orders/:id/reconcile", handler.secure(PermissionOrderReconcile, handler.reconcileOrder))
+	resource.POST("/sales/orders/:id/refund-review", handler.secure(PermissionOrderRefundReview, handler.refundReviewOrder))
 	return nil
 }
 
 type requestHandler struct {
 	runtime    business.Runtime
 	authorizer *AdminAuthorizer
+}
+
+func writeAPIError(ctx *gin.Context, err error) {
+	status, code, message := http.StatusInternalServerError, "internal_error", "litellmops operation failed"
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		status, code, message = http.StatusNotFound, "not_found", "litellmops resource not found"
+	case errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOrderConflict), errors.Is(err, ErrRechargeBusy), errors.Is(err, ErrPendingRecharge), errors.Is(err, ErrInvalidOrderState), errors.Is(err, ErrOrderBusy):
+		status, code, message = http.StatusConflict, "conflict", err.Error()
+	case errors.Is(err, ErrInvalidRecharge), errors.Is(err, ErrUnlimitedBudget), errors.Is(err, ErrInvalidProduct), errors.Is(err, ErrInvalidOrder):
+		status, code, message = http.StatusUnprocessableEntity, "invalid_request", err.Error()
+	case errors.Is(err, ErrReconcileRequired):
+		status, code, message = http.StatusConflict, "reconcile_required", err.Error()
+	default:
+		var upstream *UpstreamError
+		if errors.As(err, &upstream) {
+			status, code, message = http.StatusBadGateway, "upstream_error", upstream.Error()
+		}
+	}
+	ctx.AbortWithStatusJSON(status, gin.H{"error": message, "code": code})
 }
 
 // secure enforces the casbin permission before the handler runs.
@@ -200,6 +263,71 @@ func (handler *requestHandler) getKey(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, key)
+}
+
+func (handler *requestHandler) recharge(ctx *gin.Context) {
+	db, ok := handler.database(ctx)
+	if !ok {
+		return
+	}
+	var snapshot UserSnapshot
+	if err := db.First(&snapshot, "id = ?", ctx.Param("id")).Error; err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			status = http.StatusNotFound
+		}
+		ctx.AbortWithStatusJSON(status, gin.H{"error": "litellmops user snapshot not found"})
+		return
+	}
+	var request RechargeRequest
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "litellmops recharge body is invalid"})
+		return
+	}
+	client, err := NewClientFromEnv()
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	operator := ""
+	if principal := handler.runtime.Principal(ctx); principal != nil {
+		operator = strings.TrimSpace(principal.GetUsername())
+		if operator == "" {
+			operator = strings.TrimSpace(principal.GetUserID())
+		}
+	}
+	record, err := ApplyRecharge(ctx.Request.Context(), db, client, snapshot, request, operator)
+	if err != nil {
+		if record != nil && (record.Status == RechargeAppliedUnverified || record.Status == RechargeRetryableFailed || record.Status == RechargeReconcileRequired) {
+			ctx.JSON(http.StatusAccepted, record)
+			return
+		}
+		writeAPIError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *requestHandler) listRecharges(ctx *gin.Context) {
+	db, ok := handler.database(ctx)
+	if !ok {
+		return
+	}
+	var snapshot UserSnapshot
+	if err := db.First(&snapshot, "id = ?", ctx.Param("id")).Error; err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			status = http.StatusNotFound
+		}
+		ctx.AbortWithStatusJSON(status, gin.H{"error": "litellmops user snapshot not found"})
+		return
+	}
+	items := make([]RechargeRecord, 0)
+	if err := db.Where("user_id = ?", snapshot.UserID).Order("created_at DESC").Limit(50).Find(&items).Error; err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func (handler *requestHandler) sync(ctx *gin.Context) {

@@ -21,6 +21,9 @@ type UserSnapshot struct {
 	BudgetDuration *string        `gorm:"column:budget_duration;type:varchar(16)" json:"budget_duration"`
 	BudgetResetAt  *time.Time     `gorm:"column:budget_reset_at" json:"budget_reset_at"`
 	Spend          float64        `gorm:"column:spend" json:"spend"`
+	TPMLimit       *int64         `gorm:"column:tpm_limit" json:"tpm_limit"`
+	RPMLimit       *int64         `gorm:"column:rpm_limit" json:"rpm_limit"`
+	Blocked        bool           `gorm:"column:blocked;not null;default:false" json:"blocked"`
 	SyncedAt       time.Time      `gorm:"column:synced_at" json:"synced_at"`
 }
 
@@ -45,6 +48,8 @@ type KeySnapshot struct {
 	MaxParallelRequests *int           `gorm:"column:max_parallel_requests" json:"max_parallel_requests"`
 	Expires             *time.Time     `gorm:"column:expires" json:"expires"`
 	IsSessionKey        bool           `gorm:"column:is_session_key;not null;default:false" json:"is_session_key"`
+	Models              string         `gorm:"column:models;type:text" json:"models"`
+	Blocked             bool           `gorm:"column:blocked;not null;default:false" json:"blocked"`
 	SyncedAt            time.Time      `gorm:"column:synced_at" json:"synced_at"`
 }
 

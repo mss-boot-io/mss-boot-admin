@@ -3,16 +3,19 @@ package litellmops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
 )
@@ -28,6 +31,9 @@ func openTestDB(t *testing.T) *gorm.DB {
 
 func migrateTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	if err := db.AutoMigrate(&migrationmodels.Migration{}); err != nil {
+		t.Fatalf("migrate ledger: %v", err)
+	}
 	if err := migrateSnapshots(db, SnapshotMigrationID.String()); err != nil {
 		t.Fatalf("migrate snapshots: %v", err)
 	}
@@ -37,13 +43,25 @@ func migrateTestDB(t *testing.T, db *gorm.DB) {
 	if err := migrateAuthorization(db, AuthorizationMigrationID.String()); err != nil {
 		t.Fatalf("migrate authorization: %v", err)
 	}
+	if err := migrateRecharge(db, RechargeMigrationID.String()); err != nil {
+		t.Fatalf("migrate recharge: %v", err)
+	}
+	if err := migrateOrganizations(db, OrganizationMigrationID.String()); err != nil {
+		t.Fatalf("migrate organizations: %v", err)
+	}
+	if err := migrateOperations(db, OperationsMigrationID.String()); err != nil {
+		t.Fatalf("migrate operations: %v", err)
+	}
 }
 
 const fullTestToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func fakeLiteLLM(t *testing.T, users []map[string]any, keys []map[string]any) *httptest.Server {
 	t.Helper()
+	var mutex sync.Mutex
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if r.Header.Get("Authorization") != "Bearer test-master-key" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -52,6 +70,39 @@ func fakeLiteLLM(t *testing.T, users []map[string]any, keys []map[string]any) *h
 		switch r.URL.Path {
 		case "/user/list":
 			_ = json.NewEncoder(w).Encode(map[string]any{"users": users, "total": len(users)})
+		case "/user/info":
+			id := r.URL.Query().Get("user_id")
+			for _, user := range users {
+				if user["user_id"] == id {
+					_ = json.NewEncoder(w).Encode(map[string]any{"user_info": user})
+					return
+				}
+			}
+			w.WriteHeader(http.StatusNotFound)
+		case "/user/update":
+			var request map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&request)
+			for _, user := range users {
+				if user["user_id"] == request["user_id"] {
+					if value, exists := request["max_budget"]; exists {
+						user["max_budget"] = value
+					}
+				}
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+		case "/key/update":
+			var request map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&request)
+			for _, key := range keys {
+				if key["token"] == request["key"] {
+					if value, exists := request["max_budget"]; exists {
+						key["max_budget"] = value
+					}
+				}
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 		case "/key/list":
 			_ = json.NewEncoder(w).Encode(map[string]any{"keys": keys, "total_count": len(keys)})
 		default:
@@ -343,13 +394,13 @@ type fakeVerifier struct {
 	root bool
 }
 
-func (verifier *fakeVerifier) GetUserID() string             { return "test-user" }
-func (verifier *fakeVerifier) GetTenantID() string           { return "" }
-func (verifier *fakeVerifier) GetRoleID() string             { return verifier.role }
-func (verifier *fakeVerifier) GetEmail() string              { return "" }
-func (verifier *fakeVerifier) GetUsername() string           { return "test-user" }
-func (verifier *fakeVerifier) GetRefreshTokenDisable() bool  { return false }
-func (verifier *fakeVerifier) SetRefreshTokenDisable(bool)   {}
+func (verifier *fakeVerifier) GetUserID() string            { return "test-user" }
+func (verifier *fakeVerifier) GetTenantID() string          { return "" }
+func (verifier *fakeVerifier) GetRoleID() string            { return verifier.role }
+func (verifier *fakeVerifier) GetEmail() string             { return "" }
+func (verifier *fakeVerifier) GetUsername() string          { return "test-user" }
+func (verifier *fakeVerifier) GetRefreshTokenDisable() bool { return false }
+func (verifier *fakeVerifier) SetRefreshTokenDisable(bool)  {}
 func (verifier *fakeVerifier) CheckToken(context.Context, string) error {
 	return nil
 }
@@ -357,7 +408,7 @@ func (verifier *fakeVerifier) Root() bool { return verifier.root }
 func (verifier *fakeVerifier) Verify(context.Context) (bool, security.Verifier, error) {
 	return true, verifier, nil
 }
-func (verifier *fakeVerifier) GetPersonAccessToken() string     { return "" }
+func (verifier *fakeVerifier) GetPersonAccessToken() string      { return "" }
 func (verifier *fakeVerifier) SetPersonAccessToken(token string) {}
 
 func performAuthorizedRequest(
@@ -387,6 +438,103 @@ func performAuthorizedRequest(
 	return recorder.Code
 }
 
+func TestOrganizationClientListAndCreate(t *testing.T) {
+	orgs := []map[string]any{
+		{
+			"organization_id":      "org-1",
+			"organization_alias":   "acme",
+			"spend":                12.5,
+			"models":               []any{"grok-4.6"},
+			"litellm_budget_table": map[string]any{"max_budget": 100.0, "budget_duration": "30d"},
+			"members":              []any{map[string]any{"user_email": "a@example.com", "user_role": "org_admin"}},
+			"teams":                []any{map[string]any{"team_id": "t-1", "team_alias": "core", "organization_id": "org-1", "max_budget": 40.0}},
+		},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-master-key" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/organization/list":
+			_ = json.NewEncoder(w).Encode(orgs)
+		case r.URL.Path == "/organization/new":
+			_ = json.NewEncoder(w).Encode(map[string]any{"organization_id": "org-2", "organization_alias": "beta", "max_budget": 20.0})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client, err := NewClient(server.URL, "test-master-key", server.Client())
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	listed, err := client.ListOrganizations(context.Background())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(listed) != 1 || listed[0].Alias != "acme" || listed[0].MaxBudget == nil || *listed[0].MaxBudget != 100 {
+		t.Fatalf("unexpected orgs: %+v", listed)
+	}
+	if len(listed[0].Members) != 1 || listed[0].Teams[0].Alias != "core" {
+		t.Fatalf("unexpected members/teams: %+v", listed[0])
+	}
+	created, err := client.CreateOrganization(context.Background(), "beta", floatPtr(20), []string{"grok-4.6"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.OrganizationID != "org-2" {
+		t.Fatalf("unexpected create: %+v", created)
+	}
+}
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestApplyRechargeAddsCreditAndIsIdempotent(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	server := fakeLiteLLM(t, baseUsers(), baseKeys())
+	t.Cleanup(server.Close)
+	client, err := NewClient(server.URL, "test-master-key", server.Client())
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	if _, err := SyncSnapshots(context.Background(), db, client); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	var snapshot UserSnapshot
+	if err := db.First(&snapshot, "user_id = ?", "u-1").Error; err != nil {
+		t.Fatalf("load snapshot: %v", err)
+	}
+	first, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{
+		Amount: 5, Reason: "ops top-up", RaiseKeys: true, IdempotencyKey: "ticket-1",
+	}, "admin")
+	if err != nil {
+		t.Fatalf("recharge: %v", err)
+	}
+	if first.BeforeBudget != 10 || first.AfterBudget != 15 || first.Amount != 5 {
+		t.Fatalf("unexpected amounts: %+v", first)
+	}
+	replay, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{
+		Amount: 5, RaiseKeys: true, IdempotencyKey: "ticket-1",
+	}, "admin")
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if replay.ID != first.ID {
+		t.Fatalf("idempotent replay must return the original row")
+	}
+	if _, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{
+		Amount: 6, RaiseKeys: true, IdempotencyKey: "ticket-1",
+	}, "admin"); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("same idempotency key with a different payload must conflict, got %v", err)
+	}
+	if _, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{Amount: 0}, "admin"); err == nil {
+		t.Fatal("zero amount must fail")
+	}
+}
+
 func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	db := openTestDB(t)
 	migrateTestDB(t, db) // seeds casbin rows for admin/finance/readonly roles
@@ -403,6 +551,7 @@ func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	}
 	const usersPath = "/admin/api/litellmops/users"
 	const syncPath = "/admin/api/litellmops/sync"
+	const rechargePath = "/admin/api/litellmops/users/:id/recharge"
 
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "admin"}), PermissionUserList, "GET", usersPath); code != http.StatusOK {
 		t.Fatalf("admin should be allowed, got %d", code)
@@ -415,6 +564,12 @@ func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	}
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "litellmops-finance"}), PermissionSync, "POST", syncPath); code != http.StatusOK {
 		t.Fatalf("finance should sync, got %d", code)
+	}
+	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "litellmops-readonly"}), PermissionRecharge, "POST", rechargePath); code != http.StatusForbidden {
+		t.Fatalf("readonly must not recharge, got %d", code)
+	}
+	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "admin"}), PermissionRecharge, "POST", rechargePath); code != http.StatusOK {
+		t.Fatalf("admin should recharge, got %d", code)
 	}
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "stranger"}), PermissionUserList, "GET", usersPath); code != http.StatusForbidden {
 		t.Fatalf("unknown role must be denied, got %d", code)
