@@ -31,6 +31,9 @@ const MODEL_OPTIONS = [
   'grok-4.20-multi-agent-0309',
   'grok-build-0.1',
   'gpt-5.6-luna',
+  'claude-sonnet-4-6',
+  'claude-opus-4-6',
+  'claude-haiku-4-5',
 ].map((value) => ({ value, label: value }));
 
 export default function LitellmOpsBillsPage() {

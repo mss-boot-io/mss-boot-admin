@@ -24,12 +24,15 @@ const readBudget = (name, fallbackKiB) => {
   return value * 1024;
 };
 
-const entryBudget = readBudget('MSS_V6_ENTRY_GZIP_BUDGET_KB', 32);
+// The LiteLLM operations expansion adds six route-level lazy pages plus their
+// bilingual route metadata. Keep the entry cap tight while accounting for the
+// locale/route registry that must be available before navigation.
+const entryBudget = readBudget('MSS_V6_ENTRY_GZIP_BUDGET_KB', 40);
 const chunkBudget = readBudget('MSS_V6_CHUNK_GZIP_BUDGET_KB', 240);
 // The total is the complete lazy-loaded application corpus, not a route transfer.
 // Keep route cost bounded independently through the entry and largest-chunk budgets,
 // and retain enough corpus headroom for ordinary product growth between releases.
-const totalBudget = readBudget('MSS_V6_TOTAL_JS_GZIP_BUDGET_KB', 905);
+const totalBudget = readBudget('MSS_V6_TOTAL_JS_GZIP_BUDGET_KB', 930);
 const formatKiB = (bytes) => `${(bytes / 1024).toFixed(2)} KiB`;
 
 const listJavaScript = async (directory) => {

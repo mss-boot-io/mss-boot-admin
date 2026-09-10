@@ -47,6 +47,57 @@ export interface SyncReport {
   synced_at: string;
 }
 
+export interface RechargeRequest {
+  amount: number;
+  reason?: string;
+  raise_keys: boolean;
+  idempotency_key: string;
+}
+
+export interface RemoteOrgMember {
+  user_id: string;
+  user_email: string;
+  role: string;
+  max_budget_in_organization: number | null;
+}
+
+export interface RemoteTeam {
+  team_id: string;
+  team_alias: string;
+  organization_id: string;
+  spend: number;
+  max_budget: number | null;
+  models: string[];
+}
+
+export interface RemoteOrg {
+  organization_id: string;
+  organization_alias: string;
+  spend: number;
+  max_budget: number | null;
+  budget_duration: string | null;
+  tpm_limit: number | null;
+  rpm_limit: number | null;
+  models: string[];
+  members: RemoteOrgMember[];
+  teams: RemoteTeam[];
+}
+
+export interface RechargeRecord {
+  id: string;
+  created_at: string;
+  user_id: string;
+  email: string;
+  amount: number;
+  before_budget: number;
+  after_budget: number;
+  raise_keys: boolean;
+  keys_updated: string;
+  operator: string;
+  reason: string;
+  status: string;
+}
+
 export interface SpendLog {
   request_id: string;
   model: string;

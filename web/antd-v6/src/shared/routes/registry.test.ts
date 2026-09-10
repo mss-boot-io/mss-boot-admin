@@ -171,6 +171,50 @@ describe('compiled route registry', () => {
     expect(JSON.stringify(menu)).not.toContain('untrusted.example');
   });
 
+  it('keeps LiteLLM ops pages visible when the backend menu tree includes them', () => {
+    expect(
+      ['/litellm-ops/gateway', '/litellm-ops/users', '/litellm-ops/keys', '/litellm-ops/bills', '/litellm-ops/orgs', '/litellm-ops/sales'].map(
+        (path) => routeRegistry.get(path),
+      ),
+    ).toMatchObject([
+      { menuName: 'gateway', permission: 'litellmops:gateway-read' },
+      { menuName: 'users', permission: 'litellmops:user-list' },
+      { menuName: 'keys', permission: 'litellmops:key-list' },
+      { menuName: 'bills', permission: 'litellmops:bills' },
+      { menuName: 'orgs', permission: 'litellmops:org-list' },
+      { menuName: 'sales', permission: 'litellmops:order-read' },
+    ]);
+
+    const retained = retainRegisteredMenu(
+      [
+        {
+          id: 'ops',
+          name: 'menu.litellmops',
+          path: '/litellm-ops',
+          children: [
+            { path: '/litellm-ops/gateway', name: 'menu.litellmops.gateway' },
+            { path: '/litellm-ops/users', name: 'menu.litellmops.users' },
+            { path: '/litellm-ops/keys', name: 'menu.litellmops.keys' },
+            { path: '/litellm-ops/bills', name: 'menu.litellmops.bills' },
+            { path: '/litellm-ops/orgs', name: 'menu.llops.orgs' },
+            { path: '/litellm-ops/sales', name: 'menu.litellmops.sales' },
+          ],
+        },
+      ],
+      { id: 'root', role: { root: true }, permissions: {} },
+    );
+    expect(retained).toHaveLength(1);
+    expect(retained[0]?.path).toBeUndefined();
+    expect(retained[0]?.children?.map((item) => item.path)).toEqual([
+      '/litellm-ops/gateway',
+      '/litellm-ops/users',
+      '/litellm-ops/keys',
+      '/litellm-ops/bills',
+      '/litellm-ops/orgs',
+      '/litellm-ops/sales',
+    ]);
+  });
+
   it('retains the online-session route only for a root identity', () => {
     const serverMenu = [{ id: 'sessions', path: '/security/online-sessions' }];
 

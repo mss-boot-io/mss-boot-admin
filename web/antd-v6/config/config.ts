@@ -6,7 +6,7 @@ import businessRoutes from './routes.generated';
 export default defineConfig(
   defineBusinessAdmin({
     businessRoutes: [...businessRoutes, ...customRoutes],
-    routeRegistrations: './src/generated/routes.ts',
+    routeRegistrations: './src/route-registrations.ts',
     title: 'mss-boot-io',
     useUtoopack: true,
   }),

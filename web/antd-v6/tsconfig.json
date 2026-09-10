@@ -18,7 +18,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@mss-admin-core/*": ["./src/*"],
-      "@mss-admin-business/routes": ["./src/generated/routes.ts"],
+      "@mss-admin-business/routes": ["./src/route-registrations.ts"],
       "@@/*": ["./src/.umi/*"],
       "@@test/*": ["./src/.umi-test/*"]
     }

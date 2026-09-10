@@ -7,7 +7,7 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@mss-admin-core': fileURLToPath(new URL('./src', import.meta.url)),
       '@mss-admin-business/routes': fileURLToPath(
-        new URL('./src/generated/routes.ts', import.meta.url),
+        new URL('./src/route-registrations.ts', import.meta.url),
       ),
     },
   },
