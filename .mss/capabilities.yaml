@@ -683,6 +683,39 @@ spec:
         Sample through the task server's immutable built-in system-job lane and serve bounded instance-local history;
         monitoring is not a user Task and is not a replacement for external observability.
 
+    - id: operations.litellm-ops
+      displayName: LiteLLM Operations, Billing, and Sales Crediting
+      status: beta
+      owners: [backend, frontend, security, release-engineering]
+      paths:
+        - .mss/features/litellm-ops-operations.yaml
+        - docs/adr/2026-09-08-litellm-operations-billing-module.md
+        - docs/docs/admin/litellm-ops-runbook.md
+        - deploy/litellm-ops
+      backendPaths:
+        - admin/modules/litellmops
+      frontendPaths:
+        - web/antd-v6/src/modules/litellmops
+        - web/antd-v6/src/pages/LitellmOps
+      guidance: >-
+        Treat LiteLLM as the authority and local snapshots as read projections. User and
+        key writes are beta only through a durable management command recorded before the
+        remote effect, the same persistent per-user lease and pending barrier as recharge,
+        and typed authoritative reconciliation for timeouts and 5xx responses. Use integer
+        microUSD, stable idempotency keys, absolute targets, and the fenced product/order
+        state machine for credit. Raw virtual keys are one-time response material and must
+        never enter snapshots, commands, attempts, logs, or recovery responses. The Xianyu
+        manual workflow is canonical; trusted automatic import stays fail-closed until an
+        approved official Open Platform connector, Admin PAT, shared token, HMAC timestamp
+        signature, and exact channel-shop allowlist are configured, and its principal holds
+        verify and match plus approve and execute for auto-apply. Model and organization,
+        team, membership, and related budget writes remain disabled with HTTP 501 while read
+        views link to the native LiteLLM console. Refund only enters manual review. Keep
+        frontend upstream failures distinct from empty or zero data, and preserve every
+        uncertain command and financial record through additive migration, upgrade, and
+        rollback. Promote from beta only after a non-production failure-injection and restore
+        drill proves late-write quarantine, reconciliation, and immutable-image rollback.
+
     - id: integration.websocket
       displayName: WebSocket Events
       status: beta

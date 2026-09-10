@@ -1,0 +1,516 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: litellm-ops-operations
+  displayName: LiteLLM operations, billing, and sales crediting
+  description: >-
+    Defines the safe operating boundary for LiteLLM read projections, user and
+    key management, exact-value recharge, marketplace order processing, recovery,
+    and deployment of the LiteLLMOps Admin module.
+  owner: operations-platform
+  labels:
+    domain: litellm-operations
+    maturity: beta
+    sensitivity: financial
+spec:
+  problem: >-
+    The existing LiteLLM synchronization view is insufficient for daily operations,
+    but directly forwarding management, recharge, and marketplace events can duplicate
+    credit, lose a late upstream write after a timeout, leak one-time keys, or present
+    an empty success state when an upstream system is unavailable. The operational
+    console therefore needs explicit read projections, durable commands, per-user
+    serialization, authoritative reconciliation, least-privilege workflows, and a
+    release boundary that disables upstream operations whose state cannot yet be
+    recovered safely.
+  goals:
+    - Provide synchronized user and virtual-key snapshots, filtered spend-log billing, gateway health, model inventory, and organization inventory as explicit read operations.
+    - Provide authorized LiteLLM user and key lifecycle actions through durable management commands that share one per-user lease and pending-work barrier with recharge.
+    - Represent all financial decisions as integer microUSD and make every recharge and sales-order credit idempotent, auditable, and recoverable after timeout, 5xx, crash, or partial key propagation.
+    - Support an operator-led Xianyu sales workflow from paid-order verification through exact product and user matching, approval, execution, and reconciliation.
+    - Expose a fail-closed server-to-server import boundary for a future approved official marketplace connector without scraping browser sessions or private APIs.
+    - Give operators explicit frontend loading, empty, failure, uncertain, reconcile, and permission-denied states without treating missing data as zero or success.
+  nonGoals:
+    - Scrape Xianyu cookies, browser storage, private endpoints, seller pages, or desktop UI to discover orders.
+    - Automatically enable an official Xianyu connector before the marketplace application, account, OAuth, order capability, hosting, and allowlist prerequisites are approved and configured.
+    - Mutate LiteLLM models, organizations, teams, memberships, or their budgets in this release; retained write routes fail with HTTP 501 operation_disabled.
+    - Automatically deduct credit, reverse a completed recharge, or close a refund; refund requests enter manual review only.
+    - Persist, redisplay, reconstruct, or recover a raw virtual key after the one successful issuance or rotation response.
+    - Guarantee exactly-once effects inside LiteLLM; this module provides durable idempotency, fencing, quarantine, and authoritative reconciliation around an at-least-once network boundary.
+  actors:
+    - id: operations-admin
+      displayName: LiteLLM operations administrator
+      description: Manages users and keys, resolves quarantined commands, and performs privileged recovery.
+    - id: finance-operator
+      displayName: Finance and sales operator
+      description: Reviews bills, product mappings, paid orders, approvals, recharge execution, and reconciliation.
+    - id: readonly-auditor
+      displayName: Read-only auditor
+      description: Reviews snapshots, bills, gateway health, organizations, products, and orders without mutation authority.
+    - id: connector-client
+      displayName: Approved marketplace connector
+      description: Imports normalized paid-order events through authenticated server-to-server delivery when explicitly enabled.
+    - id: release-operator
+      displayName: Release operator
+      description: Applies additive migrations, backs up state, deploys immutable artifacts, verifies readiness, and performs rollback.
+  modules:
+    - name: litellmops-core
+      kind: admin-module
+      operation: extend
+      description: LiteLLM client, snapshots, bills, gateway and organization reads, user and key management commands, RBAC, and migrations.
+    - name: litellmops-credit
+      kind: admin-module
+      operation: extend
+      description: Integer-microUSD recharge command, shared user lease, authoritative readback, attempts, and reconciliation.
+    - name: litellmops-sales
+      kind: admin-module
+      operation: extend
+      description: Product mappings, manual and trusted order intake, order state machine, execution fencing, and refund review.
+    - name: litellmops-console
+      kind: admin-module
+      operation: extend
+      description: Ant Design operations pages, typed API contracts, one-time secret presentation, recovery controls, and explicit error states.
+    - name: litellmops-deployment
+      kind: infrastructure
+      operation: extend
+      description: Immutable image rendering, additive migration readiness, offline SQLite backup, health verification, and rollback procedure.
+  requirements:
+    - id: snapshot-and-billing-read
+      title: Read projections are explicit and loss-limited
+      description: Authorized operators can refresh and query user and key projections and filtered spend logs without writing through snapshot or billing endpoints.
+      priority: must
+      actor: readonly-auditor
+      module: litellmops-core
+      permission: litellmops:user-list
+      rules:
+        - Snapshot synchronization fetches users and keys before a local transaction, upserts current rows, and soft-retires rows absent from a complete successful fetch.
+        - Key snapshots contain a bounded hash prefix and operational metadata, never a complete virtual key.
+        - Bills are queried from the configured spend-log data source with bounded pagination, parameterized filters, distinct request counts, and aggregate spend and token totals.
+        - Upstream or billing failures are returned as explicit errors; clients must not render them as an empty list or a numeric zero.
+    - id: durable-user-key-management
+      title: User and key mutations are durable commands
+      description: Every authorized user or key mutation is durably recorded before its remote LiteLLM write and serialized against all other effects for that user.
+      priority: must
+      actor: operations-admin
+      module: litellmops-core
+      permission: litellmops:user-write
+      rules:
+        - A management command and started audit attempt are committed before the first remote mutation.
+        - User creation, update, block, unblock, and delete and key issue, update, block, unblock, delete, rotate, and spend reset use the same persistent per-user lease as recharge.
+        - A pending recharge blocks management; a pending management command selected by user ID or normalized email blocks both management and recharge.
+        - User creation explicitly disables implicit key creation so issuance always uses the separately audited one-time-key path.
+        - Command records contain only action, target metadata, payload digest, safe typed expected state, sanitized result code, actor, timestamps, and resolution metadata.
+    - id: uncertain-management-quarantine
+      title: Timeout and 5xx results are quarantined
+      description: A management response whose upstream effect is unknown remains durable and blocks subsequent effects until authoritative readback resolves it.
+      priority: must
+      actor: operations-admin
+      module: litellmops-core
+      permission: litellmops:management-resolve
+      rules:
+        - Timeout, transport interruption, cancellation after send, and upstream 5xx transition the command to result_unverified and return HTTP 202 with a secret-free public command summary.
+        - Typed user and key state is read back repeatedly; an expected state distinct from the pre-write digest resolves as applied.
+        - A not-applied resolution requires the uncertainty age threshold and two equal authoritative observations separated by the stability window before the unchanged pre-write digest is trusted.
+        - Partial, ambiguous, or diverged observations remain quarantined and require manual review; no blind retry is permitted.
+        - One-time key issue or rotation and mutation fields absent from the safe typed projection never auto-resolve after uncertainty.
+        - Manual resolution is administrator-only and requires an aged command, a reason, explicit authoritative-state confirmation, an acquired user lease, no pending recharge, and a stable fresh observation.
+    - id: one-time-key-confinement
+      title: Raw keys are delivered once and never persisted
+      description: Successful key issue or rotation may return raw key material once, while storage, audit, command, logs, snapshots, and later responses remain non-secret.
+      priority: must
+      actor: operations-admin
+      module: litellmops-core
+      permission: litellmops:key-issue
+      rules:
+        - The backend extracts the raw key into a dedicated one-time response and does not put it in a management command or operation attempt.
+        - The frontend holds the raw key only in current component memory, labels it one-time, and clears it when the result dialog closes.
+        - If issuance or rotation has an uncertain result, the API returns the quarantined command instead of any guessed or reconstructed credential.
+        - Secrets, authorization headers, upstream response bodies, and full mutation payloads are excluded from durable audit records and public error responses.
+    - id: exact-idempotent-recharge
+      title: Recharge uses exact integer credit and durable idempotency
+      description: Manual and order-driven crediting use integer microUSD, one stable business key, an absolute target, and reconciliation instead of additive retries.
+      priority: must
+      actor: finance-operator
+      module: litellmops-credit
+      permission: litellmops:recharge
+      rules:
+        - amount_usd_micro is canonical; floating amount is compatibility input only and must convert to the same integer or be rejected.
+        - A recharge amount is bounded from 10000 through 10000000000 microUSD and overflow or unlimited user budgets fail before a write.
+        - The unique user and idempotency-key pair is bound to a digest of user, amount, and raise-keys intent; a replay returns the existing record and a changed payload conflicts.
+        - Only one pending recharge or management command may govern a user; a persistent lease serializes reserve, execute, reconcile, and management paths.
+        - The live budget is read first, then the before value and absolute target are persisted before the remote write; retries never add the amount again.
+        - Timeout or 5xx results require authoritative readback; an absolute rewrite is permitted only after the uncertainty window and stable unchanged observation.
+        - Optional key raising skips session keys and unlimited keys, uses exact absolute targets with a configured ceiling, and preserves partial progress for reconciliation.
+        - Direct recharge recovery exposes continue or reconcile only; there is no manual mark-complete operation.
+        - The direct recharge create and recovery endpoints reject sales_order source records and the reserved sales-order idempotency namespace, which may advance only through the owning order execution or reconciliation fence.
+    - id: product-order-state-machine
+      title: Sales credits follow a fenced state machine
+      description: Product mappings and external orders create one auditable path from receipt to completed recharge with separate verification, matching, approval, execution, and recovery transitions.
+      priority: must
+      actor: finance-operator
+      module: litellmops-sales
+      permission: litellmops:order-execute
+      rules:
+        - Product identity is channel, shop, external item, and optional SKU; price is integer CNY fen and credit is integer microUSD.
+        - Product activation, automatic application, and versioned updates use explicit flags and optimistic concurrency; auto-apply cannot be enabled on a disabled product.
+        - Order identity is channel, shop, external order ID, and credit adjustment type, with a normalized-payload digest that detects conflicting replays.
+        - The normal states are received, verified_paid, mapped, approved, executing, and completed; recovery states are applied_unverified, retryable_failed, terminal_failed, and reconcile_required.
+        - Exact product channel, shop, item, SKU, and paid price and exactly one normalized user email must match before approval.
+        - Execution claims a versioned order fence and renewable lease before reserving or reconciling its deterministically keyed recharge.
+        - A crash before recharge linkage is recovered by the order source reference; a retryable reservation failure without a recharge safely re-enters normal execution.
+        - Persisted recovery states are returned as HTTP 202 and remain operator-visible instead of being masked by the triggering transport error.
+    - id: xianyu-manual-operations
+      title: Xianyu operates safely without unofficial automation
+      description: The default Xianyu workflow is an operator-led process using the seller application as the payment authority and the Admin console as the credit authority.
+      priority: must
+      actor: finance-operator
+      module: litellmops-sales
+      permission: litellmops:order-import
+      rules:
+        - The operator finds completed sales in the Xianyu mobile application under 我的闲鱼 then 我卖出的; the listing page is not treated as an order ledger.
+        - The operator creates or selects an enabled product mapping whose auto_apply flag is disabled by default, records the paid order, verifies payment in Xianyu, matches the exact mapping and one LiteLLM user, then separately approves and executes credit.
+        - The operator reuses the same external order identity and follows reconcile for executing or uncertain states; a second replacement order must not be created to retry a credit.
+        - Customer-facing fulfillment is not considered complete until the local order and linked recharge both reach completed.
+    - id: official-connector-fail-closed
+      title: Automatic import requires an approved official connector
+      description: Trusted automatic intake is available only as a fail-closed server boundary for an approved marketplace integration and cannot be reached by browser scraping.
+      priority: must
+      actor: connector-client
+      module: litellmops-sales
+      permission: litellmops:order-import
+      rules:
+        - Official order access must follow the Xianyu Open Platform application, entity, OAuth, and order-capability requirements documented at https://open.goofish.com/doc/quick-start.html and https://open.goofish.com/doc/development/dev/server.html.
+        - Import permission alone may persist a received order but cannot advance it; the service principal must also hold the canonical verify and match route policies, and an auto-apply product additionally requires approve and execute policies before any state transition.
+        - The import endpoint requires an authenticated Admin personal access token plus a configured shared connector token, HMAC-SHA256 body signature, timestamp within five minutes, and exact channel-shop allowlist.
+        - Missing connector token or source allowlist returns connector_disabled; invalid authentication, signature, time, or source fails before order creation.
+        - A connector supplies an external item identity for server-side product mapping and cannot choose an internal product ID or mark a manual event trusted.
+        - Trusted paid imports may auto-verify, map, approve, and execute only when the exact product is enabled and auto-apply is explicitly enabled.
+    - id: read-only-upstream-resources
+      title: Models, organizations, and teams remain read-only
+      description: Operators can inspect gateway readiness, model inventory, organizations, members, and teams without unsafe local write claims.
+      priority: must
+      actor: readonly-auditor
+      module: litellmops-core
+      permission: litellmops:gateway-read
+      rules:
+        - Gateway health returns a canonical ready, degraded, or unavailable state with database status and check time.
+        - Model health and blocked fields remain unknown when LiteLLM does not expose authoritative values, and each model is marked unmanageable.
+        - Model block and unblock routes and every organization, team, membership, and organization or team recharge write route return HTTP 501 with code operation_disabled.
+        - The frontend omits mutation controls and links authorized operators to the native LiteLLM console for unsupported work.
+    - id: refund-review-only
+      title: Refunds enter manual review only
+      description: A refund signal is recorded for investigation without automatically changing LiteLLM credit or declaring a reversal.
+      priority: must
+      actor: finance-operator
+      module: litellmops-sales
+      permission: litellmops:order-refund-review
+      rules:
+        - An eligible order can transition to refund_review only with a non-empty reason and an audit attempt.
+        - Refund review does not deduct a user budget, modify keys, call a recharge reversal, approve a refund, close a dispute, or transition to reversed.
+        - Operators resolve monetary recovery outside this automated state machine until a separately specified safe reversal protocol exists.
+    - id: backend-rbac-and-audit
+      title: Backend RBAC protects every operation
+      description: Casbin route policies, authenticated principals, and safe operation attempts enforce separation between read, finance, sales, and administrator duties.
+      priority: must
+      actor: operations-admin
+      module: litellmops-core
+      permission: litellmops:management-resolve
+      rules:
+        - Every route is declared under one permission and is checked against the canonical method and full path before its handler runs.
+        - Read-only roles receive snapshot, bill, gateway, organization, product, and order reads only; finance roles receive approved sync, recharge, and sales actions; user, key, and management resolution stay administrator-only.
+        - Frontend visibility is advisory; missing authentication returns 401 and missing policy returns 403 at the backend.
+        - Attempts store digests and safe result codes with an actor and timestamp, never raw credentials or upstream bodies.
+    - id: explicit-console-states
+      title: The operations console exposes actionable states
+      description: The frontend renders typed server contracts and gives operators recovery actions only when the authoritative state machine permits them.
+      priority: must
+      actor: finance-operator
+      module: litellmops-console
+      rules:
+        - Every list and detail distinguishes loading, empty, error, permission denied, completed, terminal failure, and uncertain recovery states.
+        - Bills and organization failures render errors and never silently substitute an empty list or zero totals.
+        - Non-sales-order recharge rows expose continue for approved and reconcile for executing, applied_unverified, retryable_failed, or reconcile_required; sales-order recharge rows have no direct control, while order rows expose execute for approved and reconcile only for the four recovery states.
+        - Nullable before and target amounts remain unknown in the UI until observed; they are never formatted as a false zero-to-zero transaction.
+        - Management recovery lists only secret-free summaries, presents auto-reconcile first, and exposes manual resolution for aged, stably observed commands marked for manual review whether their durable status is executing or result_unverified.
+        - Chinese and English locale keys and API contract tests remain synchronized, and disabled model and organization writes have no reachable UI action.
+    - id: additive-release-safety
+      title: Migration, upgrade, and rollback preserve financial evidence
+      description: Release operations apply forward-compatible schema and authorization changes with a verified backup and retain durable recovery records across code rollback.
+      priority: must
+      actor: release-operator
+      module: litellmops-deployment
+      rules:
+        - Migrations are explicitly registered, additive, idempotent, and readiness fails closed when required management, recharge-observation, sales, lease, attempt, or authorization schema is missing.
+        - An offline SQLite backup or equivalent consistent database backup is taken and checksum-verified before migration and immutable-image rollout.
+        - Upgrade validation covers fresh and legacy schema, interrupted migration rollback, second-run idempotency, permission seeds, and the current non-root runtime identity.
+        - Rollback preserves new tables and command history; operators stop new writes and reconcile uncertain effects before resuming an older compatible application.
+        - Health, readiness, login, negative authorization, read paths, and frontend recovery states are verified without performing a live monetary write.
+  constraints:
+    - id: no-private-production-data
+      type: privacy
+      statement: Source, specifications, tests, documentation, logs, and reports must not contain personal marketplace accounts, item or order identifiers, customer email addresses, credentials, secrets, or private production endpoints.
+    - id: no-secret-persistence
+      type: security
+      statement: Full LiteLLM keys, Admin personal access tokens, connector tokens, HMAC material, authorization headers, and upstream response bodies are never persisted or logged by this module.
+    - id: exact-financial-units
+      type: data
+      statement: All recharge, product-credit, matching, idempotency, and recovery decisions use integer microUSD or CNY fen; floats exist only at the LiteLLM compatibility boundary and snapshot display layer.
+    - id: serialized-user-effects
+      type: data
+      statement: Recharge and user or key management share one durable per-user lease and pending-state barrier so an unresolved late upstream write cannot be overwritten by another operation.
+    - id: authoritative-recovery
+      type: operations
+      statement: A transport response is never treated as proof of a financial or management effect; uncertain commands remain blocked until typed authoritative readback or explicit constrained manual resolution.
+    - id: upstream-version-boundary
+      type: compatibility
+      statement: LiteLLM API request and response projections are tolerant only for documented fields, reject ambiguity, and keep model, organization, and team writes disabled until their authoritative recovery contracts are separately proven.
+    - id: official-marketplace-only
+      type: dependency
+      statement: Automatic Xianyu ingestion depends on approved official Open Platform capabilities and deployment requirements; the manual workflow remains canonical while any prerequisite or connector configuration is absent.
+    - id: frontend-error-integrity
+      type: ux
+      statement: Loading, empty, error, permission, disabled, uncertain, and completed states are distinct, and a failed or unavailable upstream source must never be represented as valid empty or zero data.
+    - id: forward-only-financial-history
+      type: operations
+      statement: Rollback must not delete recharge, order, operation-attempt, lease, or management-command evidence or restore a database snapshot over accepted post-backup financial operations.
+  acceptance:
+    - id: snapshot-bill-evidence
+      requirement: snapshot-and-billing-read
+      statement: Focused tests prove transactional snapshot refresh, retire and restore behavior, safe key projection, and spend-log aggregation.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/litellmops_test.go::TestSyncSnapshotsWritesReadOnlyViews
+        - type: test
+          value: admin/modules/litellmops/litellmops_test.go::TestSyncSnapshotsRetiresAndRestores
+        - type: test
+          value: admin/modules/litellmops/litellmops_test.go::TestBillsListAggregates
+    - id: management-quarantine-evidence
+      requirement: uncertain-management-quarantine
+      statement: Focused tests prove a late or 5xx management write is quarantined, shares the recharge fence, returns a safe accepted command, and resolves only from stable authoritative evidence.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestUncertainManagementBudgetQuarantinesUserUntilReadback
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestManagementNoopRequiresStablePrewriteObservation
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestManualManagementResolveRequiresAgedStableAuthoritativeObservation
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestCreateByExistingEmailUsesRealUserRechargeFence
+    - id: one-time-key-evidence
+      requirement: one-time-key-confinement
+      statement: Backend and frontend tests prove raw keys are one-time response values and absent from management audit persistence and uncertain recovery responses.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestGeneratedKeyIsNeverPersistedInAudit
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/operations-api.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/business-reference.test.ts
+    - id: durable-command-evidence
+      requirement: durable-user-key-management
+      statement: Focused tests prove user and key writes share the recharge fence, create a durable command before remote mutation, and disable implicit key creation.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestManagementBudgetMutationAndRechargeShareUserFence
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestCreateUserExplicitlyDisablesImplicitKey
+        - type: path
+          value: admin/modules/litellmops/management_fence.go
+    - id: manual-xianyu-evidence
+      requirement: xianyu-manual-operations
+      statement: The order lifecycle test and operator runbook prove the manual paid-order, exact-match, approval, execution, and reconciliation sequence without browser scraping.
+      level: manual
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestSalesManualOrderLifecycleAndConflict
+        - type: path
+          value: docs/docs/admin/litellm-ops-runbook.md
+    - id: refund-review-evidence
+      requirement: refund-review-only
+      statement: Backend state rules, frontend action tests, and the runbook prove that refund processing stops at manual review and performs no automated credit reversal.
+      level: contract
+      required: true
+      evidence:
+        - type: path
+          value: admin/modules/litellmops/orders.go
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/business-reference.test.ts
+        - type: path
+          value: docs/docs/admin/litellm-ops-runbook.md
+    - id: recharge-recovery-evidence
+      requirement: exact-idempotent-recharge
+      statement: Concurrency and uncertainty tests prove stable idempotency, no lost credit, no duplicate additive retry, partial-key recovery, and direct authoritative reconciliation.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestRechargeFiveHundredResponseNeedsStableReadBeforeAbsoluteRetry
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestRechargeConcurrentDifferentCommandsAreSerializedWithoutLostCredit
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestRechargePartialKeyFailureReconcilesAbsoluteTargets
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestDirectRechargeReconcileHandlerCompletesAuthoritativeTarget
+    - id: order-state-evidence
+      requirement: product-order-state-machine
+      statement: State-machine and fencing tests prove manual order progression, conflict detection, stale-worker recovery, missing-reservation recovery, and persisted HTTP 202 recovery states.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestSalesManualOrderLifecycleAndConflict
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestOrderExecutionLeaseFencesFreshAndStaleWorkers
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestRetryableOrderWithoutRechargeRecoversThroughReconcile
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestTrustedAutoApplyReturnsAcceptedPersistedOrder
+    - id: connector-boundary-evidence
+      requirement: official-connector-fail-closed
+      statement: Connector tests and the operations runbook prove disabled-by-default authentication, signature, freshness, source allowlist, and official-platform prerequisite behavior.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestConnectorAuthenticationFailsClosed
+        - type: path
+          value: docs/docs/admin/litellm-ops-runbook.md
+        - type: manual
+          value: https://open.goofish.com/doc/quick-start.html
+        - type: manual
+          value: https://open.goofish.com/doc/development/dev/server.html
+    - id: disabled-write-evidence
+      requirement: read-only-upstream-resources
+      statement: Contract tests prove the safe gateway DTO and HTTP 501 behavior, and the frontend exposes model, organization, and team resources as read-only.
+      level: contract
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestGatewayHealthCanonicalContractAndWritesDisabled
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/operations-api.test.ts
+        - type: path
+          value: web/antd-v6/src/modules/litellmops/views/GatewayView.tsx
+        - type: path
+          value: web/antd-v6/src/pages/LitellmOps/Orgs/index.tsx
+    - id: rbac-evidence
+      requirement: backend-rbac-and-audit
+      statement: Authorization tests prove authenticated route-policy enforcement, role separation, and administrator-only management recovery.
+      level: security
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/litellmops_test.go::TestAdminAuthorizerEnforcesPolicy
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/permissions.test.ts
+        - type: path
+          value: admin/modules/litellmops/authorizer.go
+    - id: frontend-state-evidence
+      requirement: explicit-console-states
+      statement: Type checking, focused contract tests, and release build prove supported actions, secret-free recovery, optional SKU safety, and reachable error and reconciliation states.
+      level: integration
+      required: true
+      evidence:
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/business-reference.test.ts
+        - type: test
+          value: web/antd-v6/src/modules/litellmops/operations-api.test.ts
+        - type: path
+          value: web/antd-v6/src/modules/litellmops/ManagementRecoveryPanel.tsx
+        - type: path
+          value: web/antd-v6/src/pages/LitellmOps/Bills/index.tsx
+    - id: migration-release-evidence
+      requirement: additive-release-safety
+      statement: Migration tests and deployment procedures prove fresh and upgraded schema, rollback-on-failure, idempotency, readiness gating, offline backup, immutable rollout, and retained recovery history.
+      level: migration
+      required: true
+      evidence:
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestOperationsMigrationUpgradesLegacyRechargeTable
+        - type: test
+          value: admin/modules/litellmops/operations_test.go::TestOperationsMigrationRollsBackAndCanRetry
+        - type: test
+          value: admin/modules/litellmops/litellmops_test.go::TestRuntimeReadinessRequiresManagementFenceSchema
+        - type: path
+          value: deploy/litellm-ops/README.md
+        - type: path
+          value: deploy/litellm-ops/scripts/backup-sqlite.sh
+        - type: path
+          value: deploy/litellm-ops/scripts/deploy-release.sh
+    - id: specification-validation
+      statement: The Feature contract and capability catalog validate with the repository CLI and contain no private production identifiers.
+      level: contract
+      required: true
+      evidence:
+        - type: command
+          value: go run ./cmd/mss spec validate .mss/features/litellm-ops-operations.yaml
+        - type: command
+          value: git diff --check -- .mss
+  risks:
+    - id: late-upstream-write
+      description: LiteLLM may apply a timed-out management or recharge write after the local lease is released and a later operation could otherwise overwrite its effect.
+      severity: critical
+      mitigation: Persist a pre-write command, quarantine uncertain results, block all user effects, and resolve only with stable authoritative readback under the shared user lease.
+    - id: duplicate-marketplace-event
+      description: Manual entry or connector delivery may replay an order and accidentally issue credit twice.
+      severity: critical
+      mitigation: Enforce the normalized external-order uniqueness key, payload digest conflict, deterministic recharge idempotency key, order execution fence, and reconciliation instead of replacement orders.
+    - id: credential-exposure
+      description: Raw LiteLLM keys or connector credentials could leak through audit payloads, errors, logs, or a recovery response.
+      severity: critical
+      mitigation: Persist only digests and safe projections, return raw keys once in memory, sanitize accepted-command responses, and test durable rows for secret absence.
+    - id: incorrect-manual-resolution
+      description: An operator may classify a quarantined command incorrectly and unblock a conflicting recharge or management operation.
+      severity: high
+      mitigation: Limit resolution to administrators, require reason and explicit confirmation, wait through the uncertainty threshold, require stable authoritative observation, and retain immutable attempt history.
+    - id: marketplace-capability-unavailable
+      description: Official marketplace order access may remain unavailable because the application, account, or hosting prerequisites are not approved.
+      severity: medium
+      mitigation: Keep the connector disabled and preserve the documented manual workflow as the supported operating path.
+    - id: incompatible-code-rollback
+      description: An older binary may not understand newly persisted command states or additive columns after migration.
+      severity: high
+      mitigation: Rehearse upgrade and rollback on a protected clone, preserve additive schema, retain exact previous images, stop writes, and reconcile uncertain effects before selecting a compatible rollback build.
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+    custom:
+      - cd admin && go test ./modules/litellmops -count=1
+      - cd admin && go test -race ./modules/litellmops -count=1
+      - cd web/antd-v6 && corepack pnpm@10.34.5 tsc
+      - cd web/antd-v6 && corepack pnpm@10.34.5 test:ci -- src/modules/litellmops/business-reference.test.ts src/modules/litellmops/operations-api.test.ts src/modules/litellmops/permissions.test.ts
+      - cd web/antd-v6 && corepack pnpm@10.34.5 build:release
+      - go run ./cmd/mss spec validate .mss/features/litellm-ops-operations.yaml
+  rollout:
+    strategy: phased
+    migration: >-
+      Freeze new financial and management writes, record the exact current images,
+      and take a restricted, checksum-verified consistent database backup. Run the
+      registered additive migrations twice on a writable protected clone using the
+      production runtime UID, verify integrity, row counts, indexes, authorization
+      seeds, and readiness, then build and deploy backend and frontend from one clean
+      immutable revision. Verify internal health and readiness, login, negative and
+      positive RBAC, snapshots, bills, gateway and organization reads, recovery UI,
+      and HTTP 501 disabled writes without issuing live credit. Enable the documented
+      manual order flow first. Keep trusted automatic import disabled until every
+      official marketplace prerequisite, PAT, connector secret, signature sender,
+      and exact source allowlist has been reviewed and configured.
+    rollback: >-
+      Stop new mutations and automatic imports, retain the migrated database and all
+      recharge, order, attempt, lease, and management-command rows, and inventory every
+      executing or uncertain record. Roll backend and frontend to the recorded exact
+      compatible immutable images, verify readiness and read-only behavior, then
+      reconcile outstanding effects before resuming writes. Do not delete additive
+      columns, repopulate secrets, manually mark a recharge complete, reverse credit,
+      or restore the pre-release backup over accepted post-backup financial operations.
+      If no previous binary is schema-compatible, keep writes disabled and roll forward;
+      database restoration is a disaster-recovery decision requiring a full outage and
+      explicit accounting for every lost post-backup event.
