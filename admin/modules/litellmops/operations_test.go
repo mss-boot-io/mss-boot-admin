@@ -220,6 +220,13 @@ func TestRechargePendingBarrierSurvivesUntilAuthoritativeReadback(t *testing.T) 
 	if !errors.Is(err, ErrPendingRecharge) {
 		t.Fatalf("different command must be fenced: %v", err)
 	}
+	managementCalled := false
+	if _, err := withUserRechargeFence(context.Background(), db, snapshot.UserID, func() (any, error) {
+		managementCalled = true
+		return nil, nil
+	}); !errors.Is(err, ErrPendingRecharge) || managementCalled {
+		t.Fatalf("management mutation bypassed pending recharge: called=%v err=%v", managementCalled, err)
+	}
 	gateway.mu.Lock()
 	if gateway.userWrites != 1 {
 		t.Fatalf("fenced command wrote upstream: %d", gateway.userWrites)
@@ -416,6 +423,50 @@ func TestRechargeConcurrentDifferentCommandsAreSerializedWithoutLostCredit(t *te
 	defer gateway.mu.Unlock()
 	if gateway.userWrites != 2 || *gateway.budget != 17 || len(gateway.writtenBudgets) != 2 || gateway.writtenBudgets[0] != 15 || gateway.writtenBudgets[1] != 17 {
 		t.Fatalf("serialized commands lost or lowered credit: writes=%d budget=%v targets=%v", gateway.userWrites, *gateway.budget, gateway.writtenBudgets)
+	}
+}
+
+func TestManagementBudgetMutationAndRechargeShareUserFence(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.userWriteStarted = make(chan struct{})
+	gateway.continueUserWrite = make(chan struct{})
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	managementDone := make(chan error, 1)
+	managementBudget := 20.0
+	go func() {
+		_, err := withUserRechargeFence(context.Background(), db, snapshot.UserID, func() (any, error) {
+			return client.updateUser(context.Background(), snapshot.UserID, userMutationRequest{MaxBudget: &managementBudget})
+		})
+		managementDone <- err
+	}()
+	select {
+	case <-gateway.userWriteStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("management mutation did not reach upstream")
+	}
+	request := RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "after-management"}
+	if _, err := ApplyRecharge(context.Background(), db, client, snapshot, request, "operator-b"); !errors.Is(err, ErrRechargeBusy) {
+		t.Fatalf("recharge must not race management write: %v", err)
+	}
+	close(gateway.continueUserWrite)
+	if err := <-managementDone; err != nil {
+		t.Fatalf("management mutation failed: %v", err)
+	}
+	record, err := ApplyRecharge(context.Background(), db, client, snapshot, request, "operator-b")
+	if err != nil || record.Status != RechargeCompleted {
+		t.Fatalf("recharge after management mutation failed: record=%+v err=%v", record, err)
+	}
+	gateway.mu.Lock()
+	defer gateway.mu.Unlock()
+	if *gateway.budget != 25 || len(gateway.writtenBudgets) != 2 || gateway.writtenBudgets[0] != 20 || gateway.writtenBudgets[1] != 25 {
+		t.Fatalf("cross-workflow write lowered or lost budget: budget=%v targets=%v", *gateway.budget, gateway.writtenBudgets)
 	}
 }
 

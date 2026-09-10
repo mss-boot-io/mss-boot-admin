@@ -417,6 +417,35 @@ func auditedManagement(db *gorm.DB, operator, target, step string, request any, 
 	}
 	return out, operationErr
 }
+
+// withUserRechargeFence serializes management mutations with the recharge
+// state machine. A pending absolute target must be reconciled before any
+// direct user/key mutation can change the inputs or objects it governs.
+func withUserRechargeFence(ctx context.Context, db *gorm.DB, userID string, action func() (any, error)) (any, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, ErrInvalidRecharge
+	}
+	holder := newSnapshotID()
+	acquired, err := acquireUserLease(ctx, db, userID, holder)
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, ErrRechargeBusy
+	}
+	defer releaseUserLease(context.Background(), db, userID, holder)
+	var pending int64
+	if err := db.WithContext(ctx).Model(&RechargeRecord{}).
+		Where("user_id = ? AND status IN ?", userID, pendingRechargeStatuses()).Count(&pending).Error; err != nil {
+		return nil, err
+	}
+	if pending != 0 {
+		return nil, ErrPendingRecharge
+	}
+	return action()
+}
+
 func (handler *requestHandler) managementClient(ctx *gin.Context) (*gorm.DB, *Client, bool) {
 	db, ok := handler.database(ctx)
 	if !ok {
@@ -483,7 +512,9 @@ func (handler *requestHandler) updateUser(ctx *gin.Context) {
 		return
 	}
 	result, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_update", request, func() (any, error) {
-		return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
+		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
+			return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
+		})
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -507,7 +538,9 @@ func (handler *requestHandler) setUserBlocked(ctx *gin.Context, blocked bool) {
 	}
 	request := userMutationRequest{Blocked: &blocked}
 	result, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_block", request, func() (any, error) {
-		return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
+		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
+			return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
+		})
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -528,7 +561,9 @@ func (handler *requestHandler) deleteUser(ctx *gin.Context) {
 		return
 	}
 	_, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_delete", nil, func() (any, error) {
-		return nil, client.deleteUser(ctx.Request.Context(), snapshot.UserID)
+		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
+			return nil, client.deleteUser(ctx.Request.Context(), snapshot.UserID)
+		})
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -567,7 +602,9 @@ func (handler *requestHandler) issueKey(ctx *gin.Context) {
 		return
 	}
 	result, err := auditedManagement(db, handler.operator(ctx), request.UserID, "key_issue", request, func() (any, error) {
-		return client.issueKey(ctx.Request.Context(), request)
+		return withUserRechargeFence(ctx.Request.Context(), db, request.UserID, func() (any, error) {
+			return client.issueKey(ctx.Request.Context(), request)
+		})
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -622,7 +659,9 @@ func (handler *requestHandler) withResolvedKey(ctx *gin.Context, step string, ac
 	if err == nil {
 		var out any
 		out, err = auditedManagement(db, handler.operator(ctx), snapshot.ID, step, nil, func() (any, error) {
-			return action(client, key)
+			return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
+				return action(client, key)
+			})
 		})
 		if err == nil {
 			bestEffortSync(ctx.Request.Context(), db, client)
