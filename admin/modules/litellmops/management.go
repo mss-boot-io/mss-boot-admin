@@ -52,11 +52,15 @@ type modelActionRequest struct {
 }
 
 type GatewayModel struct {
-	ID              string `json:"id"`
-	ModelName       string `json:"model_name"`
-	Mode            string `json:"mode"`
-	LiteLLMProvider string `json:"litellm_provider"`
-	BaseModel       string `json:"base_model"`
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Provider      string     `json:"provider,omitempty"`
+	Mode          string     `json:"mode,omitempty"`
+	BaseModel     string     `json:"base_model,omitempty"`
+	Healthy       *bool      `json:"healthy"`
+	Blocked       *bool      `json:"blocked"`
+	Manageable    bool       `json:"manageable"`
+	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
 }
 
 type GatewayModelsPage struct {
@@ -65,9 +69,11 @@ type GatewayModelsPage struct {
 }
 
 type GatewayHealth struct {
-	Ready  bool   `json:"ready"`
-	Status string `json:"status"`
-	DB     string `json:"db"`
+	Ready     bool      `json:"ready"`
+	Status    string    `json:"status"`
+	DBStatus  string    `json:"db_status"`
+	CheckedAt time.Time `json:"checked_at"`
+	Message   string    `json:"message,omitempty"`
 }
 
 type oneTimeKeyResponse struct {
@@ -118,12 +124,39 @@ func requestedKeyDuration(request keyMutationRequest) (string, error) {
 	return "", nil
 }
 
+func expectedBudgetMicro(micro *int64, legacy *float64) (*int64, error) {
+	budget, err := optionalUSD(micro, legacy)
+	if err != nil || budget == nil {
+		return nil, err
+	}
+	value, err := usdToMicro(*budget)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func hasUserUpdate(request userMutationRequest) bool {
+	return strings.TrimSpace(request.Email) != "" || strings.TrimSpace(request.UserRole) != "" || request.Models != nil ||
+		request.MaxBudget != nil || request.MaxBudgetUSDMicro != nil || request.BudgetDuration != nil ||
+		request.TPMLimit != nil || request.RPMLimit != nil || request.Blocked != nil
+}
+
+func hasKeyUpdate(request keyMutationRequest) bool {
+	return strings.TrimSpace(request.Alias) != "" || request.Models != nil || request.MaxBudget != nil ||
+		request.MaxBudgetUSDMicro != nil || request.TPMLimit != nil || request.RPMLimit != nil ||
+		request.MaxParallelRequests != nil || strings.TrimSpace(request.Duration) != "" || strings.TrimSpace(request.Expires) != ""
+}
+
 func (client *Client) createUser(ctx context.Context, request userMutationRequest, invite bool) (map[string]any, error) {
 	budget, err := optionalUSD(request.MaxBudgetUSDMicro, request.MaxBudget)
 	if err != nil {
 		return nil, err
 	}
 	payload := map[string]any{}
+	// User creation never implicitly issues a key. A key must be created by the
+	// dedicated durable key command so its one-time secret can be delivered.
+	payload["auto_create_key"] = false
 	if value := strings.TrimSpace(request.UserID); value != "" {
 		payload["user_id"] = value
 	}
@@ -311,25 +344,19 @@ func (client *Client) gatewayModels(ctx context.Context) (*GatewayModelsPage, er
 	}
 	rows := asObjectSlice(envelope["data"])
 	items := make([]GatewayModel, 0, len(rows))
+	checkedAt := time.Now().UTC()
 	for _, row := range rows {
 		info := asObject(row["model_info"])
-		params := asObject(row["litellm_params"])
+		name := mapString(row, "model_name")
+		id := mapString(info, "id", "model_id")
+		if id == "" {
+			id = name
+		}
 		items = append(items, GatewayModel{
-			ID: mapString(info, "id", "model_id"), ModelName: mapString(row, "model_name"),
-			Mode:            mapString(info, "mode"),
-			LiteLLMProvider: mapString(info, "litellm_provider", "provider"),
-			BaseModel:       mapString(info, "base_model"),
+			ID: id, Name: name, Mode: mapString(info, "mode"),
+			Provider: mapString(info, "litellm_provider", "provider"), BaseModel: mapString(info, "base_model"),
+			Healthy: nil, Blocked: nil, Manageable: false, LastCheckedAt: &checkedAt,
 		})
-		last := &items[len(items)-1]
-		if last.Mode == "" {
-			last.Mode = mapString(params, "mode")
-		}
-		if last.LiteLLMProvider == "" {
-			last.LiteLLMProvider = mapString(params, "litellm_provider", "custom_llm_provider")
-		}
-		if last.BaseModel == "" {
-			last.BaseModel = mapString(params, "base_model")
-		}
 	}
 	return &GatewayModelsPage{Items: items, Total: len(items)}, nil
 }
@@ -338,9 +365,16 @@ func (client *Client) gatewayHealth(ctx context.Context) (*GatewayHealth, error)
 	if err := client.getJSON(ctx, "/health/readiness", nil, &out); err != nil {
 		return nil, err
 	}
-	status, database := mapString(out, "status"), mapString(out, "db")
-	ready := strings.EqualFold(status, "healthy") && (database == "" || strings.EqualFold(database, "connected"))
-	return &GatewayHealth{Ready: ready, Status: status, DB: database}, nil
+	upstreamStatus, database := mapString(out, "status"), mapString(out, "db")
+	ready := strings.EqualFold(upstreamStatus, "healthy") && strings.EqualFold(database, "connected")
+	status := "unavailable"
+	message := "LiteLLM readiness check is not healthy"
+	if ready {
+		status, message = "ready", ""
+	} else if strings.EqualFold(upstreamStatus, "healthy") || strings.EqualFold(database, "connected") {
+		status = "degraded"
+	}
+	return &GatewayHealth{Ready: ready, Status: status, DBStatus: database, CheckedAt: time.Now().UTC(), Message: message}, nil
 }
 func (client *Client) modelAction(ctx context.Context, path, modelID string) error {
 	return client.postJSON(ctx, path, map[string]any{"model_id": modelID}, nil)
@@ -375,10 +409,19 @@ func safeMutationDigest(value any) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
-func beginManagementAttempt(db *gorm.DB, operator, target, step string, request any) (*OperationAttempt, error) {
+func beginManagementAttempt(db *gorm.DB, operator, operationID, target, step string, request any) (*OperationAttempt, error) {
+	if strings.TrimSpace(operationID) == "" {
+		operationID = newSnapshotID()
+	}
+	var count int64
+	if err := db.Model(&OperationAttempt{}).Where(
+		"operation_type = ? AND operation_id = ? AND step = ?", "management", operationID, step,
+	).Count(&count).Error; err != nil {
+		return nil, err
+	}
 	attempt := &OperationAttempt{
-		ID: newSnapshotID(), OperationType: "management", OperationID: newSnapshotID(), TargetID: target,
-		Step: step, Attempt: 1, RequestDigest: safeMutationDigest(request), ResultCode: "started",
+		ID: newSnapshotID(), OperationType: "management", OperationID: operationID, TargetID: target,
+		Step: step, Attempt: int(count + 1), RequestDigest: safeMutationDigest(request), ResultCode: "started",
 		StartedAt: time.Now().UTC(), Operator: strings.TrimSpace(operator),
 	}
 	if attempt.Operator == "" {
@@ -391,7 +434,7 @@ func finishManagementAttempt(db *gorm.DB, attempt *OperationAttempt, operationEr
 	result := "completed"
 	if operationErr != nil {
 		result = "failed"
-		if upstreamResultUncertain(operationErr) {
+		if managementResultUncertain(operationErr) {
 			result = "result_unverified"
 		}
 	}
@@ -407,7 +450,7 @@ func finishManagementAttempt(db *gorm.DB, attempt *OperationAttempt, operationEr
 }
 
 func auditedManagement(db *gorm.DB, operator, target, step string, request any, action func() (any, error)) (any, error) {
-	attempt, err := beginManagementAttempt(db, operator, target, step, request)
+	attempt, err := beginManagementAttempt(db, operator, "", target, step, request)
 	if err != nil {
 		return nil, err
 	}
@@ -443,6 +486,13 @@ func withUserRechargeFence(ctx context.Context, db *gorm.DB, userID string, acti
 	if pending != 0 {
 		return nil, ErrPendingRecharge
 	}
+	managementPending, err := hasPendingManagement(ctx, db, userID, "", "")
+	if err != nil {
+		return nil, err
+	}
+	if managementPending {
+		return nil, ErrManagementPending
+	}
 	return action()
 }
 
@@ -474,11 +524,40 @@ func (handler *requestHandler) mutateUserCreate(ctx *gin.Context, invite bool) {
 		gift := int64(5_000_000)
 		request.MaxBudgetUSDMicro = &gift
 	}
-	target := strings.TrimSpace(request.UserID)
+	request.UserID = strings.TrimSpace(request.UserID)
+	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
+	target := request.UserID
 	if target == "" {
-		target = strings.ToLower(strings.TrimSpace(request.Email))
+		target = request.Email
 	}
-	result, err := auditedManagement(db, handler.operator(ctx), target, "user_create", request, func() (any, error) {
+	if target == "" {
+		writeAPIError(ctx, ErrInvalidRecharge)
+		return
+	}
+	fenceID := request.UserID
+	if request.Email != "" {
+		var matches []UserSnapshot
+		if err := db.Where("LOWER(email) = ?", request.Email).Limit(2).Find(&matches).Error; err != nil {
+			writeAPIError(ctx, err)
+			return
+		}
+		if len(matches) > 1 || len(matches) == 1 && request.UserID != "" && request.UserID != matches[0].UserID {
+			writeAPIError(ctx, ErrInvalidRecharge)
+			return
+		}
+		if len(matches) == 1 {
+			fenceID = matches[0].UserID
+		}
+	}
+	if fenceID == "" {
+		fenceID = "new:" + safeMutationDigest(request.Email)[:32]
+	}
+	step := "user_create"
+	if invite {
+		step = "user_invite"
+	}
+	expected := managementExpectedState{Kind: "user_create", Email: request.Email}
+	result, err := runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), fenceID, "user", target, step, request, expected, func() (any, error) {
 		return client.createUser(ctx.Request.Context(), request, invite)
 	})
 	if err != nil {
@@ -511,10 +590,19 @@ func (handler *requestHandler) updateUser(ctx *gin.Context) {
 		writeAPIError(ctx, ErrInvalidRecharge)
 		return
 	}
-	result, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_update", request, func() (any, error) {
-		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
-			return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
-		})
+	if !hasUserUpdate(request) {
+		writeAPIError(ctx, ErrInvalidRecharge)
+		return
+	}
+	expectedBudget, err := expectedBudgetMicro(request.MaxBudgetUSDMicro, request.MaxBudget)
+	if err != nil {
+		writeAPIError(ctx, err)
+		return
+	}
+	manualOnly := request.Email != "" || request.UserRole != "" || request.Models != nil || request.BudgetDuration != nil || request.TPMLimit != nil || request.RPMLimit != nil
+	expected := managementExpectedState{Kind: "user", Email: snapshot.Email, MaxBudgetUSDMicro: expectedBudget, Blocked: request.Blocked, RequiresManualOnly: manualOnly}
+	result, err := runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), snapshot.UserID, "user", snapshot.UserID, "user_update", request, expected, func() (any, error) {
+		return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -537,10 +625,13 @@ func (handler *requestHandler) setUserBlocked(ctx *gin.Context, blocked bool) {
 		return
 	}
 	request := userMutationRequest{Blocked: &blocked}
-	result, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_block", request, func() (any, error) {
-		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
-			return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
-		})
+	step := "user_block"
+	if !blocked {
+		step = "user_unblock"
+	}
+	expected := managementExpectedState{Kind: "user", Email: snapshot.Email, Blocked: &blocked}
+	result, err := runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), snapshot.UserID, "user", snapshot.UserID, step, request, expected, func() (any, error) {
+		return client.updateUser(ctx.Request.Context(), snapshot.UserID, request)
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -560,10 +651,9 @@ func (handler *requestHandler) deleteUser(ctx *gin.Context) {
 		writeAPIError(ctx, err)
 		return
 	}
-	_, err := auditedManagement(db, handler.operator(ctx), snapshot.UserID, "user_delete", nil, func() (any, error) {
-		return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
-			return nil, client.deleteUser(ctx.Request.Context(), snapshot.UserID)
-		})
+	expected := managementExpectedState{Kind: "user", Email: snapshot.Email, Deleted: true}
+	_, err := runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), snapshot.UserID, "user", snapshot.UserID, "user_delete", nil, expected, func() (any, error) {
+		return nil, client.deleteUser(ctx.Request.Context(), snapshot.UserID)
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -601,10 +691,14 @@ func (handler *requestHandler) issueKey(ctx *gin.Context) {
 		writeAPIError(ctx, ErrInvalidRecharge)
 		return
 	}
-	result, err := auditedManagement(db, handler.operator(ctx), request.UserID, "key_issue", request, func() (any, error) {
-		return withUserRechargeFence(ctx.Request.Context(), db, request.UserID, func() (any, error) {
-			return client.issueKey(ctx.Request.Context(), request)
-		})
+	var owner UserSnapshot
+	if err := db.Where("user_id = ?", request.UserID).First(&owner).Error; err != nil {
+		writeAPIError(ctx, err)
+		return
+	}
+	expected := managementExpectedState{Kind: "key", Email: owner.Email, RequiresManualOnly: true}
+	result, err := runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), request.UserID, "key", request.UserID+":new", "key_issue", request, expected, func() (any, error) {
+		return client.issueKey(ctx.Request.Context(), request)
 	})
 	if err != nil {
 		writeAPIError(ctx, err)
@@ -615,53 +709,67 @@ func (handler *requestHandler) issueKey(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, response)
 }
 func (handler *requestHandler) updateKey(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_update", func(client *Client, key string) (any, error) {
-		var request keyMutationRequest
-		if ctx.ShouldBindJSON(&request) != nil {
-			return nil, ErrInvalidRecharge
-		}
+	var request keyMutationRequest
+	if ctx.ShouldBindJSON(&request) != nil {
+		writeAPIError(ctx, ErrInvalidRecharge)
+		return
+	}
+	if !hasKeyUpdate(request) {
+		writeAPIError(ctx, ErrInvalidRecharge)
+		return
+	}
+	expectedBudget, err := expectedBudgetMicro(request.MaxBudgetUSDMicro, request.MaxBudget)
+	if err != nil {
+		writeAPIError(ctx, err)
+		return
+	}
+	manualOnly := request.Alias != "" || request.Models != nil || request.TPMLimit != nil || request.RPMLimit != nil || request.MaxParallelRequests != nil || request.Duration != "" || request.Expires != ""
+	handler.withResolvedKey(ctx, "key_update", request, managementExpectedState{Kind: "key", MaxBudgetUSDMicro: expectedBudget, RequiresManualOnly: manualOnly}, func(client *Client, key string) (any, error) {
 		return nil, client.updateKey(ctx.Request.Context(), key, request)
 	})
 }
 func (handler *requestHandler) blockKey(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_block", func(client *Client, key string) (any, error) {
+	blocked := true
+	handler.withResolvedKey(ctx, "key_block", nil, managementExpectedState{Kind: "key", Blocked: &blocked}, func(client *Client, key string) (any, error) {
 		return nil, client.keyAction(ctx.Request.Context(), "/key/block", key)
 	})
 }
 func (handler *requestHandler) unblockKey(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_unblock", func(client *Client, key string) (any, error) {
+	blocked := false
+	handler.withResolvedKey(ctx, "key_unblock", nil, managementExpectedState{Kind: "key", Blocked: &blocked}, func(client *Client, key string) (any, error) {
 		return nil, client.keyAction(ctx.Request.Context(), "/key/unblock", key)
 	})
 }
 func (handler *requestHandler) deleteKey(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_delete", func(client *Client, key string) (any, error) {
+	handler.withResolvedKey(ctx, "key_delete", nil, managementExpectedState{Kind: "key", Deleted: true}, func(client *Client, key string) (any, error) {
 		return nil, client.deleteKey(ctx.Request.Context(), key)
 	})
 }
 func (handler *requestHandler) rotateKey(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_rotate", func(client *Client, key string) (any, error) { return client.rotateKey(ctx.Request.Context(), key) })
+	handler.withResolvedKey(ctx, "key_rotate", nil, managementExpectedState{Kind: "key", RequiresManualOnly: true}, func(client *Client, key string) (any, error) { return client.rotateKey(ctx.Request.Context(), key) })
 }
 func (handler *requestHandler) resetKeySpend(ctx *gin.Context) {
-	handler.withResolvedKey(ctx, "key_reset_spend", func(client *Client, key string) (any, error) {
-		var request resetSpendRequest
-		if ctx.ShouldBindJSON(&request) != nil {
-			return nil, ErrInvalidRecharge
-		}
+	var request resetSpendRequest
+	if ctx.ShouldBindJSON(&request) != nil || request.ResetToUSDMicro < 0 {
+		writeAPIError(ctx, ErrInvalidRecharge)
+		return
+	}
+	handler.withResolvedKey(ctx, "key_reset_spend", request, managementExpectedState{Kind: "key", SpendUSDMicro: &request.ResetToUSDMicro, RequiresManualOnly: true}, func(client *Client, key string) (any, error) {
 		return nil, client.resetKeySpend(ctx.Request.Context(), key, request.ResetToUSDMicro)
 	})
 }
-func (handler *requestHandler) withResolvedKey(ctx *gin.Context, step string, action func(*Client, string) (any, error)) {
+func (handler *requestHandler) withResolvedKey(ctx *gin.Context, step string, request any, expected managementExpectedState, action func(*Client, string) (any, error)) {
 	db, client, ok := handler.managementClient(ctx)
 	if !ok {
 		return
 	}
 	key, snapshot, err := resolveFullKey(ctx.Request.Context(), db, client, ctx.Param("id"))
 	if err == nil {
+		expected.Email = snapshot.UserEmail
+		expected.KeyPrefix = snapshot.KeyHashPrefix
 		var out any
-		out, err = auditedManagement(db, handler.operator(ctx), snapshot.ID, step, nil, func() (any, error) {
-			return withUserRechargeFence(ctx.Request.Context(), db, snapshot.UserID, func() (any, error) {
-				return action(client, key)
-			})
+		out, err = runFencedManagement(ctx.Request.Context(), db, client, handler.operator(ctx), snapshot.UserID, "key", snapshot.ID, step, request, expected, func() (any, error) {
+			return action(client, key)
 		})
 		if err == nil {
 			bestEffortSync(ctx.Request.Context(), db, client)
@@ -706,33 +814,6 @@ func (handler *requestHandler) gatewayHealth(ctx *gin.Context) {
 func (handler *requestHandler) blockModel(ctx *gin.Context)   { handler.setModelBlocked(ctx, true) }
 func (handler *requestHandler) unblockModel(ctx *gin.Context) { handler.setModelBlocked(ctx, false) }
 func (handler *requestHandler) setModelBlocked(ctx *gin.Context, blocked bool) {
-	db, client, ok := handler.managementClient(ctx)
-	if !ok {
-		return
-	}
-	modelID := strings.TrimSpace(ctx.Param("id"))
-	if modelID == "" {
-		var request modelActionRequest
-		if ctx.ShouldBindJSON(&request) == nil {
-			modelID = strings.TrimSpace(request.ModelID)
-		}
-	}
-	if modelID == "" {
-		writeAPIError(ctx, ErrInvalidRecharge)
-		return
-	}
-	path := "/model/block"
-	step := "model_block"
-	if !blocked {
-		path = "/model/unblock"
-		step = "model_unblock"
-	}
-	_, err := auditedManagement(db, handler.operator(ctx), modelID, step, nil, func() (any, error) {
-		return nil, client.modelAction(ctx.Request.Context(), path, modelID)
-	})
-	if err != nil {
-		writeAPIError(ctx, err)
-		return
-	}
-	ctx.JSON(200, gin.H{"model_id": modelID, "blocked": blocked})
+	_ = blocked
+	writeAPIError(ctx, ErrOperationDisabled)
 }

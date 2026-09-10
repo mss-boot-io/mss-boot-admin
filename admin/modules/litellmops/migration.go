@@ -18,11 +18,12 @@ import (
 
 // Migration identifiers, lossless and forward-only.
 const (
-	SnapshotMigrationID      migration.MigrationID = "20260908170000"
-	AuthorizationMigrationID migration.MigrationID = "20260908170200"
-	RechargeMigrationID      migration.MigrationID = "20260909180000"
-	OrganizationMigrationID  migration.MigrationID = "20260909210000"
-	OperationsMigrationID    migration.MigrationID = "20260910150000"
+	SnapshotMigrationID        migration.MigrationID = "20260908170000"
+	AuthorizationMigrationID   migration.MigrationID = "20260908170200"
+	RechargeMigrationID        migration.MigrationID = "20260909180000"
+	OrganizationMigrationID    migration.MigrationID = "20260909210000"
+	OperationsMigrationID      migration.MigrationID = "20260910150000"
+	ManagementFenceMigrationID migration.MigrationID = "20260910170000"
 )
 
 // ApplySnapshotMigration applies the snapshot schema directly. It exists for
@@ -48,7 +49,10 @@ func RegisterMigration(runner *migration.Migration) error {
 	if err := runner.Register(OrganizationMigrationID, migrateOrganizations); err != nil {
 		return err
 	}
-	return runner.Register(OperationsMigrationID, migrateOperations)
+	if err := runner.Register(OperationsMigrationID, migrateOperations); err != nil {
+		return err
+	}
+	return runner.Register(ManagementFenceMigrationID, migrateManagementFence)
 }
 
 var createUserSnapshotTableDDL = map[string]string{
@@ -417,7 +421,7 @@ func verifyRuntimeReadiness(ctx context.Context, db *gorm.DB) error {
 	if db == nil {
 		return errors.New("litellmops schema readiness database is required")
 	}
-	if err := business.RequireAppliedMigrations(ctx, db, SnapshotMigrationID, AuthorizationMigrationID, RechargeMigrationID, OrganizationMigrationID, OperationsMigrationID); err != nil {
+	if err := business.RequireAppliedMigrations(ctx, db, SnapshotMigrationID, AuthorizationMigrationID, RechargeMigrationID, OrganizationMigrationID, OperationsMigrationID, ManagementFenceMigrationID); err != nil {
 		return fmt.Errorf("litellmops migration readiness failed: %w", err)
 	}
 	readyDB := db.WithContext(ctx)
@@ -436,9 +440,14 @@ func verifyRuntimeReadiness(ctx context.Context, db *gorm.DB) error {
 	if !readyDB.Migrator().HasTable(new(OrgAuditRecord)) {
 		return errors.New("litellmops migration readiness failed: organization audit table is unavailable")
 	}
-	for _, model := range []any{new(UserLease), new(OperationAttempt), new(SalesProduct), new(SalesOrder)} {
+	for _, model := range []any{new(UserLease), new(OperationAttempt), new(SalesProduct), new(SalesOrder), new(ManagementCommand)} {
 		if !readyDB.Migrator().HasTable(model) {
 			return errors.New("litellmops migration readiness failed: operations table is unavailable")
+		}
+	}
+	for _, field := range []string{"LastObservedKeyPrefix", "LastObservedKeyUSDMicro", "LastObservedKeyAt"} {
+		if !readyDB.Migrator().HasColumn(new(RechargeRecord), field) {
+			return errors.New("litellmops migration readiness failed: recharge reconciliation schema is unavailable")
 		}
 	}
 	return nil
@@ -572,6 +581,44 @@ func migrateOperations(db *gorm.DB, version string) error {
 				if count == 0 {
 					if err := tx.Create(&rule).Error; err != nil {
 						return fmt.Errorf("litellmops operations migration: seed policy: %w", err)
+					}
+				}
+			}
+		}
+		return recordMigrationVersion(tx, version)
+	})
+}
+
+var managementFenceAuthorizationSeeds = []authorizationRouteSeed{
+	{permission: PermissionRecharge, method: "POST", path: "/admin/api/litellmops/recharges/:id/reconcile", roles: []string{"admin", "litellmops-finance"}},
+	{permission: PermissionManagementResolve, method: "GET", path: "/admin/api/litellmops/management/commands", roles: []string{"admin"}},
+	{permission: PermissionManagementResolve, method: "POST", path: "/admin/api/litellmops/management/commands/:id/reconcile", roles: []string{"admin"}},
+	{permission: PermissionManagementResolve, method: "POST", path: "/admin/api/litellmops/management/commands/:id/resolve", roles: []string{"admin"}},
+}
+
+func migrateManagementFence(db *gorm.DB, version string) error {
+	if db == nil {
+		return errors.New("litellmops management fence migration database is required")
+	}
+	if version != ManagementFenceMigrationID.String() {
+		return errors.New("litellmops management fence migration version mismatch")
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.AutoMigrate(&RechargeRecord{}, &ManagementCommand{}); err != nil {
+			return fmt.Errorf("litellmops management fence migration: schema: %w", err)
+		}
+		for _, seed := range managementFenceAuthorizationSeeds {
+			for _, role := range seed.roles {
+				rule := models.CasbinRule{PType: "p", V0: role, V1: adminpkg.APIAccessType.String(), V2: seed.path, V3: seed.method}
+				var count int64
+				if err := tx.Model(&models.CasbinRule{}).Where(
+					"ptype = ? AND v0 = ? AND v1 = ? AND v2 = ? AND v3 = ?", rule.PType, rule.V0, rule.V1, rule.V2, rule.V3,
+				).Count(&count).Error; err != nil {
+					return fmt.Errorf("litellmops management fence migration: read policy: %w", err)
+				}
+				if count == 0 {
+					if err := tx.Create(&rule).Error; err != nil {
+						return fmt.Errorf("litellmops management fence migration: seed policy: %w", err)
 					}
 				}
 			}

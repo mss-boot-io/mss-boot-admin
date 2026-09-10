@@ -17,8 +17,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
+	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -634,6 +636,104 @@ func TestStaleExecutingOrderRecoversRechargeBySourceReference(t *testing.T) {
 	}
 }
 
+func TestRetryableOrderWithoutRechargeRecoversThroughReconcile(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	now := time.Now().UTC()
+	order := SalesOrder{
+		ID: newSnapshotID(), CreatedAt: now, UpdatedAt: now, Channel: "xianyu", Shop: "shop-a",
+		ExternalOrderID: "blocked-then-reconcile", AdjustmentType: "credit", PayloadHash: "blocked-hash", ProductID: "product-a",
+		UserID: "u-1", UserEmail: "buyer@example.com", PaidCNYFen: 1000, CreditUSDMicro: 5_000_000,
+		PaymentStatus: "paid", SourceTrust: "manual", Status: OrderApproved, Operator: "operator-a", Approver: "approver-b", Version: 1,
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("create approved order: %v", err)
+	}
+	pending := RechargeRecord{
+		ID: newSnapshotID(), CreatedAt: now.Add(-time.Minute), UpdatedAt: now, UserID: "u-1", Amount: 1,
+		AmountUSDMicro: 1_000_000, KeysUpdated: "[]", Operator: "operator-a", IdempotencyKey: "earlier-pending",
+		PayloadHash: rechargePayloadHash("u-1", 1_000_000, false), Source: "manual", Status: RechargeApproved, Version: 1,
+	}
+	if err := db.Create(&pending).Error; err != nil {
+		t.Fatalf("create pending recharge: %v", err)
+	}
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	if err := executeSalesOrder(context.Background(), db, client, &order, "executor-c"); !errors.Is(err, ErrPendingRecharge) {
+		t.Fatalf("first execute should be blocked by earlier recharge: order=%+v err=%v", order, err)
+	}
+	if order.Status != OrderRetryableFailed || order.RechargeID != "" || gateway.userWrites != 0 {
+		t.Fatalf("blocked order must be retryable without remote write: order=%+v writes=%d", order, gateway.userWrites)
+	}
+	if err := db.Model(&RechargeRecord{}).Where("id = ? AND version = ?", pending.ID, pending.Version).
+		Updates(map[string]any{"status": RechargeCompleted, "completed_at": now, "version": gorm.Expr("version + 1")}).Error; err != nil {
+		t.Fatalf("resolve earlier recharge: %v", err)
+	}
+	if err := reconcileSalesOrder(context.Background(), db, client, &order, "executor-c"); err != nil {
+		t.Fatalf("UI reconcile should recover order: order=%+v err=%v", order, err)
+	}
+	if order.Status != OrderCompleted || order.RechargeID == "" || gateway.userWrites != 1 || *gateway.budget != 15 {
+		t.Fatalf("recovered order mismatch: order=%+v writes=%d budget=%v", order, gateway.userWrites, *gateway.budget)
+	}
+	var salesRecharges int64
+	if err := db.Model(&RechargeRecord{}).Where("source = ? AND source_ref = ?", "sales_order", order.ID).Count(&salesRecharges).Error; err != nil || salesRecharges != 1 {
+		t.Fatalf("recovery must reserve exactly one sales recharge: count=%d err=%v", salesRecharges, err)
+	}
+}
+
+func TestOrderBlockedByManagementQuarantineRecoversThroughReconcile(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	now := time.Now().UTC()
+	order := SalesOrder{
+		ID: newSnapshotID(), CreatedAt: now, UpdatedAt: now, Channel: "xianyu", Shop: "shop-a",
+		ExternalOrderID: "management-blocked", AdjustmentType: "credit", PayloadHash: "management-blocked-hash",
+		UserID: "u-1", UserEmail: "buyer@example.com", PaidCNYFen: 1000, CreditUSDMicro: 5_000_000,
+		PaymentStatus: "paid", SourceTrust: "manual", Status: OrderApproved, Operator: "operator-a", Approver: "approver-b", Version: 1,
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("create approved order: %v", err)
+	}
+	command := ManagementCommand{
+		ID: newSnapshotID(), CreatedAt: now, UpdatedAt: now, UserID: "u-1", UserEmail: "buyer@example.com",
+		TargetType: "user", TargetID: "u-1", Action: "user_update", PayloadHash: "safe-digest",
+		ExpectedState: managementExpectedJSON(managementExpectedState{Kind: "user", RequiresManualOnly: true}),
+		Status:        ManagementResultUnverified, RequiresManualReview: true, Operator: "operator-a", Version: 1,
+	}
+	if err := db.Create(&command).Error; err != nil {
+		t.Fatalf("create management quarantine: %v", err)
+	}
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	if err := executeSalesOrder(context.Background(), db, client, &order, "executor-c"); !errors.Is(err, ErrManagementPending) {
+		t.Fatalf("management quarantine should block order: order=%+v err=%v", order, err)
+	}
+	if order.Status != OrderRetryableFailed || order.RechargeID != "" || gateway.userWrites != 0 {
+		t.Fatalf("blocked order must be retryable without recharge: order=%+v writes=%d", order, gateway.userWrites)
+	}
+	if err := db.Model(&ManagementCommand{}).Where("id = ?", command.ID).Updates(map[string]any{
+		"status": ManagementResolvedNoop, "resolved_at": now, "version": gorm.Expr("version + 1"),
+	}).Error; err != nil {
+		t.Fatalf("resolve management fixture: %v", err)
+	}
+	if err := reconcileSalesOrder(context.Background(), db, client, &order, "executor-c"); err != nil {
+		t.Fatalf("reconcile should recover after management resolution: order=%+v err=%v", order, err)
+	}
+	if order.Status != OrderCompleted || gateway.userWrites != 1 || *gateway.budget != 15 {
+		t.Fatalf("recovered order mismatch: order=%+v writes=%d budget=%v", order, gateway.userWrites, *gateway.budget)
+	}
+}
+
 func TestConnectorAuthenticationFailsClosed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	raw := []byte(`{"channel":"xianyu"}`)
@@ -714,6 +814,36 @@ func TestOperationsMigrationUpgradesLegacyRechargeTable(t *testing.T) {
 	if err := db.Model(&migrationmodels.Migration{}).Where("version = ?", OperationsMigrationID.String()).Count(&count).Error; err != nil || count != 1 {
 		t.Fatalf("migration ledger should contain one operation row: count=%d err=%v", count, err)
 	}
+	// Recreate the exact previous-release schema: these nullable observation
+	// columns are owned only by the new forward migration.
+	for _, field := range []string{"LastObservedKeyPrefix", "LastObservedKeyUSDMicro", "LastObservedKeyAt"} {
+		if err := db.Migrator().DropColumn(&RechargeRecord{}, field); err != nil {
+			t.Fatalf("prepare previous schema without %s: %v", field, err)
+		}
+	}
+	if err := migrateManagementFence(db, ManagementFenceMigrationID.String()); err != nil {
+		t.Fatalf("upgrade previous production schema with management fence: %v", err)
+	}
+	if err := migrateManagementFence(db, ManagementFenceMigrationID.String()); err != nil {
+		t.Fatalf("management fence migration must be idempotent: %v", err)
+	}
+	if !db.Migrator().HasTable(&ManagementCommand{}) {
+		t.Fatal("management fence table was not created")
+	}
+	for _, field := range []string{"LastObservedKeyPrefix", "LastObservedKeyUSDMicro", "LastObservedKeyAt"} {
+		if !db.Migrator().HasColumn(&RechargeRecord{}, field) {
+			t.Fatalf("management fence upgrade missing recharge column %s", field)
+		}
+	}
+	if err := db.Model(&migrationmodels.Migration{}).Where("version = ?", ManagementFenceMigrationID.String()).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("management fence ledger should contain one row: count=%d err=%v", count, err)
+	}
+	if err := db.Model(&models.CasbinRule{}).Where("v2 = ? AND v3 = ?", "/admin/api/litellmops/management/commands/:id/resolve", "POST").Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("management resolve policy must be seeded once: count=%d err=%v", count, err)
+	}
+	if err := db.Model(&RechargeRecord{}).Where("id IN ?", []string{"legacy-completed", "legacy-failed"}).Count(&count).Error; err != nil || count != 2 {
+		t.Fatalf("management fence upgrade lost legacy rows: count=%d err=%v", count, err)
+	}
 	var legacyFailed RechargeRecord
 	if err := db.First(&legacyFailed, "id = ?", "legacy-failed").Error; err != nil || legacyFailed.IdempotencyKey != "legacy:legacy-failed" || legacyFailed.Source != "legacy" {
 		t.Fatalf("legacy row was not deterministically backfilled: row=%+v err=%v", legacyFailed, err)
@@ -780,34 +910,426 @@ func TestGatewayModelResponseDoesNotExposeParams(t *testing.T) {
 	if err != nil || page.Total != 1 {
 		t.Fatalf("models: %+v err=%v", page, err)
 	}
+	if page.Items[0].ID != "m-1" || page.Items[0].Name != "safe-model" || page.Items[0].Provider != "" || page.Items[0].BaseModel != "" || page.Items[0].Blocked != nil || page.Items[0].Manageable {
+		t.Fatalf("unexpected canonical safe model projection: %+v", page.Items[0])
+	}
 	raw, _ := json.Marshal(page)
 	if strings.Contains(string(raw), "must-not-leak") || strings.Contains(string(raw), "api_key") {
 		t.Fatalf("unsafe gateway response: %s", raw)
 	}
 }
 
+func TestUncertainManagementBudgetQuarantinesUserUntilReadback(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.userWriteStatusOnce = http.StatusBadGateway
+	gateway.applyBeforeFailure = true
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	target := int64(20_000_000)
+
+	_, err := runFencedManagement(context.Background(), db, client, "operator-a", snapshot.UserID, "user", snapshot.UserID, "user_update",
+		userMutationRequest{MaxBudgetUSDMicro: &target}, managementExpectedState{Kind: "user", Email: snapshot.Email, MaxBudgetUSDMicro: &target},
+		func() (any, error) {
+			return client.updateUser(context.Background(), snapshot.UserID, userMutationRequest{MaxBudgetUSDMicro: &target})
+		})
+	var commandErr *managementCommandResultError
+	if !errors.As(err, &commandErr) || commandErr.Command.Status != ManagementResultUnverified {
+		t.Fatalf("uncertain management write must persist quarantine: command=%+v err=%v", commandErr, err)
+	}
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ginContext, _ := gin.CreateTestContext(recorder)
+	writeAPIError(ginContext, err)
+	if recorder.Code != http.StatusAccepted || !strings.Contains(recorder.Body.String(), `"max_budget_usd_micro":20000000`) || strings.Contains(recorder.Body.String(), "payload_hash") || strings.Contains(recorder.Body.String(), "before_state") || strings.Contains(recorder.Body.String(), "expected_state") {
+		t.Fatalf("unsafe or invalid management 202 envelope: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if _, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "blocked-by-management"}, "operator-b"); !errors.Is(err, ErrManagementPending) {
+		t.Fatalf("recharge must be blocked by management quarantine: %v", err)
+	}
+	command := commandErr.Command
+	if err := reconcileManagementCommand(context.Background(), db, client, &command, "operator-c"); err != nil {
+		t.Fatalf("authoritative management readback should resolve applied: %v", err)
+	}
+	if command.Status != ManagementResolvedApplied {
+		t.Fatalf("unexpected resolved status: %+v", command)
+	}
+	recharge, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "blocked-by-management"}, "operator-b")
+	if err != nil || recharge.Status != RechargeCompleted || recharge.TargetAfterUSDMicro == nil || *recharge.TargetAfterUSDMicro != 25_000_000 {
+		t.Fatalf("recharge after management reconciliation lost budget: record=%+v err=%v", recharge, err)
+	}
+}
+
+func TestUserMutationHandlerReturnsSafeAcceptedCommand(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.userWriteStatusOnce = http.StatusBadGateway
+	gateway.applyBeforeFailure = true
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PATCH("/users/:id", handler.updateUser)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/users/"+snapshot.ID, strings.NewReader(`{"max_budget_usd_micro":20000000}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusAccepted || !strings.Contains(recorder.Body.String(), `"command"`) ||
+		!strings.Contains(recorder.Body.String(), `"requires_manual_review":false`) || strings.Contains(recorder.Body.String(), "payload_hash") || strings.Contains(recorder.Body.String(), "expected_state") {
+		t.Fatalf("unexpected management mutation response: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestManagementNoopRequiresStablePrewriteObservation(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.userWriteStatusOnce = http.StatusBadGateway
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	target := int64(10_000_000)
+
+	_, err := runFencedManagement(context.Background(), db, client, "operator-a", snapshot.UserID, "user", snapshot.UserID, "user_update",
+		userMutationRequest{MaxBudgetUSDMicro: &target}, managementExpectedState{Kind: "user", Email: snapshot.Email, MaxBudgetUSDMicro: &target},
+		func() (any, error) {
+			return client.updateUser(context.Background(), snapshot.UserID, userMutationRequest{MaxBudgetUSDMicro: &target})
+		})
+	var commandErr *managementCommandResultError
+	if !errors.As(err, &commandErr) {
+		t.Fatalf("expected durable uncertain command: %v", err)
+	}
+	command := commandErr.Command
+	if err := reconcileManagementCommand(context.Background(), db, client, &command, "operator-b"); !errors.Is(err, ErrManagementUnverified) {
+		t.Fatalf("same immediate value must not resolve: %v", err)
+	}
+	if command.Status != ManagementResultUnverified {
+		t.Fatalf("same immediate value released quarantine: %+v", command)
+	}
+	oldCreated, oldObserved := time.Now().UTC().Add(-3*time.Minute), time.Now().UTC().Add(-6*time.Second)
+	if err := db.Model(&ManagementCommand{}).Where("id = ?", command.ID).Updates(map[string]any{"created_at": oldCreated, "last_observed_at": oldObserved}).Error; err != nil {
+		t.Fatalf("age command fixture: %v", err)
+	}
+	if err := db.First(&command, "id = ?", command.ID).Error; err != nil {
+		t.Fatalf("reload command: %v", err)
+	}
+	if err := reconcileManagementCommand(context.Background(), db, client, &command, "operator-b"); err != nil || command.Status != ManagementResolvedNoop {
+		t.Fatalf("stable pre-write value should resolve not applied: command=%+v err=%v", command, err)
+	}
+}
+
+func TestUncertainKeyResetNeverAutoResolves(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	budget, keyBudget := 10.0, 10.0
+	gateway := newBudgetGateway(&budget)
+	token := "cccccccccccccccccccccccccccccccc"
+	gateway.keys[token] = &keyBudget
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	zero := int64(0)
+
+	_, err := runFencedManagement(context.Background(), db, client, "operator-a", "u-1", "key", "key-snapshot", "key_reset_spend",
+		resetSpendRequest{}, managementExpectedState{Kind: "key", KeyPrefix: token[:keyHashPrefixLength], SpendUSDMicro: &zero, RequiresManualOnly: true},
+		func() (any, error) {
+			return nil, &UpstreamError{Path: "/key/{key}/reset_spend", StatusCode: http.StatusBadGateway, Uncertain: true}
+		})
+	var commandErr *managementCommandResultError
+	if !errors.As(err, &commandErr) {
+		t.Fatalf("expected reset quarantine: %v", err)
+	}
+	command := commandErr.Command
+	if err := reconcileManagementCommand(context.Background(), db, client, &command, "operator-b"); !errors.Is(err, ErrManagementUnverified) {
+		t.Fatalf("reset readback must require manual review: %v", err)
+	}
+	if command.Status != ManagementResultUnverified || !command.RequiresManualReview {
+		t.Fatalf("reset command auto-resolved unexpectedly: %+v", command)
+	}
+}
+
+func TestManualManagementResolveRequiresAgedStableAuthoritativeObservation(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	expected := managementExpectedState{Kind: "user", RequiresManualOnly: true}
+	probe := &ManagementCommand{UserID: "u-1", TargetID: "u-1"}
+	_, digest, err := readManagementExpected(context.Background(), client, probe, expected)
+	if err != nil {
+		t.Fatalf("read authoritative fixture: %v", err)
+	}
+	now := time.Now().UTC()
+	command := ManagementCommand{
+		ID: newSnapshotID(), CreatedAt: now.Add(-3 * time.Minute), UpdatedAt: now, UserID: "u-1", UserEmail: "buyer@example.com",
+		TargetType: "user", TargetID: "u-1", Action: "user_update", PayloadHash: "safe-digest",
+		ExpectedState: managementExpectedJSON(expected), BeforeStateDigest: digest, Status: ManagementResultUnverified,
+		RequiresManualReview: true, LastObservedDigest: digest, LastObservedAt: ptrTime(now.Add(-6 * time.Second)), Operator: "operator-a", Version: 1,
+	}
+	if err := db.Create(&command).Error; err != nil {
+		t.Fatalf("create manual command: %v", err)
+	}
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/management/commands/:id/resolve", handler.resolveManagementCommand)
+	recorder := httptest.NewRecorder()
+	body := strings.NewReader(`{"resolution":"not_applied","reason":"verified in LiteLLM","confirm_authoritative_state":true}`)
+	request := httptest.NewRequest(http.MethodPost, "/management/commands/"+command.ID+"/resolve", body)
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), ManagementResolvedNoop) {
+		t.Fatalf("manual resolve failed: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var attempts int64
+	if err := db.Model(&OperationAttempt{}).Where("operation_type = ? AND operation_id = ? AND step = ? AND operator = ?", "management", command.ID, "management_resolve", "test-user").Count(&attempts).Error; err != nil || attempts != 1 {
+		t.Fatalf("manual resolve audit missing: count=%d err=%v", attempts, err)
+	}
+}
+
+func TestCreateUserExplicitlyDisablesImplicitKey(t *testing.T) {
+	var autoCreate any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(request.Body).Decode(&body)
+		autoCreate = body["auto_create_key"]
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"user_id": "new-user", "user_email": "new@example.com"})
+	}))
+	t.Cleanup(server.Close)
+	if _, err := testClient(t, server).createUser(context.Background(), userMutationRequest{Email: "new@example.com"}, false); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if value, ok := autoCreate.(bool); !ok || value {
+		t.Fatalf("user creation did not explicitly disable implicit key: %#v", autoCreate)
+	}
+}
+
+func TestCreateByExistingEmailUsesRealUserRechargeFence(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	if _, _, err := reserveRecharge(context.Background(), db, snapshot,
+		RechargeRequest{AmountUSDMicro: 1_000_000, IdempotencyKey: "existing-user-pending"}, "operator-a"); err != nil {
+		t.Fatalf("reserve pending recharge: %v", err)
+	}
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/users", handler.createUser)
+	recorder := httptest.NewRecorder()
+	body := strings.NewReader(`{"email":"buyer@example.com"}`)
+	request := httptest.NewRequest(http.MethodPost, "/users", body)
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "pending recharge") {
+		t.Fatalf("existing email did not share real user fence: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDirectRechargeReconcileHandlerCompletesAuthoritativeTarget(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.ignoreUserWrite = true
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	client := testClient(t, server)
+	record, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "direct-reconcile"}, "operator-a")
+	if !errors.Is(err, ErrReconcileRequired) || record.Status != RechargeAppliedUnverified {
+		t.Fatalf("create uncertain recharge: record=%+v err=%v", record, err)
+	}
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/recharges/:id/reconcile", handler.reconcileRecharge)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/recharges/"+record.ID+"/reconcile", nil))
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("still-unverified reconcile must return 202: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	gateway.mu.Lock()
+	visible := 15.0
+	gateway.budget = &visible
+	gateway.mu.Unlock()
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/recharges/"+record.ID+"/reconcile", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("reconcile handler status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response RechargeRecord
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil || response.Status != RechargeCompleted {
+		t.Fatalf("unexpected reconcile response: %+v err=%v", response, err)
+	}
+}
+
+func TestGatewayHealthCanonicalContractAndWritesDisabled(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"status": "healthy", "db": "connected"})
+	}))
+	t.Cleanup(server.Close)
+	health, err := testClient(t, server).gatewayHealth(context.Background())
+	if err != nil || !health.Ready || health.Status != "ready" || health.DBStatus != "connected" || health.CheckedAt.IsZero() {
+		t.Fatalf("unexpected canonical health: %+v err=%v", health, err)
+	}
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	(&requestHandler{}).blockModel(ctx)
+	if recorder.Code != http.StatusNotImplemented || !strings.Contains(recorder.Body.String(), "operation_disabled") {
+		t.Fatalf("model write must fail closed: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestTrustedAutoApplyReturnsAcceptedPersistedOrder(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	now := time.Now().UTC()
+	product := SalesProduct{
+		ID: newSnapshotID(), CreatedAt: now, UpdatedAt: now, Channel: "xianyu", Shop: "shop-a",
+		ExternalItemID: "item-auto", SKU: "", Title: "auto credit", PriceCNYFen: 1000,
+		CreditUSDMicro: 5_000_000, Enabled: true, AutoApply: true, Version: 1,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create auto product: %v", err)
+	}
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.ignoreUserWrite = true
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/sales/orders/import", nil)
+	handler.receiveOrder(ctx, orderCreateRequest{
+		Channel: "xianyu", Shop: "shop-a", ExternalOrderID: "auto-unverified", AdjustmentType: "credit",
+		ExternalItemID: "item-auto", UserEmail: "buyer@example.com", PaidCNYFen: 1000, PaymentStatus: "paid",
+	}, true)
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("persisted auto-apply uncertainty must return 202: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var order SalesOrder
+	if err := json.Unmarshal(recorder.Body.Bytes(), &order); err != nil || order.Status != OrderAppliedUnverified || order.RechargeID == "" {
+		t.Fatalf("unexpected persisted order response: %+v err=%v", order, err)
+	}
+}
+
+func TestOrderPayloadConflictIsNeverMaskedByPersistedTransientState(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	request := orderCreateRequest{
+		Channel: "xianyu", Shop: "shop-a", ExternalOrderID: "payload-conflict", AdjustmentType: "credit",
+		UserEmail: "buyer@example.com", PaidCNYFen: 1000, PaymentStatus: "paid",
+	}
+	order, _, err := createSalesOrder(context.Background(), db, request, "operator-a", false)
+	if err != nil {
+		t.Fatalf("create order fixture: %v", err)
+	}
+	if err := db.Model(&SalesOrder{}).Where("id = ?", order.ID).Updates(map[string]any{"status": OrderRetryableFailed, "last_error_code": "recharge_pending"}).Error; err != nil {
+		t.Fatalf("mark transient fixture: %v", err)
+	}
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	request.PaidCNYFen = 999
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/sales/orders", nil)
+	handler.receiveOrder(ctx, request, false)
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "sales order conflict") {
+		t.Fatalf("payload conflict was masked: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestGeneratedKeyIsNeverPersistedInAudit(t *testing.T) {
 	db := openTestDB(t)
 	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
 	const rawSecret = "sk-one-time-secret-value"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"key": rawSecret, "user_id": "u-1", "key_alias": "new-key"})
 	}))
 	t.Cleanup(server.Close)
-	response, err := testClient(t, server).issueKey(context.Background(), keyMutationRequest{UserID: "u-1"})
-	if err != nil || response.RawKey != rawSecret {
-		t.Fatalf("issue key: %+v err=%v", response, err)
-	}
-	_, err = auditedManagement(db, "operator-a", "u-1", "key_issue", keyMutationRequest{UserID: "u-1"}, func() (any, error) { return response, nil })
+	client := testClient(t, server)
+	request := keyMutationRequest{UserID: "u-1"}
+	result, err := runFencedManagement(context.Background(), db, client, "operator-a", "u-1", "key", "u-1:new", "key_issue", request,
+		managementExpectedState{Kind: "key", Email: "buyer@example.com", RequiresManualOnly: true},
+		func() (any, error) { return client.issueKey(context.Background(), request) })
 	if err != nil {
-		t.Fatalf("audit: %v", err)
+		t.Fatalf("durable key issue: %v", err)
+	}
+	response := result.(*oneTimeKeyResponse)
+	if response.RawKey != rawSecret {
+		t.Fatalf("issue key response: %+v", response)
 	}
 	var attempts []OperationAttempt
 	if err := db.Find(&attempts).Error; err != nil {
 		t.Fatalf("read audit: %v", err)
 	}
-	stored, _ := json.Marshal(attempts)
+	var commands []ManagementCommand
+	if err := db.Find(&commands).Error; err != nil {
+		t.Fatalf("read commands: %v", err)
+	}
+	stored, _ := json.Marshal(struct {
+		Attempts []OperationAttempt
+		Commands []ManagementCommand
+	}{attempts, commands})
 	if strings.Contains(string(stored), rawSecret) {
 		t.Fatalf("raw key persisted in audit: %s", stored)
 	}

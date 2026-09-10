@@ -52,6 +52,9 @@ func migrateTestDB(t *testing.T, db *gorm.DB) {
 	if err := migrateOperations(db, OperationsMigrationID.String()); err != nil {
 		t.Fatalf("migrate operations: %v", err)
 	}
+	if err := migrateManagementFence(db, ManagementFenceMigrationID.String()); err != nil {
+		t.Fatalf("migrate management fence: %v", err)
+	}
 }
 
 const fullTestToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -552,6 +555,7 @@ func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	const usersPath = "/admin/api/litellmops/users"
 	const syncPath = "/admin/api/litellmops/sync"
 	const rechargePath = "/admin/api/litellmops/users/:id/recharge"
+	const managementResolvePath = "/admin/api/litellmops/management/commands/:id/resolve"
 
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "admin"}), PermissionUserList, "GET", usersPath); code != http.StatusOK {
 		t.Fatalf("admin should be allowed, got %d", code)
@@ -571,6 +575,12 @@ func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "admin"}), PermissionRecharge, "POST", rechargePath); code != http.StatusOK {
 		t.Fatalf("admin should recharge, got %d", code)
 	}
+	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "admin"}), PermissionManagementResolve, "POST", managementResolvePath); code != http.StatusOK {
+		t.Fatalf("admin should resolve quarantined management commands, got %d", code)
+	}
+	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "litellmops-finance"}), PermissionManagementResolve, "POST", managementResolvePath); code != http.StatusForbidden {
+		t.Fatalf("finance must not manually resolve management commands, got %d", code)
+	}
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: "stranger"}), PermissionUserList, "GET", usersPath); code != http.StatusForbidden {
 		t.Fatalf("unknown role must be denied, got %d", code)
 	}
@@ -579,5 +589,30 @@ func TestAdminAuthorizerEnforcesPolicy(t *testing.T) {
 	}
 	if code := performAuthorizedRequest(t, newAuthorizer(&fakeVerifier{role: ""}), PermissionUserList, "GET", usersPath); code != http.StatusUnauthorized {
 		t.Fatalf("missing role must be unauthorized, got %d", code)
+	}
+}
+
+func TestRuntimeReadinessRequiresManagementFenceSchema(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	if err := verifyRuntimeReadiness(context.Background(), db); err != nil {
+		t.Fatalf("complete schema should be ready: %v", err)
+	}
+	if err := db.Migrator().DropTable(&ManagementCommand{}); err != nil {
+		t.Fatalf("drop management command fixture: %v", err)
+	}
+	if err := verifyRuntimeReadiness(context.Background(), db); err == nil || !strings.Contains(err.Error(), "operations table") {
+		t.Fatalf("readiness accepted missing durable command table: %v", err)
+	}
+}
+
+func TestRuntimeReadinessRequiresRechargeObservationColumns(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	if err := db.Migrator().DropColumn(&RechargeRecord{}, "LastObservedKeyAt"); err != nil {
+		t.Fatalf("drop recharge observation column fixture: %v", err)
+	}
+	if err := verifyRuntimeReadiness(context.Background(), db); err == nil || !strings.Contains(err.Error(), "recharge reconciliation schema") {
+		t.Fatalf("readiness accepted incomplete recharge schema: %v", err)
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrOperationDisabled = errors.New("litellmops operation is disabled for this release")
+
 // registerBusinessRoutes mounts the module routes below the protected /api
 // group. Every route is bound to a casbin-enforced permission.
 func registerBusinessRoutes(group *gin.RouterGroup, runtime business.Runtime) error {
@@ -51,17 +53,21 @@ func registerBusinessRoutes(group *gin.RouterGroup, runtime business.Runtime) er
 	resource.GET("/bills", handler.secure(PermissionBills, handler.bills))
 	resource.POST("/users/:id/recharge", handler.secure(PermissionRecharge, handler.recharge))
 	resource.GET("/users/:id/recharges", handler.secure(PermissionUserRead, handler.listRecharges))
+	resource.POST("/recharges/:id/reconcile", handler.secure(PermissionRecharge, handler.reconcileRecharge))
+	resource.GET("/management/commands", handler.secure(PermissionManagementResolve, handler.listManagementCommands))
+	resource.POST("/management/commands/:id/reconcile", handler.secure(PermissionManagementResolve, handler.reconcileManagementCommand))
+	resource.POST("/management/commands/:id/resolve", handler.secure(PermissionManagementResolve, handler.resolveManagementCommand))
 	resource.GET("/organizations", handler.secure(PermissionOrgList, handler.listOrganizations))
-	resource.POST("/organizations", handler.secure(PermissionOrgWrite, handler.createOrganization))
+	resource.POST("/organizations", handler.secure(PermissionOrgWrite, handler.operationDisabled))
 	resource.GET("/organizations/:id", handler.secure(PermissionOrgRead, handler.getOrganization))
-	resource.PATCH("/organizations/:id", handler.secure(PermissionOrgWrite, handler.updateOrganization))
-	resource.DELETE("/organizations/:id", handler.secure(PermissionOrgWrite, handler.deleteOrganization))
-	resource.POST("/organizations/:id/recharge", handler.secure(PermissionOrgWrite, handler.rechargeOrganization))
-	resource.POST("/organizations/:id/members", handler.secure(PermissionOrgWrite, handler.addOrganizationMember))
-	resource.POST("/organizations/:id/members/remove", handler.secure(PermissionOrgWrite, handler.deleteOrganizationMember))
-	resource.POST("/organizations/:id/teams", handler.secure(PermissionOrgWrite, handler.createTeam))
-	resource.POST("/teams/:teamId/recharge", handler.secure(PermissionOrgWrite, handler.rechargeTeam))
-	resource.DELETE("/teams/:teamId", handler.secure(PermissionOrgWrite, handler.deleteTeam))
+	resource.PATCH("/organizations/:id", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.DELETE("/organizations/:id", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.POST("/organizations/:id/recharge", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.POST("/organizations/:id/members", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.POST("/organizations/:id/members/remove", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.POST("/organizations/:id/teams", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.POST("/teams/:teamId/recharge", handler.secure(PermissionOrgWrite, handler.operationDisabled))
+	resource.DELETE("/teams/:teamId", handler.secure(PermissionOrgWrite, handler.operationDisabled))
 	resource.GET("/sales/products", handler.secure(PermissionProductRead, handler.listProducts))
 	resource.POST("/sales/products", handler.secure(PermissionProductWrite, handler.createProduct))
 	resource.PATCH("/sales/products/:id", handler.secure(PermissionProductWrite, handler.updateProduct))
@@ -84,16 +90,30 @@ type requestHandler struct {
 }
 
 func writeAPIError(ctx *gin.Context, err error) {
+	var commandResult *managementCommandResultError
+	if errors.As(err, &commandResult) {
+		ctx.AbortWithStatusJSON(http.StatusAccepted, gin.H{
+			"code": "management_reconcile_required", "error": commandResult.Error(),
+			"command": publicManagementCommand(commandResult.Command),
+		})
+		return
+	}
 	status, code, message := http.StatusInternalServerError, "internal_error", "litellmops operation failed"
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		status, code, message = http.StatusNotFound, "not_found", "litellmops resource not found"
+	case errors.Is(err, ErrManagementPending):
+		status, code, message = http.StatusConflict, "management_pending", err.Error()
+	case errors.Is(err, ErrManagementUnverified):
+		status, code, message = http.StatusConflict, "management_reconcile_required", err.Error()
 	case errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOrderConflict), errors.Is(err, ErrRechargeBusy), errors.Is(err, ErrPendingRecharge), errors.Is(err, ErrInvalidOrderState), errors.Is(err, ErrOrderBusy):
 		status, code, message = http.StatusConflict, "conflict", err.Error()
 	case errors.Is(err, ErrInvalidRecharge), errors.Is(err, ErrUnlimitedBudget), errors.Is(err, ErrInvalidProduct), errors.Is(err, ErrInvalidOrder):
 		status, code, message = http.StatusUnprocessableEntity, "invalid_request", err.Error()
 	case errors.Is(err, ErrReconcileRequired):
 		status, code, message = http.StatusConflict, "reconcile_required", err.Error()
+	case errors.Is(err, ErrOperationDisabled):
+		status, code, message = http.StatusNotImplemented, "operation_disabled", err.Error()
 	default:
 		var upstream *UpstreamError
 		if errors.As(err, &upstream) {
@@ -101,6 +121,10 @@ func writeAPIError(ctx *gin.Context, err error) {
 		}
 	}
 	ctx.AbortWithStatusJSON(status, gin.H{"error": message, "code": code})
+}
+
+func (handler *requestHandler) operationDisabled(ctx *gin.Context) {
+	writeAPIError(ctx, ErrOperationDisabled)
 }
 
 // secure enforces the casbin permission before the handler runs.
@@ -297,6 +321,23 @@ func (handler *requestHandler) recharge(ctx *gin.Context) {
 		}
 	}
 	record, err := ApplyRecharge(ctx.Request.Context(), db, client, snapshot, request, operator)
+	if err != nil {
+		if record != nil && (record.Status == RechargeAppliedUnverified || record.Status == RechargeRetryableFailed || record.Status == RechargeReconcileRequired) {
+			ctx.JSON(http.StatusAccepted, record)
+			return
+		}
+		writeAPIError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, record)
+}
+
+func (handler *requestHandler) reconcileRecharge(ctx *gin.Context) {
+	db, client, ok := handler.managementClient(ctx)
+	if !ok {
+		return
+	}
+	record, err := ReconcileRechargeAs(ctx.Request.Context(), db, client, strings.TrimSpace(ctx.Param("id")), handler.operator(ctx))
 	if err != nil {
 		if record != nil && (record.Status == RechargeAppliedUnverified || record.Status == RechargeRetryableFailed || record.Status == RechargeReconcileRequired) {
 			ctx.JSON(http.StatusAccepted, record)

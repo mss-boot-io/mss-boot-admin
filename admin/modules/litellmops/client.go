@@ -140,31 +140,7 @@ func (key RemoteKey) IsSession() bool {
 }
 
 func (client *Client) getJSON(ctx context.Context, path string, query url.Values, out any) error {
-	endpoint := client.baseURL + path
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return fmt.Errorf("litellmops build LiteLLM request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+client.masterKey)
-	resp, err := client.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("litellmops call LiteLLM %s: %w", path, err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-	if err != nil {
-		return fmt.Errorf("litellmops read LiteLLM %s response: %w", path, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("litellmops LiteLLM %s returned status %d", path, resp.StatusCode)
-	}
-	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("litellmops decode LiteLLM %s response: %w", path, err)
-	}
-	return nil
+	return client.doJSON(ctx, http.MethodGet, path, query, nil, out)
 }
 
 func (client *Client) postJSON(ctx context.Context, path string, payload any, out any) error {

@@ -42,6 +42,7 @@ const (
 	PermissionKeyRevoke         = "litellmops:key-revoke"
 	PermissionGatewayRead       = "litellmops:gateway-read"
 	PermissionGatewayWrite      = "litellmops:gateway-write"
+	PermissionManagementResolve = "litellmops:management-resolve"
 )
 
 // ModuleName is the stable registry identifier.
@@ -100,6 +101,7 @@ func descriptor() business.Descriptor {
 			{Code: PermissionKeyRevoke, DisplayName: "停用或删除 LiteLLM Key", DefaultRoles: []string{"admin"}},
 			{Code: PermissionGatewayRead, DisplayName: "查看 LiteLLM 网关状态", DefaultRoles: []string{"admin", "litellmops-finance", "litellmops-readonly"}},
 			{Code: PermissionGatewayWrite, DisplayName: "管理 LiteLLM 模型", DefaultRoles: []string{"admin"}},
+			{Code: PermissionManagementResolve, DisplayName: "对账和结案不确定管理命令", DefaultRoles: []string{"admin"}},
 		},
 		Menu: business.Menu{
 			Path:          "/litellm-ops",

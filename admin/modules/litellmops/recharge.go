@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,32 +61,36 @@ type RechargeRequest struct {
 // RechargeRecord is the durable command and audit source of truth. Float
 // fields are compatibility projections; decisions use integer micro USD.
 type RechargeRecord struct {
-	ID                   string     `gorm:"column:id;type:varchar(64);primaryKey" json:"id"`
-	CreatedAt            time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt            time.Time  `gorm:"column:updated_at" json:"updated_at"`
-	CompletedAt          *time.Time `gorm:"column:completed_at" json:"completed_at"`
-	UserID               string     `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:ux_litellmops_recharge_idempotency,priority:1" json:"user_id"`
-	Email                string     `gorm:"column:email;type:varchar(254)" json:"email"`
-	Amount               float64    `gorm:"column:amount;not null;default:0" json:"amount"`
-	BeforeBudget         float64    `gorm:"column:before_budget;not null;default:0" json:"before_budget"`
-	AfterBudget          float64    `gorm:"column:after_budget;not null;default:0" json:"after_budget"`
-	AmountUSDMicro       int64      `gorm:"column:amount_usd_micro;not null;default:0" json:"amount_usd_micro"`
-	BeforeBudgetUSDMicro *int64     `gorm:"column:before_budget_usd_micro" json:"before_budget_usd_micro"`
-	TargetAfterUSDMicro  *int64     `gorm:"column:target_after_usd_micro" json:"target_after_usd_micro"`
-	RaiseKeys            bool       `gorm:"column:raise_keys;not null;default:false" json:"raise_keys"`
-	KeysUpdated          string     `gorm:"column:keys_updated;type:text" json:"keys_updated"`
-	Operator             string     `gorm:"column:operator;type:varchar(128);not null" json:"operator"`
-	Reason               string     `gorm:"column:reason;type:varchar(512)" json:"reason"`
-	IdempotencyKey       string     `gorm:"column:idempotency_key;type:varchar(128);not null;uniqueIndex:ux_litellmops_recharge_idempotency,priority:2" json:"idempotency_key"`
-	PayloadHash          string     `gorm:"column:payload_hash;type:varchar(64);not null;default:''" json:"payload_hash"`
-	Source               string     `gorm:"column:source;type:varchar(32);not null;default:'manual'" json:"source"`
-	SourceRef            string     `gorm:"column:source_ref;type:varchar(128)" json:"source_ref"`
-	Status               string     `gorm:"column:status;type:varchar(32);not null;index" json:"status"`
-	LastErrorCode        string     `gorm:"column:last_error_code;type:varchar(64)" json:"last_error_code"`
-	UncertainSince       *time.Time `gorm:"column:uncertain_since;index" json:"uncertain_since"`
-	LastObservedUSDMicro *int64     `gorm:"column:last_observed_usd_micro" json:"-"`
-	LastObservedAt       *time.Time `gorm:"column:last_observed_at" json:"-"`
-	Version              int64      `gorm:"column:version;not null;default:1" json:"version"`
+	ID                      string     `gorm:"column:id;type:varchar(64);primaryKey" json:"id"`
+	CreatedAt               time.Time  `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt               time.Time  `gorm:"column:updated_at" json:"updated_at"`
+	CompletedAt             *time.Time `gorm:"column:completed_at" json:"completed_at"`
+	UserID                  string     `gorm:"column:user_id;type:varchar(64);not null;uniqueIndex:ux_litellmops_recharge_idempotency,priority:1" json:"user_id"`
+	Email                   string     `gorm:"column:email;type:varchar(254)" json:"email"`
+	Amount                  float64    `gorm:"column:amount;not null;default:0" json:"amount"`
+	BeforeBudget            float64    `gorm:"column:before_budget;not null;default:0" json:"before_budget"`
+	AfterBudget             float64    `gorm:"column:after_budget;not null;default:0" json:"after_budget"`
+	AmountUSDMicro          int64      `gorm:"column:amount_usd_micro;not null;default:0" json:"amount_usd_micro"`
+	BeforeBudgetUSDMicro    *int64     `gorm:"column:before_budget_usd_micro" json:"before_budget_usd_micro"`
+	TargetAfterUSDMicro     *int64     `gorm:"column:target_after_usd_micro" json:"target_after_usd_micro"`
+	RaiseKeys               bool       `gorm:"column:raise_keys;not null;default:false" json:"raise_keys"`
+	KeysUpdated             string     `gorm:"column:keys_updated;type:text" json:"keys_updated"`
+	Operator                string     `gorm:"column:operator;type:varchar(128);not null" json:"operator"`
+	Reason                  string     `gorm:"column:reason;type:varchar(512)" json:"reason"`
+	IdempotencyKey          string     `gorm:"column:idempotency_key;type:varchar(128);not null;uniqueIndex:ux_litellmops_recharge_idempotency,priority:2" json:"idempotency_key"`
+	PayloadHash             string     `gorm:"column:payload_hash;type:varchar(64);not null;default:''" json:"payload_hash"`
+	Source                  string     `gorm:"column:source;type:varchar(32);not null;default:'manual'" json:"source"`
+	SourceRef               string     `gorm:"column:source_ref;type:varchar(128)" json:"source_ref"`
+	Status                  string     `gorm:"column:status;type:varchar(32);not null;index" json:"status"`
+	LastErrorCode           string     `gorm:"column:last_error_code;type:varchar(64)" json:"last_error_code"`
+	UncertainSince          *time.Time `gorm:"column:uncertain_since;index" json:"uncertain_since"`
+	LastObservedUSDMicro    *int64     `gorm:"column:last_observed_usd_micro" json:"-"`
+	LastObservedAt          *time.Time `gorm:"column:last_observed_at" json:"-"`
+	LastObservedKeyPrefix   string     `gorm:"column:last_observed_key_prefix;type:varchar(16)" json:"-"`
+	LastObservedKeyUSDMicro *int64     `gorm:"column:last_observed_key_usd_micro" json:"-"`
+	LastObservedKeyAt       *time.Time `gorm:"column:last_observed_key_at" json:"-"`
+	Version                 int64      `gorm:"column:version;not null;default:1" json:"version"`
+	AuditOperator           string     `gorm:"-" json:"-"`
 }
 
 func (RechargeRecord) TableName() string { return "litellmops_recharge" }
@@ -210,6 +215,13 @@ func reserveRecharge(ctx context.Context, db *gorm.DB, snapshot UserSnapshot, re
 		if pending != 0 {
 			return ErrPendingRecharge
 		}
+		managementPending, err := hasPendingManagement(ctx, tx, snapshot.UserID, snapshot.Email, "")
+		if err != nil {
+			return err
+		}
+		if managementPending {
+			return ErrManagementPending
+		}
 		if err := tx.Create(record).Error; err != nil {
 			return err
 		}
@@ -235,10 +247,14 @@ func createAttempt(db *gorm.DB, record *RechargeRecord, step, digest, result str
 		return err
 	}
 	now := time.Now().UTC()
+	operator := record.Operator
+	if strings.TrimSpace(record.AuditOperator) != "" {
+		operator = strings.TrimSpace(record.AuditOperator)
+	}
 	return db.Create(&OperationAttempt{
 		ID: newSnapshotID(), OperationType: "recharge", OperationID: record.ID,
 		Step: step, Attempt: int(count + 1), RequestDigest: digest,
-		ResultCode: result, StartedAt: now, FinishedAt: &now, Operator: record.Operator,
+		ResultCode: result, StartedAt: now, FinishedAt: &now, Operator: operator,
 	}).Error
 }
 
@@ -378,7 +394,12 @@ func saveRecharge(ctx context.Context, db *gorm.DB, record *RechargeRecord, valu
 	if result.RowsAffected != 1 {
 		return ErrRechargeBusy
 	}
-	return db.WithContext(ctx).First(record, "id = ?", record.ID).Error
+	auditOperator := record.AuditOperator
+	if err := db.WithContext(ctx).First(record, "id = ?", record.ID).Error; err != nil {
+		return err
+	}
+	record.AuditOperator = auditOperator
+	return nil
 }
 
 func failRecharge(ctx context.Context, db *gorm.DB, record *RechargeRecord, status, code, step string) error {
@@ -402,6 +423,7 @@ func completeRecharge(ctx context.Context, db *gorm.DB, record *RechargeRecord, 
 		if err := saveRecharge(ctx, tx, record, map[string]any{
 			"status": RechargeCompleted, "last_error_code": "", "keys_updated": string(encodedKeys), "completed_at": completedAt,
 			"uncertain_since": nil, "last_observed_usd_micro": nil, "last_observed_at": nil,
+			"last_observed_key_prefix": "", "last_observed_key_usd_micro": nil, "last_observed_key_at": nil,
 		}); err != nil {
 			return err
 		}
@@ -436,22 +458,23 @@ func uncertainRetryWindowElapsed(record *RechargeRecord, now time.Time) bool {
 }
 
 func observeKeyBudget(ctx context.Context, db *gorm.DB, record *RechargeRecord, prefix string, value int64) (bool, error) {
-	step := "observe_key:" + prefix
-	result := fmt.Sprintf("observed:%d", value)
-	var previous OperationAttempt
-	query := db.WithContext(ctx).Where(
-		"operation_type = ? AND operation_id = ? AND step = ? AND result_code = ?",
-		"recharge", record.ID, step, result,
-	).Order("started_at DESC").Limit(1).Find(&previous)
-	if query.Error != nil {
-		return false, query.Error
-	}
 	now := time.Now().UTC()
-	stable := query.RowsAffected == 1 && now.Sub(previous.StartedAt) >= rechargeStableObservationWindow
-	if err := createAttempt(db.WithContext(ctx), record, step, rechargePayloadHash(prefix, value, false), result); err != nil {
-		return false, err
-	}
-	return stable, nil
+	same := record.LastObservedKeyPrefix == prefix && record.LastObservedKeyUSDMicro != nil &&
+		*record.LastObservedKeyUSDMicro == value && record.LastObservedKeyAt != nil
+	stable := same && now.Sub(*record.LastObservedKeyAt) >= rechargeStableObservationWindow
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		values := map[string]any{}
+		if !same {
+			values["last_observed_key_prefix"] = prefix
+			values["last_observed_key_usd_micro"] = value
+			values["last_observed_key_at"] = now
+		}
+		if err := saveRecharge(ctx, tx, record, values); err != nil {
+			return err
+		}
+		return createAttempt(tx, record, "observe_key:"+prefix, rechargePayloadHash(prefix, value, false), fmt.Sprintf("observed:%d", value))
+	})
+	return stable, err
 }
 
 // ApplyRecharge first reserves the command and then executes its persisted
@@ -485,10 +508,17 @@ func ApplyRecharge(ctx context.Context, db *gorm.DB, client *Client, snapshot Us
 }
 
 func ReconcileRecharge(ctx context.Context, db *gorm.DB, client *Client, rechargeID string) (*RechargeRecord, error) {
+	return ReconcileRechargeAs(ctx, db, client, rechargeID, "")
+}
+
+// ReconcileRechargeAs records the operator who performed this reconciliation
+// without changing the immutable creator on the recharge command itself.
+func ReconcileRechargeAs(ctx context.Context, db *gorm.DB, client *Client, rechargeID, actor string) (*RechargeRecord, error) {
 	var record RechargeRecord
 	if err := db.WithContext(ctx).First(&record, "id = ?", rechargeID).Error; err != nil {
 		return nil, err
 	}
+	record.AuditOperator = strings.TrimSpace(actor)
 	if record.Status == RechargeCompleted {
 		return &record, nil
 	}
@@ -518,9 +548,11 @@ func reconcileRechargeReadOnly(ctx context.Context, db *gorm.DB, client *Client,
 		return record, ErrRechargeBusy
 	}
 	defer releaseUserLease(context.Background(), db, record.UserID, holder)
+	auditOperator := record.AuditOperator
 	if err := db.WithContext(ctx).First(record, "id = ?", record.ID).Error; err != nil {
 		return record, err
 	}
+	record.AuditOperator = auditOperator
 	var head RechargeRecord
 	result := db.WithContext(ctx).Where("user_id = ? AND status IN ?", record.UserID, pendingRechargeStatuses()).Order("created_at ASC, id ASC").Limit(1).Find(&head)
 	if result.Error != nil {
@@ -601,6 +633,7 @@ func reconcileRechargeReadOnly(ctx context.Context, db *gorm.DB, client *Client,
 			}
 			return record, ErrReconcileRequired
 		}
+		sort.Slice(keys, func(i, j int) bool { return keys[i].Prefix() < keys[j].Prefix() })
 		keyTarget := target
 		if keyTarget > KeyBudgetCeilingMicro {
 			keyTarget = KeyBudgetCeilingMicro
@@ -675,9 +708,11 @@ func executeRecharge(ctx context.Context, db *gorm.DB, client *Client, record *R
 		return record, ErrRechargeBusy
 	}
 	defer releaseUserLease(context.Background(), db, record.UserID, holder)
+	auditOperator := record.AuditOperator
 	if err := db.WithContext(ctx).First(record, "id = ?", record.ID).Error; err != nil {
 		return record, err
 	}
+	record.AuditOperator = auditOperator
 	if record.Status == RechargeCompleted {
 		return record, nil
 	}
@@ -798,6 +833,7 @@ func executeRecharge(ctx context.Context, db *gorm.DB, client *Client, record *R
 			}
 			return record, ErrReconcileRequired
 		}
+		sort.Slice(keys, func(i, j int) bool { return keys[i].Prefix() < keys[j].Prefix() })
 		for _, key := range keys {
 			if key.UserID != record.UserID || key.IsSession() || key.MaxBudget == nil {
 				continue

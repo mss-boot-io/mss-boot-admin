@@ -28,13 +28,16 @@ var authorizationRoutes = map[string][]authorizationRoute{
 		{method: "GET", path: "/admin/api/litellmops/users/:id"},
 		{method: "GET", path: "/admin/api/litellmops/users/:id/recharges"},
 	},
-	PermissionKeyList:  {{method: "GET", path: "/admin/api/litellmops/keys"}},
-	PermissionKeyRead:  {{method: "GET", path: "/admin/api/litellmops/keys/:id"}},
-	PermissionSync:     {{method: "POST", path: "/admin/api/litellmops/sync"}},
-	PermissionBills:    {{method: "GET", path: "/admin/api/litellmops/bills"}},
-	PermissionRecharge: {{method: "POST", path: "/admin/api/litellmops/users/:id/recharge"}},
-	PermissionOrgList:  {{method: "GET", path: "/admin/api/litellmops/organizations"}},
-	PermissionOrgRead:  {{method: "GET", path: "/admin/api/litellmops/organizations/:id"}},
+	PermissionKeyList: {{method: "GET", path: "/admin/api/litellmops/keys"}},
+	PermissionKeyRead: {{method: "GET", path: "/admin/api/litellmops/keys/:id"}},
+	PermissionSync:    {{method: "POST", path: "/admin/api/litellmops/sync"}},
+	PermissionBills:   {{method: "GET", path: "/admin/api/litellmops/bills"}},
+	PermissionRecharge: {
+		{method: "POST", path: "/admin/api/litellmops/users/:id/recharge"},
+		{method: "POST", path: "/admin/api/litellmops/recharges/:id/reconcile"},
+	},
+	PermissionOrgList: {{method: "GET", path: "/admin/api/litellmops/organizations"}},
+	PermissionOrgRead: {{method: "GET", path: "/admin/api/litellmops/organizations/:id"}},
 	PermissionOrgWrite: {
 		{method: "POST", path: "/admin/api/litellmops/organizations"},
 		{method: "PATCH", path: "/admin/api/litellmops/organizations/:id"},
@@ -95,6 +98,11 @@ var authorizationRoutes = map[string][]authorizationRoute{
 	PermissionGatewayWrite: {
 		{method: "POST", path: "/admin/api/litellmops/gateway/models/:id/block"},
 		{method: "POST", path: "/admin/api/litellmops/gateway/models/:id/unblock"},
+	},
+	PermissionManagementResolve: {
+		{method: "GET", path: "/admin/api/litellmops/management/commands"},
+		{method: "POST", path: "/admin/api/litellmops/management/commands/:id/reconcile"},
+		{method: "POST", path: "/admin/api/litellmops/management/commands/:id/resolve"},
 	},
 }
 

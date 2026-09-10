@@ -449,7 +449,7 @@ func executeSalesOrder(ctx context.Context, db *gorm.DB, client *Client, order *
 	recharge, _, err := reserveRecharge(ctx, db, snapshot, rechargeRequest, actor)
 	if err != nil {
 		status, code := OrderTerminalFailed, "recharge_reservation_failed"
-		if errors.Is(err, ErrRechargeBusy) || errors.Is(err, ErrPendingRecharge) {
+		if errors.Is(err, ErrRechargeBusy) || errors.Is(err, ErrPendingRecharge) || errors.Is(err, ErrManagementPending) {
 			status, code = OrderRetryableFailed, "recharge_pending"
 		}
 		if stateErr := updateClaimedOrder(ctx, db, order, holder, fence, map[string]any{"status": status, "last_error_code": code}, true, "execute", code, actor); stateErr != nil {
@@ -467,7 +467,7 @@ func executeSalesOrder(ctx context.Context, db *gorm.DB, client *Client, order *
 	})
 	if recharge.Status != RechargeCompleted {
 		if recharge.TargetAfterUSDMicro != nil && (recharge.Status == RechargeExecuting || recharge.Status == RechargeAppliedUnverified || recharge.Status == RechargeReconcileRequired) {
-			recharge, err = ReconcileRecharge(rechargeCtx, db, client, recharge.ID)
+			recharge, err = ReconcileRechargeAs(rechargeCtx, db, client, recharge.ID, actor)
 		} else {
 			recharge, err = executeRecharge(rechargeCtx, db, client, recharge)
 		}
@@ -506,7 +506,16 @@ func reconcileSalesOrder(ctx context.Context, db *gorm.DB, client *Client, order
 	rechargeID := order.RechargeID
 	if order.RechargeID == "" {
 		var recharge RechargeRecord
-		if err := db.WithContext(ctx).Where("source = ? AND source_ref = ?", "sales_order", order.ID).First(&recharge).Error; err != nil {
+		lookupErr := db.WithContext(ctx).Where("source = ? AND source_ref = ?", "sales_order", order.ID).First(&recharge).Error
+		if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			return lookupErr
+		}
+		if errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			if order.Status == OrderRetryableFailed {
+				// No remote write was started because reservation was blocked.
+				// Reuse the normal execution path and its stable order idempotency key.
+				return executeSalesOrder(ctx, db, client, order, actor)
+			}
 			holder, fence, claimErr := claimOrderExecution(ctx, db, order, []string{OrderExecuting}, actor, "reconcile_start")
 			if claimErr != nil {
 				return claimErr
@@ -516,7 +525,7 @@ func reconcileSalesOrder(ctx context.Context, db *gorm.DB, client *Client, order
 				true, "reconcile", "missing_recharge_reservation", actor); stateErr != nil {
 				return stateErr
 			}
-			return ErrInvalidOrderState
+			return executeSalesOrder(ctx, db, client, order, actor)
 		}
 		rechargeID = recharge.ID
 	}
@@ -533,7 +542,7 @@ func reconcileSalesOrder(ctx context.Context, db *gorm.DB, client *Client, order
 	rechargeCtx := withRechargeLeaseGuard(ctx, func(guardCtx context.Context) error {
 		return renewClaimedOrder(guardCtx, db, order, holder, fence)
 	})
-	recharge, err := ReconcileRecharge(rechargeCtx, db, client, rechargeID)
+	recharge, err := ReconcileRechargeAs(rechargeCtx, db, client, rechargeID, actor)
 	if renewErr := renewClaimedOrder(ctx, db, order, holder, fence); renewErr != nil {
 		return renewErr
 	}
@@ -866,6 +875,9 @@ func (handler *requestHandler) receiveOrder(ctx *gin.Context, request orderCreat
 		}
 	}
 	if err != nil {
+		if persistedOrderResponse(ctx, db, order) {
+			return
+		}
 		writeAPIError(ctx, err)
 		return
 	}
@@ -930,8 +942,27 @@ func (handler *requestHandler) orderAction(ctx *gin.Context, action func(*gorm.D
 		err = action(db, order)
 	}
 	if err != nil {
+		if persistedOrderResponse(ctx, db, order) {
+			return
+		}
 		writeAPIError(ctx, err)
 		return
 	}
 	ctx.JSON(200, order)
+}
+
+func persistedOrderResponse(ctx *gin.Context, db *gorm.DB, order *SalesOrder) bool {
+	if order == nil || strings.TrimSpace(order.ID) == "" {
+		return false
+	}
+	if err := db.WithContext(ctx.Request.Context()).First(order, "id = ?", order.ID).Error; err != nil {
+		return false
+	}
+	switch order.Status {
+	case OrderAppliedUnverified, OrderRetryableFailed, OrderReconcileRequired:
+		ctx.JSON(http.StatusAccepted, order)
+		return true
+	default:
+		return false
+	}
 }
