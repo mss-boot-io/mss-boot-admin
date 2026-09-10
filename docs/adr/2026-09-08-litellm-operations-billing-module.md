@@ -48,7 +48,7 @@ LiteLLM 侧：
 - 集群内地址 `http://litellm.litellm.svc.cluster.local:4000`；数据库 `litellm-timescaledb.litellm.svc.cluster.local:5432`（TimescaleDB，库 `litellm`）。
 - 运行时保护模块（`cliproxy_key_limits` / `cliproxy_stream_usage` / `cliproxy_user_limits`）锁定 1.100.0 源码与 schema；`proxy_admin` 对预算、周期字段全放行，普通用户被挡。
 - `max_internal_user_budget: 5` 仅为新建用户默认值填充，**不是** `/user/update` 的上限（源码核实：`internal_user_endpoints.py:199` 等仅做缺省填充）。
-- Key 预算独立封顶：默认 $5、`upperbound` $10。给用户加额后若 Key 预算更小，会在 Key 侧先封顶，充值必须联动检查。
+- Key 预算独立封顶：默认 $5；当前 `upperbound_key_generate_params.max_budget` 为 $1000（2026-09-10 复核部署配置）。给用户加额后若 Key 预算更小，会在 Key 侧先封顶，充值必须联动检查；该上限变更时须同步审查执行器常量与测试。
 - 授权与用户额度变更经各实例本地缓存，传播窗口约 60 秒；充值回读校验必须容忍该延迟。
 - UI 每次登录自动签发 24h / $1 / 无别名会话 Key，会污染用户 Key 列表，快照需可过滤。
 - 计费口径边界：gpt-5.6-luna 官方 >272K 才加价，LiteLLM 只有 200K 档位键，200K–272K 区间按高费率计；缓存写 1.25x 未配置；流式计量修复前的历史账目有估算偏差且未回填。
@@ -104,7 +104,7 @@ mss-boot-admin（admin 应用，litellmops 模块）
 流程：创建（校验目标用户存在、参数合法）→ 审批（可选，配置开关）→ 执行（调 LiteLLM API，记录响应摘要）→ 回读校验（`/user/info` 复核目标字段，容忍 ~60s 缓存延迟，有限重试）→ 完成 / 失败。
 
 - 幂等：幂等键 = 目标用户 + 类型 + 金额 + 业务日期（或显式 client_token）；执行前查重；执行失败可安全重试，不产生双份。
-- Key 联动：`add_credit` 执行前检测该用户 Key 预算封顶，列出会卡顶的 Key，操作人确认后同步调 `/key/update`（upperbound $10 以内）。
+- Key 联动：`add_credit` 执行前检测该用户 Key 预算封顶，列出会卡顶的 Key，操作人确认后同步调 `/key/update`（不得超过当前部署的 upperbound，现值 $1000）。
 - 审计：操作人、审批人、时间、变更前后值、LiteLLM 响应摘要，追加不可改。
 
 ### 5.3 账单

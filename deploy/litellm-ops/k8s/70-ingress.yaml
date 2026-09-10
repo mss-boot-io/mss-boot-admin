@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: litellm-ops
+  namespace: litellm-ops
+  annotations:
+    cert-manager.io/issuer: litellm-ops-letsencrypt-production
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-redirect-from: "http://litellm-ops.flypool.io"
+    nginx.ingress.kubernetes.io/proxy-redirect-to: "https://litellm-ops.flypool.io"
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [litellm-ops.flypool.io]
+      secretName: litellm-ops-tls
+  rules:
+    - host: litellm-ops.flypool.io
+      http:
+        paths:
+          - path: /admin/api
+            pathType: Prefix
+            backend:
+              service:
+                name: litellm-ops-admin
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: litellm-ops-web
+                port:
+                  number: 80

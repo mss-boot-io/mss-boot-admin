@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-ops-web
+  namespace: litellm
+  labels: { app: litellm-ops-web }
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: { app: litellm-ops-web }
+  template:
+    metadata:
+      labels: { app: litellm-ops-web }
+      annotations:
+        release.flypool.io/revision: RELEASE_REVISION_REQUIRED
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: web
+          image: registry.invalid/litellm-ops/web:RELEASE_TAG_REQUIRED
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 1m, memory: 16Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - { name: nginx-cache, mountPath: /var/cache/nginx }
+            - { name: nginx-run, mountPath: /run }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: nginx-cache
+          emptyDir: { sizeLimit: 32Mi }
+        - name: nginx-run
+          emptyDir: { sizeLimit: 8Mi }
+        - name: tmp
+          emptyDir: { sizeLimit: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-ops-web
+  namespace: litellm
+spec:
+  selector: { app: litellm-ops-web }
+  ports:
+    - { name: http, port: 80, targetPort: http }

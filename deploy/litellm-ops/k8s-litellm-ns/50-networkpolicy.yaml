@@ -1,0 +1,17 @@
+# Abandoned. Applying an egress deny-all here would break LiteLLM.
+# The live allow rules are in cliproxy:
+#   /root/workspace/cliproxy/k8s/litellm/network-policies.yaml
+#     allow-litellm-ops-to-timescaledb
+#     allow-litellm-ops-to-litellm
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-ops-do-not-apply-this-directory
+  namespace: litellm-ops
+  labels:
+    app.kubernetes.io/part-of: litellm-ops
+    app.kubernetes.io/component: abandoned-warning
+data:
+  readme: |
+    Do not apply deploy/litellm-ops/k8s-litellm-ns/.
+    Live workloads belong in namespace litellm-ops using ../k8s/.

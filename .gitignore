@@ -60,3 +60,18 @@ web/antd-v6/playwright-report/
 .mss/logs/
 .mss/cache/
 .mss/output/
+
+# LiteLLM Ops release staging and local recovery artifacts. Keep only the
+# container recipes below; binaries, frontend bundles, logs, and database
+# copies must never enter Git.
+/deploy/litellm-ops/build/backend/*
+!/deploy/litellm-ops/build/backend/Dockerfile
+/deploy/litellm-ops/build/web/*
+!/deploy/litellm-ops/build/web/Dockerfile
+!/deploy/litellm-ops/build/web/nginx.conf
+/deploy/litellm-ops/rendered/
+/deploy/litellm-ops/backups/
+/deploy/litellm-ops/**/*.db
+/deploy/litellm-ops/**/*.db-wal
+/deploy/litellm-ops/**/*.db-shm
+/deploy/litellm-ops/**/mss-boot-admin

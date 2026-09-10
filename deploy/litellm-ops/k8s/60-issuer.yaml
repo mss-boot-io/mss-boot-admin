@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: litellm-ops-letsencrypt-production
+  namespace: litellm-ops
+spec:
+  acme:
+    email: lwnmengjing@gmail.com
+    privateKeySecretRef:
+      name: litellm-ops-letsencrypt-production-account-key
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
