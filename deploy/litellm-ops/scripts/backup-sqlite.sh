@@ -39,6 +39,7 @@ done
 }
 
 command -v kubectl >/dev/null || { echo "missing command: kubectl" >&2; exit 1; }
+command -v tar >/dev/null || { echo "missing command: tar" >&2; exit 1; }
 replicas="$(kubectl --context "$kube_context" -n litellm-ops get deployment litellm-ops-admin -o jsonpath='{.spec.replicas}')"
 [[ "$replicas" == "0" ]] || {
   echo "admin Deployment must be scaled to zero before an offline backup" >&2
@@ -59,9 +60,13 @@ helper_image="$(kubectl --context "$kube_context" -n litellm-ops get deployment 
 
 pod_name="litellm-ops-backup-$(date -u +%Y%m%d%H%M%S)-$$"
 partial_file="${output_file}.partial.$$"
+delete_helper() {
+  kubectl --context "$kube_context" -n litellm-ops delete pod "$pod_name" \
+    --ignore-not-found --wait=true --timeout=60s >/dev/null
+}
 cleanup() {
   rm -f -- "$partial_file"
-  kubectl --context "$kube_context" -n litellm-ops delete pod "$pod_name" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  delete_helper >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -85,7 +90,19 @@ spec:
       image: $helper_image
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-ec"]
-      args: ["tar -C /data -czf /scratch/litellm-ops-data.tgz . && test -s /scratch/litellm-ops-data.tgz"]
+      args:
+        - |
+          archive=/scratch/litellm-ops-data.tgz
+          marker=/scratch/backup.ready
+          rm -f -- "\$marker"
+          tar -C /data -czf "\$archive" .
+          test -s "\$archive"
+          : >"\$marker"
+          trap 'exit 0' TERM INT
+          while :; do
+            sleep 30 &
+            wait \$!
+          done
       securityContext:
         allowPrivilegeEscalation: false
         capabilities: { drop: ["ALL"] }
@@ -106,17 +123,27 @@ spec:
       emptyDir: { sizeLimit: 32Mi }
 EOF
 
+backup_ready=false
 for _ in $(seq 1 90); do
   phase="$(kubectl --context "$kube_context" -n litellm-ops get pod "$pod_name" -o jsonpath='{.status.phase}')"
-  [[ "$phase" == "Succeeded" ]] && break
+  if [[ "$phase" == "Running" ]] && kubectl --context "$kube_context" -n litellm-ops exec \
+    -c backup "$pod_name" -- test -f /scratch/backup.ready -a -s /scratch/litellm-ops-data.tgz; then
+    backup_ready=true
+    break
+  fi
   [[ "$phase" == "Failed" ]] && { echo "backup pod failed" >&2; exit 1; }
+  [[ "$phase" == "Succeeded" ]] && { echo "backup pod exited before the archive was copied" >&2; exit 1; }
   sleep 2
 done
-[[ "${phase:-}" == "Succeeded" ]] || { echo "backup pod timed out" >&2; exit 1; }
+[[ "$backup_ready" == true ]] || { echo "backup pod timed out" >&2; exit 1; }
 
 kubectl --context "$kube_context" -n litellm-ops cp \
   -c backup "$pod_name:/scratch/litellm-ops-data.tgz" "$partial_file"
 test -s "$partial_file"
+tar -tzf "$partial_file" >/dev/null
+tar -tzf "$partial_file" './mss-boot-admin.db' >/dev/null
 chmod 0600 "$partial_file"
 mv -- "$partial_file" "$output_file"
+delete_helper
+trap - EXIT
 sha256sum "$output_file"
