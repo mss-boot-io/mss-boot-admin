@@ -34,6 +34,9 @@ spec:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
             readOnlyRootFilesystem: true
+          resources:
+            requests: { cpu: 1m, memory: 32Mi }
+            limits: { cpu: "1", memory: 512Mi }
           env:
             - name: MSS_ADMIN_INITIAL_PASSWORD
               valueFrom: { secretKeyRef: { name: litellm-ops-admin-init, key: password } }
