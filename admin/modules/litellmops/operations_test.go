@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mss-boot-io/mss-boot-admin/admin/business"
 	"github.com/mss-boot-io/mss-boot-admin/admin/models"
+	adminpkg "github.com/mss-boot-io/mss-boot-admin/admin/pkg"
 	migrationmodels "github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/migration/models"
 	"github.com/mss-boot-io/mss-boot-admin/mss-boot/pkg/security"
 	"gorm.io/gorm"
@@ -28,6 +29,7 @@ type budgetGateway struct {
 	mu                    sync.Mutex
 	budget                *float64
 	keys                  map[string]*float64
+	requests              int
 	userWrites            int
 	writtenBudgets        []float64
 	keyWrites             map[string]int
@@ -49,6 +51,9 @@ func newBudgetGateway(budget *float64) *budgetGateway {
 func (gateway *budgetGateway) server(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		gateway.mu.Lock()
+		gateway.requests++
+		gateway.mu.Unlock()
 		if request.Header.Get("Authorization") != "Bearer test-master-key" {
 			writer.WriteHeader(http.StatusUnauthorized)
 			return
@@ -1173,7 +1178,7 @@ func TestDirectRechargeReconcileHandlerCompletesAuthoritativeTarget(t *testing.T
 	server := gateway.server(t)
 	t.Cleanup(server.Close)
 	client := testClient(t, server)
-	record, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "direct-reconcile"}, "operator-a")
+	record, err := ApplyRecharge(context.Background(), db, client, snapshot, RechargeRequest{AmountUSDMicro: 5_000_000, IdempotencyKey: "direct-reconcile", Source: "manual"}, "operator-a")
 	if !errors.Is(err, ErrReconcileRequired) || record.Status != RechargeAppliedUnverified {
 		t.Fatalf("create uncertain recharge: record=%+v err=%v", record, err)
 	}
@@ -1203,6 +1208,183 @@ func TestDirectRechargeReconcileHandlerCompletesAuthoritativeTarget(t *testing.T
 	var response RechargeRecord
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil || response.Status != RechargeCompleted {
 		t.Fatalf("unexpected reconcile response: %+v err=%v", response, err)
+	}
+}
+
+func TestDirectRechargeIdempotencyConflictNeverReturnsAccepted(t *testing.T) {
+	withImmediateConfirmation(t)
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	gateway.ignoreUserWrite = true
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+
+	original, err := ApplyRecharge(context.Background(), db, testClient(t, server), snapshot, RechargeRequest{
+		AmountUSDMicro: 5_000_000,
+		RaiseKeys:      false,
+		IdempotencyKey: "direct-conflict",
+	}, "operator-a")
+	if !errors.Is(err, ErrReconcileRequired) || original == nil || original.Status != RechargeAppliedUnverified {
+		t.Fatalf("create transient recharge fixture: record=%+v err=%v", original, err)
+	}
+
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/users/:id/recharge", handler.recharge)
+
+	for _, test := range []struct {
+		name string
+		body string
+	}{
+		{name: "amount", body: `{"amount_usd_micro":6000000,"raise_keys":false,"idempotency_key":"direct-conflict"}`},
+		{name: "raise_keys", body: `{"amount_usd_micro":5000000,"raise_keys":true,"idempotency_key":"direct-conflict"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, "/users/"+snapshot.ID+"/recharge", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), `"code":"conflict"`) || !strings.Contains(recorder.Body.String(), "idempotency conflict") {
+				t.Fatalf("payload conflict was masked: status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+
+	var rechargeCount int64
+	if err := db.Model(&RechargeRecord{}).Count(&rechargeCount).Error; err != nil || rechargeCount != 1 {
+		t.Fatalf("conflict created another recharge: count=%d err=%v", rechargeCount, err)
+	}
+	gateway.mu.Lock()
+	userWrites := gateway.userWrites
+	gateway.mu.Unlock()
+	if userWrites != 1 {
+		t.Fatalf("conflict caused an upstream write: %d", userWrites)
+	}
+}
+
+func TestDirectRechargeEndpointsRejectSalesOrderWorkflow(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	record, created, err := reserveRecharge(context.Background(), db, snapshot, RechargeRequest{
+		AmountUSDMicro: 5_000_000,
+		RaiseKeys:      false,
+		IdempotencyKey: "sales-order:order-1:credit-v1",
+		Source:         "sales_order",
+		SourceRef:      "order-1",
+	}, "order-operator")
+	if err != nil || !created {
+		t.Fatalf("reserve sales-order recharge: record=%+v created=%v err=%v", record, created, err)
+	}
+
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/users/:id/recharge", handler.recharge)
+	router.POST("/recharges/:id/reconcile", handler.reconcileRecharge)
+
+	assertRejected := func(name, method, path, body string) {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, path, strings.NewReader(body))
+		if body != "" {
+			request.Header.Set("Content-Type", "application/json")
+		}
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusConflict ||
+			!strings.Contains(recorder.Body.String(), `"code":"conflict"`) ||
+			!strings.Contains(recorder.Body.String(), "sales-order workflow") {
+			t.Fatalf("%s was not rejected: status=%d body=%s", name, recorder.Code, recorder.Body.String())
+		}
+	}
+	assertRejected("reconcile by recharge id", http.MethodPost, "/recharges/"+record.ID+"/reconcile", "")
+	assertRejected("replay by direct idempotency", http.MethodPost, "/users/"+snapshot.ID+"/recharge",
+		`{"amount_usd_micro":5000000,"raise_keys":false,"idempotency_key":"sales-order:order-1:credit-v1"}`)
+
+	var persisted RechargeRecord
+	if err := db.First(&persisted, "id = ?", record.ID).Error; err != nil {
+		t.Fatalf("reload sales-order recharge: %v", err)
+	}
+	if persisted.Status != RechargeApproved || persisted.Version != record.Version ||
+		persisted.TargetAfterUSDMicro != nil || persisted.CompletedAt != nil ||
+		!persisted.UpdatedAt.Equal(record.UpdatedAt) {
+		t.Fatalf("rejected direct workflow mutated recharge: before=%+v after=%+v", record, persisted)
+	}
+	var attemptCount int64
+	if err := db.Model(&OperationAttempt{}).Where("operation_type = ? AND operation_id = ?", "recharge", record.ID).Count(&attemptCount).Error; err != nil {
+		t.Fatalf("count recharge attempts: %v", err)
+	}
+	gateway.mu.Lock()
+	requests := gateway.requests
+	userWrites := gateway.userWrites
+	keyWrites := len(gateway.keyWrites)
+	gateway.mu.Unlock()
+	if attemptCount != 1 || requests != 0 || userWrites != 0 || keyWrites != 0 {
+		t.Fatalf("rejected direct workflow had side effects: attempts=%d requests=%d user_writes=%d key_writes=%d", attemptCount, requests, userWrites, keyWrites)
+	}
+}
+
+func TestDirectRechargeRejectsReservedSalesOrderNamespaceBeforeReservation(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	snapshot := seedRechargeUser(t, db)
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
+	}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/users/:id/recharge", handler.recharge)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/users/"+snapshot.ID+"/recharge", strings.NewReader(
+		`{"amount_usd_micro":5000000,"raise_keys":false,"idempotency_key":"SaLeS-OrDeR:future-order:credit-v1"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "sales-order workflow") {
+		t.Fatalf("reserved namespace was not rejected: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	var rechargeCount, attemptCount, leaseCount int64
+	if err := db.Model(&RechargeRecord{}).Count(&rechargeCount).Error; err != nil {
+		t.Fatalf("count recharges: %v", err)
+	}
+	if err := db.Model(&OperationAttempt{}).Count(&attemptCount).Error; err != nil {
+		t.Fatalf("count attempts: %v", err)
+	}
+	if err := db.Model(&UserLease{}).Count(&leaseCount).Error; err != nil {
+		t.Fatalf("count leases: %v", err)
+	}
+	gateway.mu.Lock()
+	requests := gateway.requests
+	userWrites := gateway.userWrites
+	gateway.mu.Unlock()
+	if rechargeCount != 0 || attemptCount != 0 || leaseCount != 0 || requests != 0 || userWrites != 0 {
+		t.Fatalf("reserved namespace created side effects: recharges=%d attempts=%d leases=%d requests=%d writes=%d",
+			rechargeCount, attemptCount, leaseCount, requests, userWrites)
 	}
 }
 
@@ -1246,10 +1428,15 @@ func TestTrustedAutoApplyReturnsAcceptedPersistedOrder(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv(EnvLiteLLMBaseURL, server.URL)
 	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	principal := func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} }
+	authorizer, err := NewAdminAuthorizer(func(context.Context) (*gorm.DB, bool) { return db, true }, principal)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
 	handler := &requestHandler{runtime: business.Runtime{
 		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
-		Principal:       func(*gin.Context) security.Verifier { return &fakeVerifier{role: "admin"} },
-	}}
+		Principal:       principal,
+	}, authorizer: authorizer}
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -1264,6 +1451,139 @@ func TestTrustedAutoApplyReturnsAcceptedPersistedOrder(t *testing.T) {
 	var order SalesOrder
 	if err := json.Unmarshal(recorder.Body.Bytes(), &order); err != nil || order.Status != OrderAppliedUnverified || order.RechargeID == "" {
 		t.Fatalf("unexpected persisted order response: %+v err=%v", order, err)
+	}
+}
+
+func TestTrustedAutoApplyRequiresEveryWorkflowPermission(t *testing.T) {
+	db := openTestDB(t)
+	migrateTestDB(t, db)
+	seedRechargeUser(t, db)
+	now := time.Now().UTC()
+	product := SalesProduct{
+		ID: newSnapshotID(), CreatedAt: now, UpdatedAt: now, Channel: "xianyu", Shop: "shop-a",
+		ExternalItemID: "item-rbac", SKU: "", Title: "auto credit", PriceCNYFen: 1000,
+		CreditUSDMicro: 5_000_000, Enabled: true, AutoApply: true, Version: 1,
+	}
+	if err := db.Create(&product).Error; err != nil {
+		t.Fatalf("create auto product: %v", err)
+	}
+
+	const role = "connector-import-only"
+	const importPath = "/admin/api/litellmops/sales/orders/import"
+	if err := db.Create(&models.CasbinRule{
+		PType: "p", V0: role, V1: adminpkg.APIAccessType.String(), V2: importPath, V3: http.MethodPost,
+	}).Error; err != nil {
+		t.Fatalf("seed import-only policy: %v", err)
+	}
+	verifier := &fakeVerifier{role: role, pat: "connector-pat"}
+	principal := func(*gin.Context) security.Verifier { return verifier }
+	authorizer, err := NewAdminAuthorizer(func(context.Context) (*gorm.DB, bool) { return db, true }, principal)
+	if err != nil {
+		t.Fatalf("new authorizer: %v", err)
+	}
+
+	budget := 10.0
+	gateway := newBudgetGateway(&budget)
+	server := gateway.server(t)
+	t.Cleanup(server.Close)
+	t.Setenv(EnvLiteLLMBaseURL, server.URL)
+	t.Setenv(EnvLiteLLMMasterKey, "test-master-key")
+	t.Setenv(envConnectorSharedToken, "connector-test-token")
+	t.Setenv(envConnectorAllowedSources, "xianyu:shop-a")
+	handler := &requestHandler{runtime: business.Runtime{
+		RequestDatabase: func(context.Context) (*gorm.DB, bool) { return db, true },
+		Principal:       principal,
+	}, authorizer: authorizer}
+
+	raw, err := json.Marshal(orderCreateRequest{
+		Channel: "xianyu", Shop: "shop-a", ExternalOrderID: "auto-rbac-denied", AdjustmentType: "credit",
+		ExternalItemID: "item-rbac", UserEmail: "buyer@example.com", PaidCNYFen: 1000, PaymentStatus: "paid",
+	})
+	if err != nil {
+		t.Fatalf("marshal connector request: %v", err)
+	}
+	timestamp := strconv.FormatInt(time.Now().UTC().Unix(), 10)
+	mac := hmac.New(sha256.New, []byte("connector-test-token"))
+	_, _ = mac.Write([]byte(timestamp + "\n"))
+	_, _ = mac.Write(raw)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST(importPath, handler.secure(PermissionOrderImport, handler.importOrder))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, importPath, strings.NewReader(string(raw)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-LiteLLMOps-Connector-Token", "connector-test-token")
+	request.Header.Set("X-LiteLLMOps-Connector-Timestamp", timestamp)
+	request.Header.Set("X-LiteLLMOps-Connector-Signature", hex.EncodeToString(mac.Sum(nil)))
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), ErrAuthorizationDenied.Error()) {
+		t.Fatalf("import-only role entered auto workflow: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	var order SalesOrder
+	if err := db.Where("external_order_id = ?", "auto-rbac-denied").First(&order).Error; err != nil {
+		t.Fatalf("load persisted received order: %v", err)
+	}
+	if order.Status != OrderReceived || order.RechargeID != "" {
+		t.Fatalf("denied workflow advanced order: %+v", order)
+	}
+
+	const missingExecuteRole = "connector-missing-execute"
+	for _, route := range []authorizationRoute{
+		{method: http.MethodPost, path: importPath},
+		{method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/verify"},
+		{method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/match"},
+		{method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/approve"},
+	} {
+		if err := db.Create(&models.CasbinRule{
+			PType: "p", V0: missingExecuteRole, V1: adminpkg.APIAccessType.String(), V2: route.path, V3: route.method,
+		}).Error; err != nil {
+			t.Fatalf("seed partial workflow policy: %v", err)
+		}
+	}
+	verifier.role = missingExecuteRole
+	partialRaw, err := json.Marshal(orderCreateRequest{
+		Channel: "xianyu", Shop: "shop-a", ExternalOrderID: "auto-rbac-no-execute", AdjustmentType: "credit",
+		ExternalItemID: "item-rbac", UserEmail: "buyer@example.com", PaidCNYFen: 1000, PaymentStatus: "paid",
+	})
+	if err != nil {
+		t.Fatalf("marshal partial connector request: %v", err)
+	}
+	partialTimestamp := strconv.FormatInt(time.Now().UTC().Unix(), 10)
+	partialMAC := hmac.New(sha256.New, []byte("connector-test-token"))
+	_, _ = partialMAC.Write([]byte(partialTimestamp + "\n"))
+	_, _ = partialMAC.Write(partialRaw)
+	partialRecorder := httptest.NewRecorder()
+	partialRequest := httptest.NewRequest(http.MethodPost, importPath, strings.NewReader(string(partialRaw)))
+	partialRequest.Header.Set("Content-Type", "application/json")
+	partialRequest.Header.Set("X-LiteLLMOps-Connector-Token", "connector-test-token")
+	partialRequest.Header.Set("X-LiteLLMOps-Connector-Timestamp", partialTimestamp)
+	partialRequest.Header.Set("X-LiteLLMOps-Connector-Signature", hex.EncodeToString(partialMAC.Sum(nil)))
+	router.ServeHTTP(partialRecorder, partialRequest)
+	if partialRecorder.Code != http.StatusForbidden {
+		t.Fatalf("role without execute entered auto workflow: status=%d body=%s", partialRecorder.Code, partialRecorder.Body.String())
+	}
+	var partialOrder SalesOrder
+	if err := db.Where("external_order_id = ?", "auto-rbac-no-execute").First(&partialOrder).Error; err != nil {
+		t.Fatalf("load partial-policy order: %v", err)
+	}
+	if partialOrder.Status != OrderReceived || partialOrder.RechargeID != "" {
+		t.Fatalf("partial workflow authorization advanced order: %+v", partialOrder)
+	}
+
+	var rechargeCount, progressedAttemptCount int64
+	if err := db.Model(&RechargeRecord{}).Count(&rechargeCount).Error; err != nil {
+		t.Fatalf("count recharges: %v", err)
+	}
+	if err := db.Model(&OperationAttempt{}).Where("operation_type = ? AND operation_id IN ? AND step <> ?", "sales_order", []string{order.ID, partialOrder.ID}, "receive").Count(&progressedAttemptCount).Error; err != nil {
+		t.Fatalf("count progressed attempts: %v", err)
+	}
+	gateway.mu.Lock()
+	userWrites := gateway.userWrites
+	gateway.mu.Unlock()
+	if rechargeCount != 0 || progressedAttemptCount != 0 || userWrites != 0 {
+		t.Fatalf("denied workflow produced side effects: recharges=%d progressed_attempts=%d upstream_writes=%d", rechargeCount, progressedAttemptCount, userWrites)
 	}
 }
 

@@ -845,6 +845,61 @@ func connectorSourceAllowed(channel, shop string) bool {
 	return false
 }
 
+type trustedImportAuthorization struct {
+	permission string
+	method     string
+	path       string
+}
+
+var trustedImportVerificationAuthorizations = []trustedImportAuthorization{
+	{permission: PermissionOrderVerify, method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/verify"},
+	{permission: PermissionOrderVerify, method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/match"},
+}
+
+var trustedImportAutoApplyAuthorizations = []trustedImportAuthorization{
+	{permission: PermissionOrderApprove, method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/approve"},
+	{permission: PermissionOrderExecute, method: http.MethodPost, path: "/admin/api/litellmops/sales/orders/:id/execute"},
+}
+
+// authorizeTrustedImportWorkflow checks every canonical action route before
+// the first automatic state transition. Import permission alone deliberately
+// authorizes only persistence of the received order.
+func (handler *requestHandler) authorizeTrustedImportWorkflow(ctx *gin.Context, autoApply bool) error {
+	if handler == nil || handler.authorizer == nil {
+		return ErrAuthorizationUnavailable
+	}
+	for _, required := range trustedImportVerificationAuthorizations {
+		if err := handler.authorizer.authorizeDeclaredRoute(ctx, required.permission, required.method, required.path); err != nil {
+			return err
+		}
+	}
+	if autoApply {
+		for _, required := range trustedImportAutoApplyAuthorizations {
+			if err := handler.authorizer.authorizeDeclaredRoute(ctx, required.permission, required.method, required.path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// trustedImportWillAutoApply snapshots the enabled product decision before
+// authorization and local state transitions. A concurrent enablement is not
+// picked up by this request; the order stays mapped for explicit review.
+func trustedImportWillAutoApply(ctx context.Context, db *gorm.DB, order *SalesOrder) bool {
+	if order == nil || strings.TrimSpace(order.ExternalItemID) == "" {
+		return false
+	}
+	var product SalesProduct
+	if err := db.WithContext(ctx).Where(
+		"channel = ? AND shop = ? AND external_item_id = ? AND sku = ? AND enabled = ?",
+		order.Channel, order.Shop, order.ExternalItemID, order.SKU, true,
+	).First(&product).Error; err != nil {
+		return false
+	}
+	return product.AutoApply && product.PriceCNYFen == order.PaidCNYFen
+}
+
 func (handler *requestHandler) receiveOrder(ctx *gin.Context, request orderCreateRequest, trustedImport bool) {
 	db, ok := handler.database(ctx)
 	if !ok {
@@ -856,13 +911,18 @@ func (handler *requestHandler) receiveOrder(ctx *gin.Context, request orderCreat
 		return
 	}
 	if trustedImport && order.SourceTrust == "trusted" && order.Status == OrderReceived && order.PaymentStatus == "paid" {
+		autoApply := trustedImportWillAutoApply(ctx, db, order)
+		if authErr := handler.authorizeTrustedImportWorkflow(ctx, autoApply); authErr != nil {
+			writeAuthorizationError(ctx, authErr)
+			return
+		}
 		actor := handler.operator(ctx)
 		if err = verifySalesOrder(ctx, db, order, actor); err == nil {
 			err = matchSalesOrder(ctx, db, order, orderMatchRequest{}, actor)
 		}
 		if err == nil {
 			var product SalesProduct
-			if db.First(&product, "id = ?", order.ProductID).Error == nil && product.AutoApply && product.Enabled {
+			if autoApply && db.First(&product, "id = ?", order.ProductID).Error == nil && product.AutoApply && product.Enabled {
 				err = approveSalesOrder(ctx, db, order, actor)
 				if err == nil {
 					client, clientOK := handler.litellmClient(ctx)

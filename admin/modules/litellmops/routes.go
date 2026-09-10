@@ -89,6 +89,32 @@ type requestHandler struct {
 	authorizer *AdminAuthorizer
 }
 
+func writeAuthorizationError(ctx *gin.Context, err error) {
+	status := http.StatusForbidden
+	if errors.Is(err, ErrAuthenticationRequired) {
+		status = http.StatusUnauthorized
+	}
+	ctx.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
+}
+
+// shouldAcceptRechargeError is deliberately narrower than checking the stored
+// status alone. An idempotency conflict may return the pre-existing transient
+// record and must still be a 409, while only a durable uncertain/reconciliation
+// outcome is an accepted asynchronous command.
+func shouldAcceptRechargeError(record *RechargeRecord, err error) bool {
+	if record == nil || err == nil || errors.Is(err, ErrIdempotencyConflict) {
+		return false
+	}
+	switch record.Status {
+	case RechargeAppliedUnverified:
+		return errors.Is(err, ErrReconcileRequired) || upstreamResultUncertain(err)
+	case RechargeReconcileRequired:
+		return errors.Is(err, ErrReconcileRequired)
+	default:
+		return false
+	}
+}
+
 func writeAPIError(ctx *gin.Context, err error) {
 	var commandResult *managementCommandResultError
 	if errors.As(err, &commandResult) {
@@ -106,7 +132,7 @@ func writeAPIError(ctx *gin.Context, err error) {
 		status, code, message = http.StatusConflict, "management_pending", err.Error()
 	case errors.Is(err, ErrManagementUnverified):
 		status, code, message = http.StatusConflict, "management_reconcile_required", err.Error()
-	case errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOrderConflict), errors.Is(err, ErrRechargeBusy), errors.Is(err, ErrPendingRecharge), errors.Is(err, ErrInvalidOrderState), errors.Is(err, ErrOrderBusy):
+	case errors.Is(err, ErrIdempotencyConflict), errors.Is(err, ErrOrderConflict), errors.Is(err, ErrRechargeBusy), errors.Is(err, ErrPendingRecharge), errors.Is(err, ErrInvalidOrderState), errors.Is(err, ErrOrderBusy), errors.Is(err, ErrSalesOrderRecharge):
 		status, code, message = http.StatusConflict, "conflict", err.Error()
 	case errors.Is(err, ErrInvalidRecharge), errors.Is(err, ErrUnlimitedBudget), errors.Is(err, ErrInvalidProduct), errors.Is(err, ErrInvalidOrder):
 		status, code, message = http.StatusUnprocessableEntity, "invalid_request", err.Error()
@@ -131,11 +157,7 @@ func (handler *requestHandler) operationDisabled(ctx *gin.Context) {
 func (handler *requestHandler) secure(permission string, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if err := handler.authorizer.Authorize(ctx, permission); err != nil {
-			status := http.StatusForbidden
-			if errors.Is(err, ErrAuthenticationRequired) {
-				status = http.StatusUnauthorized
-			}
-			ctx.AbortWithStatusJSON(status, gin.H{"error": err.Error()})
+			writeAuthorizationError(ctx, err)
 			return
 		}
 		next(ctx)
@@ -308,6 +330,10 @@ func (handler *requestHandler) recharge(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "litellmops recharge body is invalid"})
 		return
 	}
+	if reservedSalesOrderIdempotency(request.IdempotencyKey) {
+		writeAPIError(ctx, ErrSalesOrderRecharge)
+		return
+	}
 	client, err := NewClientFromEnv()
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
@@ -322,7 +348,7 @@ func (handler *requestHandler) recharge(ctx *gin.Context) {
 	}
 	record, err := ApplyRecharge(ctx.Request.Context(), db, client, snapshot, request, operator)
 	if err != nil {
-		if record != nil && (record.Status == RechargeAppliedUnverified || record.Status == RechargeRetryableFailed || record.Status == RechargeReconcileRequired) {
+		if shouldAcceptRechargeError(record, err) {
 			ctx.JSON(http.StatusAccepted, record)
 			return
 		}
@@ -333,13 +359,27 @@ func (handler *requestHandler) recharge(ctx *gin.Context) {
 }
 
 func (handler *requestHandler) reconcileRecharge(ctx *gin.Context) {
-	db, client, ok := handler.managementClient(ctx)
+	db, ok := handler.database(ctx)
 	if !ok {
 		return
 	}
-	record, err := ReconcileRechargeAs(ctx.Request.Context(), db, client, strings.TrimSpace(ctx.Param("id")), handler.operator(ctx))
+	rechargeID := strings.TrimSpace(ctx.Param("id"))
+	var existing RechargeRecord
+	if err := db.WithContext(ctx.Request.Context()).Select("id", "source").First(&existing, "id = ?", rechargeID).Error; err != nil {
+		writeAPIError(ctx, err)
+		return
+	}
+	if salesOrderRechargeSource(existing.Source) {
+		writeAPIError(ctx, ErrSalesOrderRecharge)
+		return
+	}
+	client, ok := handler.litellmClient(ctx)
+	if !ok {
+		return
+	}
+	record, err := ReconcileRechargeAs(ctx.Request.Context(), db, client, rechargeID, handler.operator(ctx))
 	if err != nil {
-		if record != nil && (record.Status == RechargeAppliedUnverified || record.Status == RechargeRetryableFailed || record.Status == RechargeReconcileRequired) {
+		if shouldAcceptRechargeError(record, err) {
 			ctx.JSON(http.StatusAccepted, record)
 			return
 		}

@@ -150,6 +150,29 @@ func (authorizer *AdminAuthorizer) Authorize(ctx *gin.Context, permission string
 	if !found {
 		return ErrAuthorizationDenied
 	}
+	return authorizer.authorizeRoute(ctx, matched)
+}
+
+// authorizeDeclaredRoute enforces one canonical action route while a trusted
+// workflow is running under a different HTTP endpoint. The route must remain
+// declared under the requested permission, so callers cannot use this helper
+// to probe or authorize arbitrary Admin paths.
+func (authorizer *AdminAuthorizer) authorizeDeclaredRoute(ctx *gin.Context, permission, method, path string) error {
+	if authorizer == nil || authorizer.database == nil || authorizer.principal == nil {
+		return ErrAuthorizationUnavailable
+	}
+	if ctx == nil || ctx.Request == nil {
+		return ErrAuthorizationDenied
+	}
+	for _, route := range authorizationRoutes[permission] {
+		if route.method == method && route.path == path {
+			return authorizer.authorizeRoute(ctx, route)
+		}
+	}
+	return ErrAuthorizationDenied
+}
+
+func (authorizer *AdminAuthorizer) authorizeRoute(ctx *gin.Context, matched authorizationRoute) error {
 	principal := authorizer.principal(ctx)
 	if principal == nil || strings.TrimSpace(principal.GetRoleID()) == "" {
 		return ErrAuthenticationRequired

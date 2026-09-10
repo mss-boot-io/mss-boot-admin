@@ -395,6 +395,7 @@ func TestBillsListAggregates(t *testing.T) {
 type fakeVerifier struct {
 	role string
 	root bool
+	pat  string
 }
 
 func (verifier *fakeVerifier) GetUserID() string            { return "test-user" }
@@ -411,7 +412,7 @@ func (verifier *fakeVerifier) Root() bool { return verifier.root }
 func (verifier *fakeVerifier) Verify(context.Context) (bool, security.Verifier, error) {
 	return true, verifier, nil
 }
-func (verifier *fakeVerifier) GetPersonAccessToken() string      { return "" }
+func (verifier *fakeVerifier) GetPersonAccessToken() string      { return verifier.pat }
 func (verifier *fakeVerifier) SetPersonAccessToken(token string) {}
 
 func performAuthorizedRequest(

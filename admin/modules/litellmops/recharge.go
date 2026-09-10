@@ -44,7 +44,16 @@ var (
 	ErrPendingRecharge     = errors.New("litellmops user has a pending recharge")
 	ErrUnlimitedBudget     = errors.New("litellmops unlimited user budget cannot be recharged")
 	ErrReconcileRequired   = errors.New("litellmops recharge requires reconciliation")
+	ErrSalesOrderRecharge  = errors.New("litellmops sales-order recharge must use the sales-order workflow")
 )
+
+func salesOrderRechargeSource(source string) bool {
+	return strings.EqualFold(strings.TrimSpace(source), "sales_order")
+}
+
+func reservedSalesOrderIdempotency(idempotencyKey string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(idempotencyKey)), "sales-order:")
+}
 
 // RechargeRequest keeps amount for the existing UI while amount_usd_micro is
 // the canonical lossless representation used by sales integrations.
@@ -483,9 +492,20 @@ func ApplyRecharge(ctx context.Context, db *gorm.DB, client *Client, snapshot Us
 	if db == nil || client == nil {
 		return nil, errors.New("litellmops recharge requires a database and a LiteLLM client")
 	}
+	// Sales-order commands are reserved and executed beneath the order's own
+	// claim/CAS/lease. The direct recharge entry point must never create or
+	// resume one of those commands outside that fence.
+	if salesOrderRechargeSource(request.Source) || reservedSalesOrderIdempotency(request.IdempotencyKey) {
+		return nil, ErrSalesOrderRecharge
+	}
 	record, _, err := reserveRecharge(ctx, db, snapshot, request, operator)
 	if err != nil {
 		return record, err
+	}
+	// Also reject pre-existing/legacy sales-order rows whose idempotency key
+	// does not use the current reserved namespace.
+	if salesOrderRechargeSource(record.Source) {
+		return record, ErrSalesOrderRecharge
 	}
 	if record.Status == RechargeCompleted {
 		return record, nil
