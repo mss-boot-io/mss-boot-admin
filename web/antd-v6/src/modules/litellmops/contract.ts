@@ -16,12 +16,9 @@ export type GatewayReadiness = 'ready' | 'degraded' | 'unavailable';
 export interface GatewayHealth {
   ready: boolean;
   status: GatewayReadiness;
-  version?: string;
+  db_status: string;
   checked_at: string;
   message?: string;
-  model_count?: number;
-  healthy_model_count?: number;
-  blocked_model_count?: number;
 }
 
 export interface GatewayModel {
@@ -29,11 +26,11 @@ export interface GatewayModel {
   name: string;
   provider?: string;
   mode?: string;
-  healthy?: boolean;
-  blocked: boolean;
-  endpoint_count?: number;
+  base_model?: string;
+  healthy?: boolean | null;
+  blocked?: boolean | null;
+  manageable: boolean;
   last_checked_at?: string;
-  message?: string;
 }
 
 export interface ManagedUser {
@@ -65,7 +62,6 @@ export interface ManagedUserInput {
   budget_duration?: string;
   tpm_limit?: number;
   rpm_limit?: number;
-  blocked?: boolean;
 }
 
 export interface ManagedUserPatch {
@@ -125,6 +121,64 @@ export interface OneTimeKeyResult {
   record?: ManagedKey;
 }
 
+export type ManagementCommandStatus =
+  | 'executing'
+  | 'result_unverified'
+  | 'completed'
+  | 'failed'
+  | 'resolved_applied'
+  | 'resolved_not_applied';
+
+export interface ManagementExpectedSummary {
+  kind: string;
+  affected_fields: string[];
+  max_budget_usd_micro?: number;
+  spend_usd_micro?: number;
+  blocked?: boolean;
+  deleted?: boolean;
+  manual_reason?: string;
+}
+
+export interface ManagementCommand {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  user_id: string;
+  user_email: string;
+  target_type: string;
+  target_id: string;
+  action: string;
+  status: ManagementCommandStatus;
+  last_error_code: string;
+  requires_manual_review: boolean;
+  last_observed_at?: string | null;
+  operator: string;
+  resolved_by: string;
+  resolution_reason: string;
+  version: number;
+  expected: ManagementExpectedSummary;
+}
+
+export interface ManagementCommandParams extends Omit<OpsListParams, 'query'> {
+  user_id?: string;
+  status?: ManagementCommandStatus;
+}
+
+export interface ManagementPendingResponse {
+  code: 'management_reconcile_required';
+  error: string;
+  command: ManagementCommand;
+}
+
+export type ManagementAware<T> = T | ManagementPendingResponse;
+
+export interface ManagementResolveRequest {
+  resolution: 'applied' | 'not_applied';
+  reason: string;
+  confirm_authoritative_state: true;
+}
+
 export type RechargeStatus =
   | 'received'
   | 'approved'
@@ -143,6 +197,9 @@ export interface RechargeRecord {
   amount: number;
   before_budget: number;
   after_budget: number;
+  amount_usd_micro: number;
+  before_budget_usd_micro?: number | null;
+  target_after_usd_micro?: number | null;
   raise_keys: boolean;
   keys_updated: string;
   operator: string;
@@ -150,6 +207,9 @@ export interface RechargeRecord {
   business_reference?: string;
   idempotency_key?: string;
   status: RechargeStatus | string;
+  last_error_code?: string;
+  uncertain_since?: string | null;
+  version?: number;
 }
 
 export interface RechargeRequest {
@@ -289,9 +349,14 @@ export function modelsOf(value: string[] | string | undefined): string[] {
   if (!value) return [];
   try {
     const decoded: unknown = JSON.parse(value);
-    return Array.isArray(decoded) ? decoded.filter((item): item is string => typeof item === 'string') : [];
+    return Array.isArray(decoded)
+      ? decoded.filter((item): item is string => typeof item === 'string')
+      : [];
   } catch {
-    return value.split(',').map((item) => item.trim()).filter(Boolean);
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }
 
@@ -307,7 +372,9 @@ export function formatUsd(value: number | null | undefined, digits = 2): string 
 
 export function formatCnyFen(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—';
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'CNY' }).format(value / 100);
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'CNY' }).format(
+    value / 100,
+  );
 }
 
 export function formatUsdMicro(value: number | null | undefined): string {
@@ -324,5 +391,7 @@ export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(parsed);
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(
+    parsed,
+  );
 }

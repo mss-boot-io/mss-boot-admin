@@ -20,12 +20,16 @@ import {
   Space,
   Switch,
   Table,
+  type TableColumnsType,
   Tabs,
   Tag,
-  type TableColumnsType,
 } from 'antd';
 import { useMemo, useState } from 'react';
-import { availableOrderActions, type SalesOrderAction } from '../business-reference';
+import {
+  availableOrderActions,
+  normalizeOptionalSKU,
+  type SalesOrderAction,
+} from '../business-reference';
 import type {
   SalesOrder,
   SalesOrderInput,
@@ -35,14 +39,9 @@ import type {
   SalesProductParams,
   SalesProductPatch,
 } from '../contract';
-import {
-  formatCnyFen,
-  formatDateTime,
-  formatUsd,
-  formatUsdMicro,
-} from '../contract';
+import { formatCnyFen, formatDateTime, formatUsd, formatUsdMicro } from '../contract';
 import { operationsAPI } from '../operations-api';
-import { operationsQueryKeys, useSalesOrder, useSalesOrders, useSalesProducts } from '../operations-query';
+import { useSalesOrder, useSalesOrders, useSalesProducts } from '../operations-query';
 import { buildOpsAccess } from '../permissions';
 import { OpsQueryState, OrderStatusTag } from '../ui';
 
@@ -61,7 +60,7 @@ interface ProductForm {
   channel: string;
   shop: string;
   external_item_id: string;
-  sku: string;
+  sku?: string;
   title: string;
   price_cny: number;
   credit_usd: number;
@@ -100,7 +99,7 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
         channel: values.channel.trim(),
         shop: values.shop.trim(),
         external_item_id: values.external_item_id.trim(),
-        sku: values.sku.trim(),
+        sku: normalizeOptionalSKU(values.sku),
         ...common,
       };
       return operationsAPI.sales.createProduct(payload);
@@ -125,8 +124,6 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
           }
         : {
             channel: 'xianyu',
-            shop: 'tb4161550',
-            external_item_id: '1083851032724',
             enabled: true,
             auto_apply: false,
             raise_keys: true,
@@ -201,12 +198,16 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
           <Input.Search
             allowClear
             placeholder={t('litellmops.sales.product.channelFilter')}
-            onSearch={(channel) => setParams((current) => ({ ...current, page: 1, channel: channel || undefined }))}
+            onSearch={(channel) =>
+              setParams((current) => ({ ...current, page: 1, channel: channel || undefined }))
+            }
           />
           <Input.Search
             allowClear
             placeholder={t('litellmops.sales.product.shopFilter')}
-            onSearch={(shop) => setParams((current) => ({ ...current, page: 1, shop: shop || undefined }))}
+            onSearch={(shop) =>
+              setParams((current) => ({ ...current, page: 1, shop: shop || undefined }))
+            }
           />
           {canWrite ? (
             <Button type="primary" onClick={() => openEditor()}>
@@ -234,14 +235,17 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
             current: params.page,
             pageSize: params.page_size,
             total: products.data?.total,
-            onChange: (page, pageSize) => setParams((current) => ({ ...current, page, page_size: pageSize })),
+            onChange: (page, pageSize) =>
+              setParams((current) => ({ ...current, page, page_size: pageSize })),
           }}
         />
       </OpsQueryState>
 
       <Modal
         destroyOnHidden
-        title={t(editing === 'new' ? 'litellmops.sales.product.create' : 'litellmops.sales.product.edit')}
+        title={t(
+          editing === 'new' ? 'litellmops.sales.product.create' : 'litellmops.sales.product.edit',
+        )}
         open={Boolean(editing)}
         confirmLoading={save.isPending}
         onCancel={() => setEditing(undefined)}
@@ -249,10 +253,18 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
       >
         <Alert type="warning" showIcon message={t('litellmops.sales.product.autoWarning')} />
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="channel" label={t('litellmops.sales.product.channel')} rules={[{ required: true }]}>
+          <Form.Item
+            name="channel"
+            label={t('litellmops.sales.product.channel')}
+            rules={[{ required: true }]}
+          >
             <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
-          <Form.Item name="shop" label={t('litellmops.sales.product.shop')} rules={[{ required: true }]}>
+          <Form.Item
+            name="shop"
+            label={t('litellmops.sales.product.shop')}
+            rules={[{ required: true }]}
+          >
             <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
           <Form.Item
@@ -265,22 +277,42 @@ function ProductPanel({ canWrite, t }: { canWrite: boolean; t: Translator }) {
           <Form.Item name="sku" label={t('litellmops.sales.product.sku')}>
             <Input disabled={editing !== 'new'} autoComplete="off" />
           </Form.Item>
-          <Form.Item name="title" label={t('litellmops.sales.product.title')} rules={[{ required: true }]}>
+          <Form.Item
+            name="title"
+            label={t('litellmops.sales.product.title')}
+            rules={[{ required: true }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="price_cny" label={t('litellmops.sales.product.priceYuan')} rules={[{ required: true }]}>
+          <Form.Item
+            name="price_cny"
+            label={t('litellmops.sales.product.priceYuan')}
+            rules={[{ required: true }]}
+          >
             <InputNumber min={0.01} precision={2} stringMode={false} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="credit_usd" label={t('litellmops.sales.product.creditUsd')} rules={[{ required: true }]}>
+          <Form.Item
+            name="credit_usd"
+            label={t('litellmops.sales.product.creditUsd')}
+            rules={[{ required: true }]}
+          >
             <InputNumber min={0.01} precision={2} stringMode={false} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="enabled" label={t('litellmops.common.enabled')} valuePropName="checked">
             <Switch />
           </Form.Item>
-          <Form.Item name="auto_apply" label={t('litellmops.sales.product.autoApply')} valuePropName="checked">
+          <Form.Item
+            name="auto_apply"
+            label={t('litellmops.sales.product.autoApply')}
+            valuePropName="checked"
+          >
             <Switch />
           </Form.Item>
-          <Form.Item name="raise_keys" label={t('litellmops.sales.product.raiseKeys')} valuePropName="checked">
+          <Form.Item
+            name="raise_keys"
+            label={t('litellmops.sales.product.raiseKeys')}
+            valuePropName="checked"
+          >
             <Switch />
           </Form.Item>
         </Form>
@@ -317,21 +349,38 @@ function OrderDetail({ id, onClose, t }: { id?: string; onClose: () => void; t: 
             <Descriptions.Item label={t('litellmops.sales.order.payment')}>
               <Tag>{t(`litellmops.sales.payment.${order.data.payment_status}`)}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.email')}>{order.data.user_email || '—'}</Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.email')}>
+              {order.data.user_email || '—'}
+            </Descriptions.Item>
             <Descriptions.Item label={t('litellmops.sales.order.product')}>
               {order.data.product_title || order.data.product_id || '—'}
             </Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.paid')}>{formatCnyFen(order.data.paid_cny_fen)}</Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.paid')}>
+              {formatCnyFen(order.data.paid_cny_fen)}
+            </Descriptions.Item>
             <Descriptions.Item label={t('litellmops.sales.order.credit')}>
               {formatUsdMicro(order.data.credit_usd_micro)}
             </Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.before')}>{formatUsd(order.data.before_budget)}</Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.target')}>{formatUsd(order.data.target_after)}</Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.sales.order.source')}>{t(`litellmops.sales.source.${order.data.source_trust}`)}</Descriptions.Item>
-            <Descriptions.Item label={t('litellmops.common.updatedAt')}>{formatDateTime(order.data.updated_at)}</Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.before')}>
+              {formatUsd(order.data.before_budget)}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.target')}>
+              {formatUsd(order.data.target_after)}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.sales.order.source')}>
+              {t(`litellmops.sales.source.${order.data.source_trust}`)}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('litellmops.common.updatedAt')}>
+              {formatDateTime(order.data.updated_at)}
+            </Descriptions.Item>
             {order.data.error_message || order.data.error_code || order.data.last_error_code ? (
               <Descriptions.Item label={t('litellmops.common.error')} span={2}>
-                <Alert type="error" showIcon message={order.data.error_code || order.data.last_error_code} description={order.data.error_message} />
+                <Alert
+                  type="error"
+                  showIcon
+                  message={order.data.error_code || order.data.last_error_code}
+                  description={order.data.error_message}
+                />
               </Descriptions.Item>
             ) : null}
           </Descriptions>
@@ -402,12 +451,12 @@ function OrdersPanel({
       if (action === 'reconcile') return operationsAPI.sales.reconcile(order.id);
       throw new Error('unsupported transition');
     },
-    onSuccess: async (order) => {
-      await refresh();
+    onSuccess: (order) => {
       setDetailId(order.id);
       message.success(t('litellmops.sales.order.transitioned'));
     },
     onError: (error) => message.error(mutationErrorMessage(error)),
+    onSettled: refresh,
   });
 
   const match = useMutation({
@@ -447,7 +496,10 @@ function OrdersPanel({
   const run = (order: SalesOrder, action: SalesOrderAction) => {
     if (action === 'match') {
       setMatchOrder(order);
-      matchForm.setFieldsValue({ product_id: order.product_id ?? undefined, user_email: order.user_email });
+      matchForm.setFieldsValue({
+        product_id: order.product_id ?? undefined,
+        user_email: order.user_email,
+      });
       return;
     }
     if (action === 'refund-review') {
@@ -481,13 +533,52 @@ function OrdersPanel({
       ),
     },
     { title: t('litellmops.sales.order.email'), dataIndex: 'user_email', width: 210 },
-    { title: t('litellmops.sales.order.product'), dataIndex: 'product_title', width: 170, render: (value, order) => value || order.product_id || '—' },
-    { title: t('litellmops.sales.order.paid'), dataIndex: 'paid_cny_fen', width: 110, render: formatCnyFen },
-    { title: t('litellmops.sales.order.credit'), dataIndex: 'credit_usd_micro', width: 110, render: formatUsdMicro },
-    { title: t('litellmops.sales.order.payment'), dataIndex: 'payment_status', width: 110, render: (value) => <Tag>{t(`litellmops.sales.payment.${value}`)}</Tag> },
-    { title: t('litellmops.common.status'), dataIndex: 'status', width: 160, render: (value) => <OrderStatusTag status={value} /> },
-    { title: t('litellmops.sales.order.source'), dataIndex: 'source_trust', width: 110, render: (value) => <Tag color={value === 'trusted' ? 'success' : 'default'}>{t(`litellmops.sales.source.${value}`)}</Tag> },
-    { title: t('litellmops.common.updatedAt'), dataIndex: 'updated_at', width: 180, render: formatDateTime },
+    {
+      title: t('litellmops.sales.order.product'),
+      dataIndex: 'product_title',
+      width: 170,
+      render: (value, order) => value || order.product_id || '—',
+    },
+    {
+      title: t('litellmops.sales.order.paid'),
+      dataIndex: 'paid_cny_fen',
+      width: 110,
+      render: formatCnyFen,
+    },
+    {
+      title: t('litellmops.sales.order.credit'),
+      dataIndex: 'credit_usd_micro',
+      width: 110,
+      render: formatUsdMicro,
+    },
+    {
+      title: t('litellmops.sales.order.payment'),
+      dataIndex: 'payment_status',
+      width: 110,
+      render: (value) => <Tag>{t(`litellmops.sales.payment.${value}`)}</Tag>,
+    },
+    {
+      title: t('litellmops.common.status'),
+      dataIndex: 'status',
+      width: 160,
+      render: (value) => <OrderStatusTag status={value} />,
+    },
+    {
+      title: t('litellmops.sales.order.source'),
+      dataIndex: 'source_trust',
+      width: 110,
+      render: (value) => (
+        <Tag color={value === 'trusted' ? 'success' : 'default'}>
+          {t(`litellmops.sales.source.${value}`)}
+        </Tag>
+      ),
+    },
+    {
+      title: t('litellmops.common.updatedAt'),
+      dataIndex: 'updated_at',
+      width: 180,
+      render: formatDateTime,
+    },
     {
       title: t('litellmops.common.actions'),
       key: 'actions',
@@ -527,12 +618,24 @@ function OrdersPanel({
             <Input.Search
               allowClear
               placeholder={t('litellmops.sales.order.externalId')}
-              onSearch={(external_order_id) => setParams((current) => ({ ...current, page: 1, external_order_id: external_order_id || undefined }))}
+              onSearch={(external_order_id) =>
+                setParams((current) => ({
+                  ...current,
+                  page: 1,
+                  external_order_id: external_order_id || undefined,
+                }))
+              }
             />
             <Input.Search
               allowClear
               placeholder={t('litellmops.sales.order.email')}
-              onSearch={(user_email) => setParams((current) => ({ ...current, page: 1, user_email: user_email || undefined }))}
+              onSearch={(user_email) =>
+                setParams((current) => ({
+                  ...current,
+                  page: 1,
+                  user_email: user_email || undefined,
+                }))
+              }
             />
             <Select
               allowClear
@@ -580,7 +683,8 @@ function OrdersPanel({
               current: params.page,
               pageSize: params.page_size,
               total: orders.data?.total,
-              onChange: (page, pageSize) => setParams((current) => ({ ...current, page, page_size: pageSize })),
+              onChange: (page, pageSize) =>
+                setParams((current) => ({ ...current, page, page_size: pageSize })),
             }}
           />
         </OpsQueryState>
@@ -595,16 +699,19 @@ function OrdersPanel({
         onOk={() => void createForm.validateFields().then((values) => create.mutate(values))}
       >
         <Alert type="info" showIcon message={t('litellmops.sales.order.manualCheck')} />
-        <Form
-          form={createForm}
-          layout="vertical"
-          initialValues={{ shop: 'tb4161550' }}
-          style={{ marginTop: 16 }}
-        >
-          <Form.Item name="shop" label={t('litellmops.sales.product.shop')} rules={[{ required: true }]}>
+        <Form form={createForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="shop"
+            label={t('litellmops.sales.product.shop')}
+            rules={[{ required: true }]}
+          >
             <Input autoComplete="off" />
           </Form.Item>
-          <Form.Item name="external_order_id" label={t('litellmops.sales.order.externalId')} rules={[{ required: true, min: 4 }]}>
+          <Form.Item
+            name="external_order_id"
+            label={t('litellmops.sales.order.externalId')}
+            rules={[{ required: true, min: 4 }]}
+          >
             <Input autoComplete="off" />
           </Form.Item>
           <Form.Item name="product_id" label={t('litellmops.sales.order.product')}>
@@ -612,16 +719,26 @@ function OrdersPanel({
               allowClear
               showSearch
               optionFilterProp="label"
-              options={products.filter((product) => product.enabled).map((product) => ({
-                value: product.id,
-                label: `${product.title} · ${formatCnyFen(product.price_cny_fen)} → ${formatUsdMicro(product.credit_usd_micro)}`,
-              }))}
+              options={products
+                .filter((product) => product.enabled)
+                .map((product) => ({
+                  value: product.id,
+                  label: `${product.title} · ${formatCnyFen(product.price_cny_fen)} → ${formatUsdMicro(product.credit_usd_micro)}`,
+                }))}
             />
           </Form.Item>
-          <Form.Item name="user_email" label={t('litellmops.sales.order.email')} rules={[{ required: true, type: 'email' }]}>
+          <Form.Item
+            name="user_email"
+            label={t('litellmops.sales.order.email')}
+            rules={[{ required: true, type: 'email' }]}
+          >
             <Input autoComplete="off" />
           </Form.Item>
-          <Form.Item name="paid_cny" label={t('litellmops.sales.order.paidYuan')} rules={[{ required: true }]}>
+          <Form.Item
+            name="paid_cny"
+            label={t('litellmops.sales.order.paidYuan')}
+            rules={[{ required: true }]}
+          >
             <InputNumber min={0.01} precision={2} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="note" label={t('litellmops.common.note')}>
@@ -639,14 +756,24 @@ function OrdersPanel({
         onOk={() => void matchForm.validateFields().then((values) => match.mutate(values))}
       >
         <Form form={matchForm} layout="vertical">
-          <Form.Item name="product_id" label={t('litellmops.sales.order.product')} rules={[{ required: true }]}>
+          <Form.Item
+            name="product_id"
+            label={t('litellmops.sales.order.product')}
+            rules={[{ required: true }]}
+          >
             <Select
               showSearch
               optionFilterProp="label"
-              options={products.filter((product) => product.enabled).map((product) => ({ value: product.id, label: product.title }))}
+              options={products
+                .filter((product) => product.enabled)
+                .map((product) => ({ value: product.id, label: product.title }))}
             />
           </Form.Item>
-          <Form.Item name="user_email" label={t('litellmops.sales.order.email')} rules={[{ required: true, type: 'email' }]}>
+          <Form.Item
+            name="user_email"
+            label={t('litellmops.sales.order.email')}
+            rules={[{ required: true, type: 'email' }]}
+          >
             <Input autoComplete="off" />
           </Form.Item>
         </Form>
@@ -662,7 +789,11 @@ function OrdersPanel({
       >
         <Alert type="error" showIcon message={t('litellmops.sales.order.refundWarning')} />
         <Form form={refundForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="reason" label={t('litellmops.common.reason')} rules={[{ required: true, min: 4 }]}>
+          <Form.Item
+            name="reason"
+            label={t('litellmops.common.reason')}
+            rules={[{ required: true, min: 4 }]}
+          >
             <Input.TextArea rows={3} maxLength={500} />
           </Form.Item>
         </Form>
@@ -677,7 +808,10 @@ export default function SalesView() {
   const intl = useIntl();
   const t: Translator = (id, values) => intl.formatMessage({ id }, values);
   const { initialState } = useModel('@@initialState') as { initialState?: InitialState };
-  const access = useMemo(() => buildOpsAccess(initialState?.currentUser), [initialState?.currentUser]);
+  const access = useMemo(
+    () => buildOpsAccess(initialState?.currentUser),
+    [initialState?.currentUser],
+  );
   const productQuery = useSalesProducts({ page: 1, page_size: 100 });
 
   if (!access.canReadSales) return <PageForbidden />;
@@ -689,12 +823,18 @@ export default function SalesView() {
           {
             key: 'orders',
             label: t('litellmops.sales.orders'),
-            children: <OrdersPanel access={access} products={productQuery.data?.items ?? []} t={t} />,
+            children: (
+              <OrdersPanel access={access} products={productQuery.data?.items ?? []} t={t} />
+            ),
           },
           {
             key: 'products',
             label: t('litellmops.sales.products'),
-            children: access.canReadProducts ? <ProductPanel canWrite={access.canWriteProducts} t={t} /> : <PageForbidden />,
+            children: access.canReadProducts ? (
+              <ProductPanel canWrite={access.canWriteProducts} t={t} />
+            ) : (
+              <PageForbidden />
+            ),
           },
         ]}
       />

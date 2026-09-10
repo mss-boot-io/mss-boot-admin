@@ -173,9 +173,14 @@ describe('compiled route registry', () => {
 
   it('keeps LiteLLM ops pages visible when the backend menu tree includes them', () => {
     expect(
-      ['/litellm-ops/gateway', '/litellm-ops/users', '/litellm-ops/keys', '/litellm-ops/bills', '/litellm-ops/orgs', '/litellm-ops/sales'].map(
-        (path) => routeRegistry.get(path),
-      ),
+      [
+        '/litellm-ops/gateway',
+        '/litellm-ops/users',
+        '/litellm-ops/keys',
+        '/litellm-ops/bills',
+        '/litellm-ops/orgs',
+        '/litellm-ops/sales',
+      ].map((path) => routeRegistry.get(path)),
     ).toMatchObject([
       { menuName: 'gateway', permission: 'litellmops:gateway-read' },
       { menuName: 'users', permission: 'litellmops:user-list' },

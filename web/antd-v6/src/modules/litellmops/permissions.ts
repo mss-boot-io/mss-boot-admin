@@ -15,7 +15,6 @@ export const opsPermissions = {
   recharge: 'litellmops:recharge',
   orgList: 'litellmops:org-list',
   orgRead: 'litellmops:org-read',
-  orgWrite: 'litellmops:org-write',
   productRead: 'litellmops:product-read',
   productWrite: 'litellmops:product-write',
   orderRead: 'litellmops:order-read',
@@ -26,13 +25,12 @@ export const opsPermissions = {
   orderReconcile: 'litellmops:order-reconcile',
   orderRefundReview: 'litellmops:order-refund-review',
   gatewayRead: 'litellmops:gateway-read',
-  gatewayWrite: 'litellmops:gateway-write',
+  managementResolve: 'litellmops:management-resolve',
 } as const;
 
 export function buildOpsAccess(user?: CurrentUser) {
   return {
     canReadGateway: hasPermission(user, opsPermissions.gatewayRead),
-    canWriteGateway: hasPermission(user, opsPermissions.gatewayWrite),
     canReadUsers: hasPermission(user, opsPermissions.userList),
     canReadUserDetails: hasPermission(user, opsPermissions.userRead),
     canWriteUsers: hasPermission(user, opsPermissions.userWrite),
@@ -46,7 +44,6 @@ export function buildOpsAccess(user?: CurrentUser) {
     canRevokeKeys: hasPermission(user, opsPermissions.keyRevoke),
     canReadOrganizations: hasPermission(user, opsPermissions.orgList),
     canReadOrganizationDetails: hasPermission(user, opsPermissions.orgRead),
-    canWriteOrganizations: hasPermission(user, opsPermissions.orgWrite),
     canReadProducts: hasPermission(user, opsPermissions.productRead),
     canWriteProducts: hasPermission(user, opsPermissions.productWrite),
     canReadSales: hasPermission(user, opsPermissions.orderRead),
@@ -56,5 +53,6 @@ export function buildOpsAccess(user?: CurrentUser) {
     canExecuteSales: hasPermission(user, opsPermissions.orderExecute),
     canReconcileSales: hasPermission(user, opsPermissions.orderReconcile),
     canReviewRefund: hasPermission(user, opsPermissions.orderRefundReview),
+    canResolveManagement: hasPermission(user, opsPermissions.managementResolve),
   };
 }

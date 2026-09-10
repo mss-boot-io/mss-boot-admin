@@ -72,12 +72,6 @@ export function useOrgDetail(id?: string) {
   });
 }
 
-export function useOrgMutation() {
-  const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['litellmops'] });
-  return { invalidate, queryClient };
-}
-
 export function useRechargeMutation() {
   const queryClient = useQueryClient();
   return useMutation({

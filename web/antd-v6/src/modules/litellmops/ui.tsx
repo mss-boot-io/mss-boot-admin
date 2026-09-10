@@ -5,9 +5,9 @@ import {
   PageForbidden,
   PageLoading,
 } from '@mss-admin-core/shared/design-system/PageState';
+import { useIntl } from '@umijs/max';
 import { Alert, Tag } from 'antd';
 import type { ReactNode } from 'react';
-import { useIntl } from '@umijs/max';
 import type { SalesOrderStatus } from './contract';
 
 export function OpsQueryState({
@@ -36,7 +36,9 @@ export function OpsQueryState({
     return <PageError message={getRequestErrorMessage(error)} onRetry={onRetry} />;
   }
   if (empty) {
-    return <PageEmpty description={emptyDescription ?? intl.formatMessage({ id: 'states.empty' })} />;
+    return (
+      <PageEmpty description={emptyDescription ?? intl.formatMessage({ id: 'states.empty' })} />
+    );
   }
   return (
     <>
