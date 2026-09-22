@@ -56,6 +56,14 @@ for (const expected of localeExpectations) {
     await page.goto('/workplace');
     await expect(page.getByText(expected.workplace, { exact: true })).toBeVisible();
     await expect(page.getByText(expected.monitor, { exact: true })).toBeVisible();
+    if (process.env.MSS_V6_WORKPLACE_PROBE === '1') {
+      await expect(page.getByTestId('mss-thin-host-workplace')).toBeVisible();
+      await expect(
+        page
+          .getByTestId('mss-thin-host-workplace')
+          .getByRole('heading', { name: 'Business workplace contribution' }),
+      ).toBeVisible();
+    }
     await expect(page.getByRole('button', { name: expected.switchLanguage })).toBeVisible();
     const logo = page.locator('img[src="/logo.svg"]').first();
     await expect(logo).toBeVisible();

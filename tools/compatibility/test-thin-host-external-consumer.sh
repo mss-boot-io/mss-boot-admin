@@ -992,6 +992,19 @@ func Modules() []business.Module {
 	return []business.Module{compatibilityprobe.Module()}
 }
 ''',
+    'web/src/business/workplace.ts': r'''import { defineWorkplaceContributions } from '@mss-boot-io/admin-web/runtime';
+import WorkplaceProbe from './WorkplaceProbe';
+
+export default defineWorkplaceContributions([
+  { id: 'compatibility-workplace', permission: '/compatibility-probe', component: WorkplaceProbe },
+]);
+''',
+    'web/src/business/WorkplaceProbe.tsx': r'''import type { WorkplaceContext } from '@mss-boot-io/admin-web/runtime';
+
+export default function WorkplaceProbe({ currentUser }: WorkplaceContext) {
+  return <section data-testid="mss-thin-host-workplace"><h2>Business workplace contribution</h2><p>{currentUser.username}</p></section>;
+}
+''',
     'web/src/business/CompatibilityProbe.tsx': r'''export default function CompatibilityProbePage() {
   return (
     <section data-testid="mss-thin-host-handwritten-extension">
@@ -1153,6 +1166,8 @@ second_digest="$(tree_digest "${host_root}")"
 }
 
 handwritten_seam_paths=(
+  web/src/business/workplace.ts
+  web/src/business/WorkplaceProbe.tsx
   internal/modules/custom/modules.go
   web/src/business/locales/en-US.ts
   web/src/business/locales/zh-CN.ts
@@ -2091,6 +2106,7 @@ set +e
   CI=true \
   MSS_V6_EXTERNAL_BACKEND=1 \
   MSS_V6_EXTERNAL_SERVER=1 \
+  MSS_V6_WORKPLACE_PROBE=1 \
   MSS_V6_BASE_URL="${web_origin}" \
   MSS_E2E_API_URL="${web_origin}/admin/api" \
   MSS_E2E_BACKEND_API_URL="${backend_origin}/admin/api" \
