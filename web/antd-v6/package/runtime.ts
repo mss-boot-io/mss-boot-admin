@@ -14,3 +14,5 @@ export {
 } from '../src/shared/design-system/PageState';
 export { queryClient, queryKeys } from '../src/shared/query/client';
 export type { RouteRegistration } from '../src/shared/routes/registry';
+export type { WorkplaceContext, WorkplaceContribution } from '../src/shared/workplace/contract';
+export { defineWorkplaceContributions } from '../src/shared/workplace/contract';

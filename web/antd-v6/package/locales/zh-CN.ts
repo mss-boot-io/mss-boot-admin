@@ -595,6 +595,7 @@ export default {
   'pages.accountSettings.title': '个人设置',
   'pages.workplace.greeting': '欢迎，{name}',
   'pages.workplace.subtitle': '查看当前服务健康状态，快速进入常用工作和个人设置。',
+  'pages.workplace.businessUnavailable': '业务工作区暂时不可用，请刷新后重试。',
   'pages.workplace.quickLinks': '快捷入口',
   'monitor.title': '服务监控',
   'monitor.authorityNotice': '指标来自服务端实际采样；缺失时不会用浏览器估算值代替。',

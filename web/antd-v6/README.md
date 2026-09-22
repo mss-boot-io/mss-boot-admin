@@ -57,3 +57,7 @@ stored. See
 [mss-shop status](../../docs/docs/getting-started/mss-shop.md).
 Repository-source build and publication commands remain contributor-only in
 [`AGENTS.md`](./AGENTS.md) and [`CHANGELOG.md`](./CHANGELOG.md).
+
+## Workplace business content
+
+The proposed compile-time contribution interface is described in [the adopter guide](../../docs/docs/admin/workplace-business-content.md). It is unreleased and preserves the core workplace.

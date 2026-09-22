@@ -630,6 +630,8 @@ export default {
   'pages.accountSettings.title': 'Personal settings',
   'pages.workplace.greeting': 'Welcome, {name}',
   'pages.workplace.subtitle': 'Review service health and open common work or personal settings.',
+  'pages.workplace.businessUnavailable':
+    'This business workspace is unavailable. Refresh to try again.',
   'pages.workplace.quickLinks': 'Quick links',
   'monitor.title': 'Service monitor',
   'monitor.authorityNotice':

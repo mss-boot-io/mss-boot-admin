@@ -9,6 +9,9 @@ export default defineConfig({
       '@mss-admin-business/routes': fileURLToPath(
         new URL('./src/generated/routes.ts', import.meta.url),
       ),
+      '@mss-admin-business/workplace': fileURLToPath(
+        new URL('./package/empty-workplace.ts', import.meta.url),
+      ),
     },
   },
   test: {

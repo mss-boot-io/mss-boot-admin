@@ -1,0 +1,73 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-workplace-contributions
+  displayName: Compile-time business content on the Admin workplace
+  owner: frontend
+  labels:
+    implementation-status: implemented
+    release-status: unreleased
+spec:
+  problem: >-
+    Thin Hosts can register business routes but cannot place owned workflow summaries
+    on the core workplace without copying or replacing a Foundation page.
+  goals:
+    - Add one explicit compile-time contribution module to defineBusinessAdmin.
+    - Preserve the core greeting, quick links, monitoring, route, and authentication.
+    - Hide each contribution without its declared permission and isolate render failures.
+    - Preserve business-owned registrations during generated-host upgrades.
+  nonGoals:
+    - Remote widgets, runtime code loading, route replacement, or authentication overrides.
+    - Release publication or a downstream version change from an unmerged commit.
+  actors:
+    - id: business-author
+      displayName: Thin Host business author
+  modules:
+    - name: admin-web
+      kind: infrastructure
+      operation: extend
+  requirements:
+    - id: owned-workplace-content
+      title: Render authorized business contributions
+      description: Extend the retained core workplace with statically compiled, business-owned content.
+      priority: must
+      actor: business-author
+      module: admin-web
+      rules:
+        - Use the conventional owned contribution module or an explicit build-time module option.
+        - Preserve the core workplace and reject duplicate or unbounded registrations.
+        - Do not mount a contribution without its declared client permission.
+        - Preserve business files during a generated host upgrade.
+  constraints:
+    - id: authorization-boundary
+      type: security
+      statement: Visibility never grants API access, and all business APIs retain backend authorization.
+    - id: release-boundary
+      type: compatibility
+      statement: Existing hosts remain unchanged; downstream deployment requires a qualified official distribution release.
+  acceptance:
+    - id: contribution-contract
+      requirement: owned-workplace-content
+      statement: Registration is bounded and permission-scoped, with isolated render errors and an empty default.
+      level: unit
+      required: true
+      evidence:
+        - type: path
+          value: web/antd-v6/src/shared/workplace/WorkplaceContributions.test.tsx
+        - type: path
+          value: web/antd-v6/tests/workplace-package.test.ts
+    - id: external-consumer
+      requirement: owned-workplace-content
+      statement: A real generated Thin Host preserves its contribution through upgrade and renders it from the installed package.
+      level: e2e
+      required: true
+      evidence:
+        - type: command
+          value: bash tools/compatibility/test-thin-host-external-consumer.sh
+  validation:
+    changed: go run ./cmd/mss verify --changed
+    all: go run ./cmd/mss verify --all
+  rollout:
+    strategy: direct
+    migration: No database changes; adopt through the coordinated distribution upgrade after an official release.
+    rollback: Remove the business-owned registration to restore the original workplace without altering core files.

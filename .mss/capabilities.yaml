@@ -9,6 +9,21 @@ spec:
     legacy: maintained for compatibility, not recommended for new modules
     planned: part of the approved roadmap but not yet implemented
   capabilities:
+    - id: frontend.workplace-contributions
+      displayName: Compile-time Workplace Business Content
+      status: beta
+      owners: [frontend, security]
+      paths:
+        - .mss/features/admin-workplace-contributions.yaml
+        - web/antd-v6/src/shared/workplace
+        - web/antd-v6/package/business.d.ts
+        - docs/docs/admin/workplace-business-content.md
+      guidance: >-
+        Unreleased: not present in published v1.3.7. A reviewed future distribution
+        permits a bounded business-owned workplace registration module at compile time.
+        Preserve the core workplace, declare each visibility permission, keep API
+        authorization on the backend, and qualify the installed external Thin Host.
+
     - id: frontend.ant-design-v6
       displayName: Independent Ant Design 6 Admin Application
       status: beta

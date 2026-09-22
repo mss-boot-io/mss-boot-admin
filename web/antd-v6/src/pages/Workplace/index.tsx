@@ -11,6 +11,7 @@ import MonitorOverview from '@mss-admin-core/modules/monitor/MonitorOverview';
 import { hasPermission } from '@mss-admin-core/shared/auth/access';
 import type { InitialState } from '@mss-admin-core/shared/auth/types';
 import { PageContainer } from '@mss-admin-core/shared/design-system/PageContainer';
+import { WorkplaceContributions } from '@mss-admin-core/shared/workplace/WorkplaceContributions';
 import { Link, useIntl, useModel } from '@umijs/max';
 import { Avatar, Button, Col, Row, Space, Tag, Typography } from 'antd';
 
@@ -83,6 +84,7 @@ export default function WorkplacePage() {
       extra={currentUser?.role?.name ? <Tag color="blue">{currentUser.role.name}</Tag> : undefined}
       title={intl.formatMessage({ id: 'pages.workplace.greeting' }, { name: displayName })}
     >
+      <WorkplaceContributions />
       <ProCard
         className="mb-4"
         title={intl.formatMessage({ id: 'pages.workplace.quickLinks' })}

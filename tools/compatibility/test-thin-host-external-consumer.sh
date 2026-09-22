@@ -992,6 +992,24 @@ func Modules() []business.Module {
 	return []business.Module{compatibilityprobe.Module()}
 }
 ''',
+    'web/src/business/workplace.ts': r'''import { defineWorkplaceContributions } from '@mss-boot-io/admin-web/runtime';
+import WorkplaceProbe from './WorkplaceProbe';
+
+export default defineWorkplaceContributions([
+  { id: 'compatibility-workplace', permission: '/compatibility-probe', component: WorkplaceProbe },
+]);
+''',
+    'web/src/business/WorkplaceProbe.tsx': r'''import type { WorkplaceContext } from '@mss-boot-io/admin-web/runtime';
+
+export default function WorkplaceProbe({ currentUser }: WorkplaceContext) {
+  return (
+    <section data-testid="mss-thin-host-workplace">
+      <h2>Business workplace contribution</h2>
+      <p>{currentUser.username}</p>
+    </section>
+  );
+}
+''',
     'web/src/business/CompatibilityProbe.tsx': r'''export default function CompatibilityProbePage() {
   return (
     <section data-testid="mss-thin-host-handwritten-extension">
@@ -1159,9 +1177,10 @@ handwritten_seam_paths=(
   web/src/business/routes.config.ts
   web/src/business/route-registrations.ts
 )
+workplace_owned_paths=(web/src/business/workplace.ts web/src/business/WorkplaceProbe.tsx)
 
 handwritten_seam_digests() {
-  python3 - "${host_root}" "${handwritten_seam_paths[@]}" <<'PY'
+  python3 - "${host_root}" "${handwritten_seam_paths[@]}" "${workplace_owned_paths[@]}" <<'PY'
 import hashlib
 import json
 import sys
@@ -1200,6 +1219,16 @@ assert_upgrade_preserves_handwritten_seams() {
        (.preservedFiles | index($path)) != null' \
       "${plan_path}" >/dev/null || {
       echo "${phase} Thin Host upgrade did not preserve ${relative}" >&2
+      exit 1
+    }
+  done
+  # New business files are not managed template changes. They must remain in the
+  # explicit preservation inventory, with no upgrade action targeting them.
+  for relative in "${workplace_owned_paths[@]}"; do
+    jq -e --arg path "${relative}" \
+      '([.changes[] | select(.path == $path)] | length) == 0 and (.preservedFiles | index($path)) != null' \
+      "${plan_path}" >/dev/null || {
+      echo "${phase} Thin Host upgrade targeted workplace-owned content" >&2
       exit 1
     }
   done
@@ -2091,6 +2120,7 @@ set +e
   CI=true \
   MSS_V6_EXTERNAL_BACKEND=1 \
   MSS_V6_EXTERNAL_SERVER=1 \
+  MSS_V6_WORKPLACE_PROBE=1 \
   MSS_V6_BASE_URL="${web_origin}" \
   MSS_E2E_API_URL="${web_origin}/admin/api" \
   MSS_E2E_BACKEND_API_URL="${backend_origin}/admin/api" \

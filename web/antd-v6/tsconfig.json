@@ -19,6 +19,7 @@
       "@/*": ["./src/*"],
       "@mss-admin-core/*": ["./src/*"],
       "@mss-admin-business/routes": ["./src/generated/routes.ts"],
+      "@mss-admin-business/workplace": ["./package/empty-workplace.ts"],
       "@@/*": ["./src/.umi/*"],
       "@@test/*": ["./src/.umi-test/*"]
     }

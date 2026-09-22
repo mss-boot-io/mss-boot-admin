@@ -11,6 +11,7 @@ export interface BusinessAdminOptions {
   apiTarget?: string;
   businessRoutes?: AdminBusinessRoute[];
   routeRegistrations?: string;
+  workplaceContributions?: string;
   useUtoopack?: boolean;
 }
 

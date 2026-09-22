@@ -50,8 +50,10 @@ web-v6-build` or `go run ./cmd/mss verify --changed`.
 - Public package imports use only declared `exports`. Do not expose `./src/*`,
   redirect a Thin Host's `@` alias, or require consumers to copy core pages,
   patches, configuration, or `src/shared`.
-- Core source uses `@mss-admin-core`; `@mss-admin-business/routes` is the only
-  generated menu-registration bridge. Business routes and registrations must
+- Core source uses `@mss-admin-core`; `@mss-admin-business/routes` is the
+  generated menu-registration bridge. `@mss-admin-business/workplace` is the
+  compile-time workplace contribution bridge; neither permits core replacement.
+  Business routes and registrations must
   be injected together before the 403/404 fallbacks.
 
 React Query owns server state. Umi initial state contains only verified identity

@@ -7,6 +7,7 @@ const packageRoot = resolve(__dirname, '..');
 const packageSourceRoot = resolve(packageRoot, 'src');
 const packageManifest = require('../package.json');
 const emptyRegistrations = resolve(__dirname, 'empty-route-registrations.ts');
+const emptyWorkplace = resolve(__dirname, 'empty-workplace.ts');
 const environment = process.env.UMI_ENV || 'dev';
 const browserQualification = process.env.MSS_V6_E2E === '1';
 
@@ -56,6 +57,12 @@ function validateBusinessAdminOptions(options) {
   if (options.businessRoutes !== undefined && !Array.isArray(options.businessRoutes)) {
     throw new TypeError('Admin Web businessRoutes must be an array.');
   }
+  if (
+    options.workplaceContributions !== undefined &&
+    (typeof options.workplaceContributions !== 'string' || !options.workplaceContributions.trim())
+  ) {
+    throw new TypeError('workplaceContributions must name a compile-time module.');
+  }
 }
 
 function defineBusinessAdmin(options = {}) {
@@ -73,6 +80,12 @@ function defineBusinessAdmin(options = {}) {
     businessRoutes: options.businessRoutes || [],
     pagesRoot: resolve(packageRoot, 'src/pages'),
   });
+  const ownedWorkplace = resolve(process.cwd(), 'src/business/workplace.ts');
+  const workplaceContributions = options.workplaceContributions
+    ? resolve(process.cwd(), options.workplaceContributions)
+    : existsSync(ownedWorkplace)
+      ? ownedWorkplace
+      : emptyWorkplace;
   const hasPostCSSConfig = ['postcss.config.cjs', 'postcss.config.js', 'postcss.config.mjs'].some(
     (name) => existsSync(resolve(process.cwd(), name)),
   );
@@ -83,10 +96,12 @@ function defineBusinessAdmin(options = {}) {
     mssAdmin: {
       packageRoot,
       routeRegistrations,
+      workplaceContributions,
     },
     alias: {
       '@mss-admin-core': resolve(packageRoot, 'src'),
       '@mss-admin-business/routes': routeRegistrations,
+      '@mss-admin-business/workplace': workplaceContributions,
       '@root': packageRoot,
       tailwindcss: tailwindStyles,
     },
