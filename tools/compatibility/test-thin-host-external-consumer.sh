@@ -1002,7 +1002,12 @@ export default defineWorkplaceContributions([
     'web/src/business/WorkplaceProbe.tsx': r'''import type { WorkplaceContext } from '@mss-boot-io/admin-web/runtime';
 
 export default function WorkplaceProbe({ currentUser }: WorkplaceContext) {
-  return <section data-testid="mss-thin-host-workplace"><h2>Business workplace contribution</h2><p>{currentUser.username}</p></section>;
+  return (
+    <section data-testid="mss-thin-host-workplace">
+      <h2>Business workplace contribution</h2>
+      <p>{currentUser.username}</p>
+    </section>
+  );
 }
 ''',
     'web/src/business/CompatibilityProbe.tsx': r'''export default function CompatibilityProbePage() {
