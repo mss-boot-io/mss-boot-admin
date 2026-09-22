@@ -1,0 +1,26 @@
+apiVersion: mss.io/v1alpha1
+kind: Feature
+metadata:
+  name: admin-workplace-contributions
+  displayName: Compile-time business content on the Admin workplace
+  owner: frontend
+  labels:
+    implementation-status: in-progress
+    release-status: unreleased
+spec:
+  problem: >-
+    Thin Hosts can register business routes but cannot place owned workflow summaries
+    on the core workplace without copying or replacing a Foundation page.
+  goals:
+    - Add one explicit compile-time contribution module to defineBusinessAdmin.
+    - Preserve the core greeting, quick links, monitoring, route, and authentication.
+    - Hide each contribution without its declared permission and isolate render failures.
+    - Preserve business-owned registrations during generated-host upgrades.
+  nonGoals:
+    - Remote widgets, runtime code loading, route replacement, or authentication overrides.
+    - Release publication or a downstream version change from an unmerged commit.
+  acceptance:
+    - No contributions retains the current reference workplace.
+    - Authorized contributions render in declaration order; unauthorized components never mount.
+    - One failed contribution does not hide other contributions or core content.
+    - An external Thin Host installs the packed package, registers a contribution, and builds.

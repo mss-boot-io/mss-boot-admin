@@ -5,6 +5,7 @@ const { dirname, relative, resolve } = require('node:path');
 const packageRoot = resolve(__dirname, '..');
 const coreSource = resolve(packageRoot, 'src');
 const emptyRegistrations = resolve(__dirname, 'empty-route-registrations.ts');
+const emptyWorkplace = resolve(__dirname, 'empty-workplace.ts');
 const externalGlobal = resolve(__dirname, 'external-global.ts');
 const logo = resolve(packageRoot, 'public/logo.svg');
 const tailwindSource = resolve(coreSource, 'tailwind.css');
@@ -19,6 +20,7 @@ module.exports = function mssAdminPlugin(api) {
           .object({
             packageRoot: zod.string(),
             routeRegistrations: zod.string(),
+            workplaceContributions: zod.string(),
           })
           .partial();
       },
@@ -28,6 +30,7 @@ module.exports = function mssAdminPlugin(api) {
 
   api.modifyConfig((memo) => {
     const registrations = resolve(api.cwd, memo.mssAdmin?.routeRegistrations || emptyRegistrations);
+    const workplace = resolve(api.cwd, memo.mssAdmin?.workplaceContributions || emptyWorkplace);
     const includes = new Set([...(memo.extraBabelIncludes || []), coreSource]);
     return {
       ...memo,
@@ -35,6 +38,7 @@ module.exports = function mssAdminPlugin(api) {
         ...(memo.alias || {}),
         '@mss-admin-core': coreSource,
         '@mss-admin-business/routes': registrations,
+        '@mss-admin-business/workplace': workplace,
       },
       extraBabelIncludes: [...includes],
     };
@@ -53,6 +57,9 @@ module.exports = function mssAdminPlugin(api) {
           ...(memo.compilerOptions?.paths || {}),
           '@mss-admin-core/*': [`${coreSource}/*`],
           '@mss-admin-business/routes': [registrations],
+          '@mss-admin-business/workplace': [
+            resolve(api.cwd, api.config.mssAdmin?.workplaceContributions || emptyWorkplace),
+          ],
         },
       },
     };
@@ -117,6 +124,12 @@ module.exports = function mssAdminPlugin(api) {
       api.cwd,
       api.config.mssAdmin?.routeRegistrations || emptyRegistrations,
     );
-    return [coreSource, registrations, tailwindSource].filter((entry) => existsSync(entry));
+    const workplace = resolve(
+      api.cwd,
+      api.config.mssAdmin?.workplaceContributions || emptyWorkplace,
+    );
+    return [coreSource, registrations, workplace, tailwindSource].filter((entry) =>
+      existsSync(entry),
+    );
   });
 };

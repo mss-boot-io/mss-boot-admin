@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
 const projectRoot = process.cwd();
+const ownedWorkplace = `${projectRoot}/src/business/workplace.ts`;
 const managedRouteRegistrations = `${projectRoot}/src/route-registrations.ts`;
 const generatedRouteRegistrations = `${projectRoot}/src/generated/routes.ts`;
 const routeRegistrations = existsSync(managedRouteRegistrations)
@@ -13,6 +14,12 @@ const routeRegistrations = existsSync(managedRouteRegistrations)
 export default defineConfig({
   resolve: {
     alias: [
+      {
+        find: '@mss-admin-business/workplace',
+        replacement: existsSync(ownedWorkplace)
+          ? ownedWorkplace
+          : `${packageRoot}/package/empty-workplace.ts`,
+      },
       {
         find: '@mss-admin-business/routes',
         replacement: routeRegistrations,
