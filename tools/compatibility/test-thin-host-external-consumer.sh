@@ -1166,17 +1166,16 @@ second_digest="$(tree_digest "${host_root}")"
 }
 
 handwritten_seam_paths=(
-  web/src/business/workplace.ts
-  web/src/business/WorkplaceProbe.tsx
   internal/modules/custom/modules.go
   web/src/business/locales/en-US.ts
   web/src/business/locales/zh-CN.ts
   web/src/business/routes.config.ts
   web/src/business/route-registrations.ts
 )
+workplace_owned_paths=(web/src/business/workplace.ts web/src/business/WorkplaceProbe.tsx)
 
 handwritten_seam_digests() {
-  python3 - "${host_root}" "${handwritten_seam_paths[@]}" <<'PY'
+  python3 - "${host_root}" "${handwritten_seam_paths[@]}" "${workplace_owned_paths[@]}" <<'PY'
 import hashlib
 import json
 import sys
@@ -1215,6 +1214,16 @@ assert_upgrade_preserves_handwritten_seams() {
        (.preservedFiles | index($path)) != null' \
       "${plan_path}" >/dev/null || {
       echo "${phase} Thin Host upgrade did not preserve ${relative}" >&2
+      exit 1
+    }
+  done
+  # New business files are not managed template changes. They must remain in the
+  # explicit preservation inventory, with no upgrade action targeting them.
+  for relative in "${workplace_owned_paths[@]}"; do
+    jq -e --arg path "${relative}" \
+      '([.changes[] | select(.path == $path)] | length) == 0 and (.preservedFiles | index($path)) != null' \
+      "${plan_path}" >/dev/null || {
+      echo "${phase} Thin Host upgrade targeted workplace-owned content" >&2
       exit 1
     }
   done
