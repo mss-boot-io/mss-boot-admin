@@ -69,11 +69,11 @@
     }
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.2",
-    "@commitlint/config-conventional": "^21.2.2",
-    "dumi": "^2.4.49",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "dumi": "^2.4.50",
     "husky": "^9.1.7",
-    "lint-staged": "^17.3.0",
-    "prettier": "^3.9.6"
+    "lint-staged": "^17.5.1",
+    "prettier": "^3.9.8"
   }
 }
